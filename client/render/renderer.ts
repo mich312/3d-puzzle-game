@@ -75,6 +75,18 @@ export class Renderer {
 
   get quality(): QualityTier { return this.q.tier; }
 
+  /** active graphics backend + GPU string, for the settings readout */
+  rendererInfo(): { api: string; gpu: string } {
+    const ctx = this.gl.getContext();
+    const api = (typeof WebGL2RenderingContext !== 'undefined' && ctx instanceof WebGL2RenderingContext) ? 'WebGL2' : 'WebGL';
+    let gpu = 'unknown GPU';
+    try {
+      const dbg = ctx.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) gpu = String(ctx.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
+    } catch { /* privacy-blocked */ }
+    return { api, gpu };
+  }
+
   setQuality(tier: QualityTier) {
     this.q = QUALITY[tier];
     localStorage.setItem('t-quality', tier);

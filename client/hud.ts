@@ -371,6 +371,13 @@ export class Hud {
     this.$('#loadout').style.display = 'block';
     this.panelOpen = true;
   }
+  private graphicsInfo = { api: 'detecting…', webgpu: '' };
+  setGraphicsInfo(api: string, webgpu: string) {
+    this.graphicsInfo = { api, webgpu };
+    const el = this.root.querySelector('#gpu-readout');
+    if (el) el.innerHTML = `Rendering: <b>${esc(this.graphicsInfo.api)}</b><br/>WebGPU: ${esc(this.graphicsInfo.webgpu)}`;
+  }
+
   showMenu(inLevel: boolean) {
     const c = this.$('#menu-content');
     const s = this.settings;
@@ -396,7 +403,8 @@ export class Hud {
         <button id="mn-invite">Copy invite link</button>
         ${inLevel ? '<button id="mn-beacon">Raise help beacon</button><button id="mn-reset">Reset level</button><button id="mn-leave">Return to Nexus</button>' : ''}
       </div>
-      <p style="opacity:0.55;font-size:12px;margin-top:14px">Guest progress is saved in this browser. Every co-op level is beatable by two players with the starter Pulse — devices, items and skills open extra solo routes.</p>
+      <p id="gpu-readout" style="opacity:0.6;font-size:12px;margin-top:14px;line-height:1.5">Rendering: <b>${esc(this.graphicsInfo.api)}</b><br/>WebGPU: ${esc(this.graphicsInfo.webgpu)}</p>
+      <p style="opacity:0.5;font-size:12px;margin-top:8px">Guest progress is saved in this browser. Every co-op level is beatable by two players with the starter Pulse — devices, items and skills open extra solo routes.</p>
     `;
     const upd = () => {
       s.sensitivity = Number((c.querySelector('#st-sens') as HTMLInputElement).value);

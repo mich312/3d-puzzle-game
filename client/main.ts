@@ -1,6 +1,7 @@
 // THRESHOLD client entry: wires renderer, world, controller, net, HUD, audio.
 import * as THREE from 'three';
 import { Renderer } from './render/renderer';
+import { detectWebGPU } from './render/gpu';
 import { World } from './world';
 import { PlayerController } from './player';
 import { Peers, Enemies, Echoes, Pings } from './entities';
@@ -83,6 +84,14 @@ function start(name: string) {
   started = true;
   renderer = new Renderer(document.getElementById('app')!);
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
+  // report the active backend + whether WebGPU is available on this machine
+  const ri = renderer.rendererInfo();
+  hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, 'checking WebGPU…');
+  detectWebGPU().then((info) => {
+    const line = info.webgpu ? `available (${info.adapter})` : `not available — ${info.reason}`;
+    hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, line);
+    console.log(`[gpu] rendering on ${ri.api} (${ri.gpu}); WebGPU: ${info.webgpu ? 'available — ' + info.adapter : 'no (' + info.reason + ')'}`);
+  });
   controller = new PlayerController(() => world?.colliders ?? []);
   controller.attach(renderer.canvas);
   peers = new Peers(renderer.scene, () => playerId, renderer.lights);
