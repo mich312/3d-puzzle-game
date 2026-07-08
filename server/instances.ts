@@ -711,7 +711,7 @@ export class LevelInstance extends Instance {
       if (st.filled) continue;
       for (const b of this.bodies.values()) {
         if (b.holders.length || b.docked) continue;
-        if ((b.id === it.accepts || b.kind === it.accepts) && v3.dist(b.pos, it.pos) < 1.3) {
+        if ((b.id === it.accepts || b.kind === it.accepts) && v3.dist(b.pos, it.pos) < 1.6) {
           b.docked = it.id;
           b.pos = [it.pos[0], it.pos[1] + b.half + 0.15, it.pos[2]];
           b.vel = [0, 0, 0];

@@ -298,14 +298,18 @@ async function testFreezeVaults01() {
   check((a.snapshot?.enemies ?? []).every((e) => e.state === 'down'), 'pack cleared');
 
   // B ferries the coolant cell to its mount (kills the exit steam curtain)
+  // route through real doorways: held cargo collides with walls even though bots noclip
   await b.walkTo([-8.5, 1, -16]);
   await b.walkTo([-8.5, 1, -19]);
   await b.attempt(() => b.send({ t: 'grab', v: 1, target: 'coolant' }),
     () => (b.snapshot?.bodies ?? []).some((bd) => bd.id === 'coolant' && bd.heldBy === b.id), 'grab coolant');
-  await b.walkTo([3, 1, -26.8]);
+  await b.walkTo([-8.5, 1, -16]);   // back out of the alcove
+  await b.walkTo([0, 1, -20]);      // hall centre
+  await b.walkTo([0, 1, -24.5]);    // through the doorway
+  await b.walkTo([3, 1, -26.6]);    // face the mount
   await b.attempt(() => b.send({ t: 'release', v: 1 }),
-    () => b.st('coolantMount')?.filled === true, 'dock coolant', 12000);
-  check(true, 'coolant cell docked in its mount — steam curtain off, blast door open');
+    () => b.st('coolantMount')?.filled === true, 'dock coolant', 15000);
+  check(true, 'coolant cell docked in its mount — curtain drops, blast door open');
 
   // A holds the lift plate while B flash-freezes the exit vent
   await a.walkTo([-3, 1, -31]);

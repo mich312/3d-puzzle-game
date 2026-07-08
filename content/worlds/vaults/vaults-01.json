@@ -17,7 +17,7 @@
   },
   "requiresDevice": [],
   "grantsDevice": "freeze",
-  "designNotes": "Grab the Freeze Ray; one player freezes the steam fountain into a climb-block while the other races up to the ledge lever to lower the drawbridge for both; freeze-shatter the drifter pack, ferry the coolant cell to its mount to kill the exit-hall steam curtain, then one holds the lift plate while the other flash-freezes the exit vent to solve.",
+  "designNotes": "Grab the Freeze Ray; one player freezes the steam fountain into a climb-block while the other races up to the ledge lever to lower the drawbridge for both; freeze-shatter the drifter pack, ferry the coolant cell to its mount to drop the steam curtain sealing the final chamber, then one holds the lift plate while the other flash-freezes the exit vent to solve.",
   "intro": "The Ray is yours at the pedestal. Freeze the vault's breath to climb it \u2014 then freeze what breathes.",
   "fog": {
     "color": "#2c2848",
@@ -601,7 +601,7 @@
       "pos": [
         0,
         1.5,
-        -25.5
+        -29.8
       ],
       "size": [
         3.6,

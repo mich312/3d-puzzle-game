@@ -24,7 +24,7 @@ export class Viewmodel {
       new THREE.MeshStandardMaterial({ color: '#8c87a8', roughness: 0.35, metalness: 0.8 }));
     this.emitterTip = new THREE.Mesh(
       new THREE.CylinderGeometry(0.028, 0.04, 0.09, 10),
-      new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffd98a', emissiveIntensity: 2 }));
+      new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffd98a', emissiveIntensity: 0.9 }));
     this.emitterTip.rotation.x = Math.PI / 2;
     this.emitterTip.position.z = -0.18;
     this.ring = new THREE.Mesh(
@@ -71,7 +71,7 @@ export class Viewmodel {
       -0.28 + bob - this.swapT * 0.25,
       -0.62 + kick * 0.09);
     this.group.rotation.x = kick * 0.22 - this.swapT * 0.6;
-    (this.ring.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.5 + Math.sin(this.time * 3) * 0.4 + kick * 3;
-    this.glow.intensity = 0.5 + kick * 1.6;
+    (this.ring.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.8 + Math.sin(this.time * 3) * 0.25 + kick * 2;
+    this.glow.intensity = 0.35 + kick * 1.4;
   }
 }
