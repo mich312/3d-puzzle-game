@@ -4,6 +4,9 @@ import { createRenderer, type RendererPref } from './render/create';
 import { detectWebGPU } from './render/gpu';
 import type { IRenderer } from './render/api';
 import { setRenderBackend } from './render/materials';
+import { installDiag, showDiag } from './diag';
+
+installDiag();   // capture console/window errors from boot onward (for the WebGPU overlay)
 import { World } from './world';
 import { PlayerController } from './player';
 import { Peers, Enemies, Echoes, Pings } from './entities';
@@ -98,6 +101,7 @@ async function start(name: string) {
   hud.settings.renderer = renderer.backend === 'webgpu' ? 'webgpu' : 'webgl2';
   // report the active backend + whether WebGPU is available on this machine
   const ri = renderer.rendererInfo();
+  if (renderer.backend === 'webgpu') showDiag(`rendering: ${ri.api} · ${ri.gpu}`);
   hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, renderer.backend === 'webgpu' ? 'active' : 'checking…');
   if (fallback) hud.toast(fallback, 'warn');
   detectWebGPU().then((info) => {

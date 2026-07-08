@@ -8,12 +8,16 @@
 //   - the ray-marched projectile (GLSL ShaderMaterial → sprite fallback on WebGPU)
 // Built behind an opt-in toggle with automatic WebGL2 fallback (create.ts).
 import * as THREE from 'three';
-import { WebGPURenderer } from 'three/webgpu';
+import {
+  WebGPURenderer,
+  PointLightNode, DirectionalLightNode, HemisphereLightNode, AmbientLightNode,
+} from 'three/webgpu';
 import { WORLD_PALETTES } from '../../shared/palette';
 import { makeSky } from './sky';
 import { DynamicLights } from './lights';
 import { QUALITY, type QualityTier, type QualitySpec } from './quality';
 import type { HeroFloor, IRenderer } from './api';
+import { diagLog } from '../diag';
 
 export class WebGPURendererImpl implements IRenderer {
   readonly backend = 'webgpu' as const;
@@ -36,23 +40,19 @@ export class WebGPURendererImpl implements IRenderer {
     this.gl = new WebGPURenderer({ antialias: true });
     this.gl.setSize(innerWidth, innerHeight);
     this.gl.setPixelRatio(Math.min(devicePixelRatio, this.q.pixelRatioCap));
-    this.gl.shadowMap.enabled = true;
-    this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
+    // shadows off on WebGPU for now — the shadow pass is a common source of a
+    // render-aborting validation error on the node renderer; add back once verified
+    this.gl.shadowMap.enabled = false;
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
     this.gl.toneMappingExposure = 1.05;
     this.canvas = this.gl.domElement;
     container.appendChild(this.canvas);
 
-    this.hemi = new THREE.HemisphereLight('#6b5b95', '#3a3550', 0.55);
-    this.key = new THREE.DirectionalLight('#cfc4ff', 1.1);
+    this.hemi = new THREE.HemisphereLight('#6b5b95', '#3a3550', 0.7);
+    this.key = new THREE.DirectionalLight('#cfc4ff', 1.3);
     this.key.position.set(18, 30, 12);
-    this.key.castShadow = true;
-    this.key.shadow.mapSize.set(this.q.shadowMap, this.q.shadowMap);
-    this.key.shadow.camera.left = -60; this.key.shadow.camera.right = 60;
-    this.key.shadow.camera.top = 60; this.key.shadow.camera.bottom = -60;
-    this.key.shadow.camera.far = 120;
-    this.key.shadow.bias = -0.0004;
-    this.ambient = new THREE.AmbientLight('#ffffff', 0.12);   // slightly higher — no bloom lift yet
+    this.key.castShadow = false;
+    this.ambient = new THREE.AmbientLight('#ffffff', 0.15);   // small lift — no bloom yet
     this.scene.add(this.hemi, this.key, this.key.target, this.ambient);
 
     this.lights = new DynamicLights(this.scene, this.q.lightBudget);
@@ -68,6 +68,15 @@ export class WebGPURendererImpl implements IRenderer {
   static async create(container: HTMLElement, tier: QualityTier): Promise<WebGPURendererImpl> {
     const r = new WebGPURendererImpl(container, tier);
     await r.gl.init();
+    // Our scene is built with the classic `three` build; WebGPURenderer comes from
+    // `three/webgpu` (a separate copy). Its node system matches LIGHTS by class
+    // identity, so our light instances are strangers to it → "Light node not found".
+    // Register our light classes against the node classes to bridge the two builds.
+    // (Materials are matched by type string, so they already resolve.)
+    r.gl.library.addLight(PointLightNode, THREE.PointLight);
+    r.gl.library.addLight(DirectionalLightNode, THREE.DirectionalLight);
+    r.gl.library.addLight(HemisphereLightNode, THREE.HemisphereLight);
+    r.gl.library.addLight(AmbientLightNode, THREE.AmbientLight);
     try {
       const info = (r.gl as unknown as { backend?: { adapter?: { info?: Record<string, string> } } }).backend?.adapter?.info;
       if (info) r.adapterInfo = [info.vendor, info.architecture, info.description].filter(Boolean).join(' ') || 'WebGPU';
@@ -85,7 +94,6 @@ export class WebGPURendererImpl implements IRenderer {
     this.q = QUALITY[tier];
     localStorage.setItem('t-quality', tier);
     this.gl.setPixelRatio(Math.min(devicePixelRatio, this.q.pixelRatioCap));
-    this.key.shadow.mapSize.set(this.q.shadowMap, this.q.shadowMap);
     this.lights.setBudget(this.q.lightBudget);
   }
 
@@ -112,7 +120,6 @@ export class WebGPURendererImpl implements IRenderer {
   }
 
   followShadow(target: THREE.Vector3) {
-    this.key.position.set(target.x + 18, target.y + 30, target.z + 12);
     this.key.target.position.copy(target);
     if (this.sky) this.sky.position.copy(target);
   }
@@ -122,8 +129,11 @@ export class WebGPURendererImpl implements IRenderer {
     this.lights.update(dt, cameraPos);
   }
 
+  private reported = false;
   render() {
-    // WebGPU submits asynchronously; fire-and-forget keeps the sync rAF loop simple
-    void this.gl.renderAsync(this.scene, this.camera);
+    // WebGPU submits asynchronously; surface the first render error to the overlay
+    this.gl.renderAsync(this.scene, this.camera).catch((e) => {
+      if (!this.reported) { this.reported = true; diagLog('renderAsync: ' + String(e).slice(0, 260)); }
+    });
   }
 }
