@@ -43,7 +43,7 @@ export class Renderer {
 
     this.composer = new EffectComposer(this.gl);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.4, 0.6);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.4, 0.68);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;

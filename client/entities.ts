@@ -10,6 +10,7 @@ class PeerAvatar {
   group = new THREE.Group();
   target = new THREE.Vector3();
   targetYaw = 0;
+  downed = false;
   hpBar: THREE.Sprite;
   body: THREE.Mesh;
   downedLight: THREE.PointLight;
@@ -44,6 +45,7 @@ class PeerAvatar {
     this.targetYaw = snap.yaw;
     setBar(this.hpBar, snap.hp / 100);
     const downed = snap.state === 'downed';
+    this.downed = downed;
     this.downedLight.intensity = downed ? 3 : 0;
     (this.body.material as THREE.MeshStandardMaterial).emissive.set(downed ? PALETTE.hostile : this.accent);
     this.body.rotation.x = downed ? Math.PI / 2 : 0;

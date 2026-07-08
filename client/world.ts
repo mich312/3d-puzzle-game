@@ -83,7 +83,8 @@ export class World {
   // ---------- construction ----------
   private build() {
     this.level.geometry.forEach((g, i) => {
-      const mat = getMaterial(g.material, g.color, g.emissive, g.emissiveIntensity ?? 1);
+      // cap emissive so set-piece crystals glow without blowing out the bloom pass
+      const mat = getMaterial(g.material, g.color, g.emissive, Math.min(g.emissiveIntensity ?? 1, 1.5));
       let geo: THREE.BufferGeometry;
       if (g.shape === 'cylinder') geo = new THREE.CylinderGeometry(g.size[0], g.size[0], g.size[1], 24);
       else { geo = new THREE.BoxGeometry(...g.size); applyWorldUV(geo, g.size); }
@@ -348,10 +349,19 @@ export class World {
           break;
         }
         case 'collectible': {
-          const gem = vis.getObjectByName('gem');
+          const gem = vis.getObjectByName('gem') as THREE.Mesh | undefined;
           const collected = !!st.collected;
-          vis.visible = !collected && (!it.hidden || this.phaseSight);
-          if (gem) { gem.rotation.y += dt * 1.5; gem.position.y = 0.35 + Math.sin(this.time * 2.2) * 0.12; }
+          vis.visible = !collected;
+          if (gem) {
+            gem.rotation.y += dt * 1.5;
+            gem.position.y = 0.35 + Math.sin(this.time * 2.2) * 0.12;
+            // hidden items are a faint glimmer without Phase Sight, unmissable with it
+            const dim = it.hidden && !this.phaseSight;
+            gem.scale.setScalar(dim ? 0.45 : 1);
+            (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = dim ? 0.35 : 1.4;
+            const light = vis.children.find((c) => c instanceof THREE.PointLight) as THREE.PointLight | undefined;
+            if (light) light.intensity = dim ? 0.15 : 1.2;
+          }
           break;
         }
         case 'socket': {

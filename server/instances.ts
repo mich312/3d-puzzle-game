@@ -46,6 +46,9 @@ export class PlayerSession {
   reviveTargetId?: string;
   reviveStartAt = 0;
   tractor?: { targetId: string; aim: Vec3 };
+  /** fixed portals only fire once the player has been >2.2m away — prevents
+      spawn-adjacent portals from instantly bouncing a fresh joiner back */
+  armedPortals = new Set<string>();
   portalCooldownUntil = 0;
   ignoreMovesUntil = 0;
   lastToastAt = 0;
@@ -107,7 +110,9 @@ export class LobbyInstance extends Instance {
     for (const p of this.players.values()) {
       if (Date.now() < p.portalCooldownUntil) continue;
       for (const portal of nexus?.portals ?? []) {
-        if (v3.dist(p.pos, portal.pos) < 1.4) {
+        const d = v3.dist(p.pos, portal.pos);
+        if (d > 2.2) { p.armedPortals.add(portal.id); continue; }
+        if (d < 1.4 && p.armedPortals.has(portal.id)) {
           const gate = portal.requiresShards ?? 0;
           if (p.profile.shards.length < gate) {
             if (Date.now() - p.lastToastAt > 2500) {
@@ -235,6 +240,7 @@ export class LevelInstance extends Instance {
     }
     p.pos = pos; p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined;
     p.lastCheckpoint = -1; p.ignoreMovesUntil = Date.now() + 500; p.portalCooldownUntil = Date.now() + 1500;
+    p.armedPortals.clear();
     if (this.level.grantsDevice && !p.profile.devices.includes(this.level.grantsDevice)) {
       p.profile.devices.push(this.level.grantsDevice);
       this.mgr.store.saveProfile(p.profile);
@@ -349,7 +355,7 @@ export class LevelInstance extends Instance {
 
   // ----- devices -----
   fire(p: PlayerSession, msg: Extract<ClientMsg, { t: 'fire' }>) {
-    if (p.state === 'downed' || this.solved && false) return;
+    if (p.state === 'downed') return;
     const dev = DEVICES[msg.device];
     if (!dev || !p.profile.devices.includes(msg.device)) return;
     const now = Date.now();
@@ -639,7 +645,7 @@ export class LevelInstance extends Instance {
           p.pos[1] + 0.9 > it.pos[1] - it.size[1] / 2 && p.pos[1] < it.pos[1] + it.size[1] / 2 &&
           Math.abs(p.pos[2] - it.pos[2]) < it.size[2] / 2;
         if (!inside) continue;
-        if (it.kind === 'void') { this.damagePlayer(p.id, 12, it.id); this.respawnIfAlive(p); }
+        if (it.kind === 'void') { this.damagePlayer(p.id, 12, it.id); this.respawn(p); }
         else this.damagePlayer(p.id, (it.dps ?? 20) * dt, it.id);
       }
     }
@@ -700,8 +706,6 @@ export class LevelInstance extends Instance {
 
     this.broadcast({ t: 'snap', v: 1, s: this.tickSnapshot() });
   }
-
-  respawnIfAlive(p: PlayerSession) { if (p.state === 'alive') this.respawn(p); }
 
   stepBeams() {
     const emitters = [...this.inter.values()].filter((i) => i.type === 'emitter');
@@ -778,7 +782,9 @@ export class LevelInstance extends Instance {
   stepFixedPortals(p: PlayerSession) {
     if (Date.now() < p.portalCooldownUntil || p.state === 'downed') return;
     for (const portal of this.level.portals ?? []) {
-      if (v3.dist(p.pos, portal.pos) > 1.4) continue;
+      const d = v3.dist(p.pos, portal.pos);
+      if (d > 2.2) { p.armedPortals.add(portal.id); continue; }
+      if (d > 1.4 || !p.armedPortals.has(portal.id)) continue;
       if (portal.requiresSolved && !this.solved) {
         if (Date.now() - p.lastToastAt > 2500) { p.lastToastAt = Date.now(); p.toast('The Threshold is still sealed.', 'warn'); }
         continue;
@@ -920,6 +926,7 @@ export class GameServer {
     p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.tractor = undefined; p.echo = undefined;
     p.portalCooldownUntil = Date.now() + 1500;
     p.ignoreMovesUntil = Date.now() + 500;
+    p.armedPortals.clear();
     lobby.players.set(p.id, p);
     const snap = lobby.snapshot();
     snap.level = nexus;

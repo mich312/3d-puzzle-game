@@ -79,6 +79,14 @@ function start(name: string) {
   bindInput();
   renderer.canvas.requestPointerLock?.();
   requestAnimationFrame(loop);
+  // dev console hook (also used by the visual test rig)
+  (window as unknown as Record<string, unknown>).__threshold = {
+    enterLevel: (id: string) => net.send({ t: 'enter_level', v: 1, level: id }),
+    leave: () => net.send({ t: 'leave_level', v: 1 }),
+    pos: () => [controller.pos.x, controller.pos.y, controller.pos.z],
+    warp: (x: number, y: number, z: number) => controller.teleport([x, y, z]),
+    look: (yaw: number, pitch = 0) => { controller.yaw = yaw; controller.pitch = pitch; },
+  };
 }
 
 // ---------- message handling ----------
@@ -459,8 +467,7 @@ function scanFocus(): Focus | null {
   const p = controller.pos;
   // downed peers first
   for (const [id, a] of peers.entries()) {
-    const pos = a.group.position;
-    if ((a as unknown as { body: THREE.Mesh }).body.rotation.x > 1 && pos.distanceTo(p) < (profile.skills.includes('field-medic') ? 4 : 2.5)) {
+    if (a.downed && a.group.position.distanceTo(p) < (profile.skills.includes('field-medic') ? 4 : 2.5)) {
       return { kind: 'revive', id, label: `<b>Hold E</b> — revive partner` };
     }
   }
@@ -474,7 +481,7 @@ function scanFocus(): Focus | null {
     const st = world.states.get(it.id) ?? {};
     if (it.type === 'lever') { best = { kind: 'interact', id: it.id, label: '<b>E</b> — pull the lever' }; bestD = d; }
     else if (it.type === 'rotator') { best = { kind: 'interact', id: it.id, label: '<b>E</b> — turn the wheel' }; bestD = d; }
-    else if (it.type === 'collectible' && !st.collected && (!it.hidden || world.phaseSight)) {
+    else if (it.type === 'collectible' && !st.collected) {
       best = { kind: 'pickup', id: it.id, label: `<b>E</b> — take the ${esc(it.grants)}` }; bestD = d;
     } else if (it.type === 'socket' && !st.filled && profile.inventory.includes(it.accepts)) {
       best = { kind: 'socket', id: it.id, label: `<b>E</b> — slot the ${esc(it.accepts)}` }; bestD = d;
