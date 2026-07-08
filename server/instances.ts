@@ -656,6 +656,9 @@ export class LevelInstance extends Instance {
         const fz = hs.reduce((s, h) => s - Math.cos(h.yaw), 0) / hs.length;
         const desired: Vec3 = [cx + fx * 1.2, cy + 1.0, cz + fz * 1.2];
         this.sweepBodyTo(b, desired, 0.8);
+        // carried objects that snag on corners ghost back to the carrier's hands
+        // (standard carry QoL — release position still collides, so no wall-stuffing)
+        if (v3.dist(b.pos, desired) > 3) b.pos = [...desired] as Vec3;
         b.vel = [0, 0, 0];
         b.resting = false;
         continue;
