@@ -109,7 +109,7 @@ export class LobbyInstance extends Instance {
     return {
       instanceId: this.id, kind: 'lobby',
       levelId: 'nexus',
-      players: [...this.players.values()].map((p) => p.snap()),
+      players: this.present().map((p) => p.snap()),
       beacons: this.mgr.beaconList(),
       serverTime: Date.now(),
     };
@@ -294,7 +294,7 @@ export class LevelInstance extends Instance {
     for (const [id, st] of this.states) states[id] = st;
     return {
       instanceId: this.id, kind: 'level', levelId: this.level.id, level: this.level,
-      players: [...this.players.values()].map((p) => p.snap()),
+      players: this.present().map((p) => p.snap()),
       enemies: this.enemySnaps(), bodies: this.bodySnaps(), states,
       portalsPlaced: this.placements, solved: this.solved, serverTime: Date.now(),
     };
@@ -937,7 +937,7 @@ export class LevelInstance extends Instance {
   tickSnapshot(): InstanceSnapshot {
     return {
       instanceId: this.id, kind: 'level', levelId: this.level.id,
-      players: [...this.players.values()].map((p) => p.snap()),
+      players: this.present().map((p) => p.snap()),
       enemies: this.enemySnaps(), bodies: this.bodySnaps(),
       portalsPlaced: this.placements, solved: this.solved, serverTime: Date.now(),
     };
