@@ -74,9 +74,13 @@ class Bot {
     await this.until(() => !!this.id, 'welcome');
     await this.until(() => !!this.snapshot, 'joined lobby');
   }
-  /** teleport-free walk: move in small legal steps (server rejects >12m jumps) */
+  /** teleport-free walk: move in small legal steps (server rejects >12m jumps).
+      Aborts if a portal/transfer changes the level mid-walk — the target
+      coordinates belong to the old level. */
   async walkTo(p: Vec3) {
+    const startLevel = this.levelId;
     for (let guard = 0; guard < 200; guard++) {
+      if (this.levelId !== startLevel) return;
       const dx = p[0] - this.pos[0], dy = p[1] - this.pos[1], dz = p[2] - this.pos[2];
       const d = Math.hypot(dx, dy, dz);
       if (d < 0.4) return;
