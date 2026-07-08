@@ -1,7 +1,8 @@
 // THRESHOLD client entry: wires renderer, world, controller, net, HUD, audio.
 import * as THREE from 'three';
-import { Renderer } from './render/renderer';
+import { createRenderer, type RendererPref } from './render/create';
 import { detectWebGPU } from './render/gpu';
+import type { IRenderer } from './render/api';
 import { World } from './world';
 import { PlayerController } from './player';
 import { Peers, Enemies, Echoes, Pings } from './entities';
@@ -19,7 +20,7 @@ import { PALETTE } from '../shared/palette';
 
 const TOTAL_SHARDS = 11;
 
-let renderer: Renderer;
+let renderer: IRenderer;
 let world: World | null = null;
 let controller: PlayerController;
 let peers: Peers;
@@ -53,7 +54,7 @@ let reviveHideTimer: ReturnType<typeof setTimeout> | undefined;
 let started = false;
 
 const hud = new Hud({
-  onStart(name) { start(name); },
+  onStart(name) { start(name).catch((e) => { console.error('[boot] renderer failed:', e); hud.toast('Renderer failed to start — see console.', 'warn'); }); },
   onEquip(d) { rig.equipped = d; net.send({ t: 'equip', v: 1, device: d }); refreshDeviceBar(); },
   onUnlockSkill(s) { net.send({ t: 'unlock_skill', v: 1, skill: s }); },
   onRespec() { net.send({ t: 'respec', v: 1 }); },
@@ -76,19 +77,31 @@ function applySettings() {
       renderer.setQuality(s.quality);
       projectiles?.setQuality(renderer.q.projectileLights);
     }
+    // switching graphics API rebuilds the renderer at boot — persist + prompt reload
+    const activePref = renderer.backend === 'webgpu' ? 'webgpu' : 'webgl2';
+    if (s.renderer !== activePref) {
+      localStorage.setItem('t-renderer', s.renderer);
+      hud.toast(`Graphics API set to ${s.renderer === 'webgpu' ? 'WebGPU' : 'WebGL2'} — reload the page to apply.`, 'info');
+    }
   }
   net?.send({ t: 'set_opts', v: 1, difficulty: s.difficulty });
 }
 
-function start(name: string) {
+async function start(name: string) {
   started = true;
-  renderer = new Renderer(document.getElementById('app')!);
+  const pref = (localStorage.getItem('t-renderer') ?? 'webgl2') as RendererPref;
+  const { renderer: r, fallback } = await createRenderer(document.getElementById('app')!, pref);
+  renderer = r;
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
+  hud.settings.renderer = renderer.backend === 'webgpu' ? 'webgpu' : 'webgl2';
   // report the active backend + whether WebGPU is available on this machine
   const ri = renderer.rendererInfo();
-  hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, 'checking WebGPU…');
+  hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, renderer.backend === 'webgpu' ? 'active' : 'checking…');
+  if (fallback) hud.toast(fallback, 'warn');
   detectWebGPU().then((info) => {
-    const line = info.webgpu ? `available (${info.adapter})` : `not available — ${info.reason}`;
+    const line = renderer.backend === 'webgpu'
+      ? `active (${info.adapter ?? ri.gpu})`
+      : info.webgpu ? `available (${info.adapter}) — enable in settings` : `not available — ${info.reason}`;
     hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, line);
     console.log(`[gpu] rendering on ${ri.api} (${ri.gpu}); WebGPU: ${info.webgpu ? 'available — ' + info.adapter : 'no (' + info.reason + ')'}`);
   });
@@ -99,7 +112,7 @@ function start(name: string) {
   echoes = new Echoes(renderer.scene);
   pings = new Pings(renderer.scene);
   particles = new Particles(renderer.scene);
-  projectiles = new Projectiles(renderer.scene, particles, renderer.lights);
+  projectiles = new Projectiles(renderer.scene, particles, renderer.lights, renderer.backend === 'webgpu');
   projectiles.setQuality(renderer.q.projectileLights);
   viewmodel = new Viewmodel(renderer.camera);
   renderer.scene.add(renderer.camera);       // camera must be in-scene to carry the viewmodel

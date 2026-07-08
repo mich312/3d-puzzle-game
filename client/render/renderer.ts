@@ -11,10 +11,12 @@ import { makeSky } from './sky';
 import { DynamicLights } from './lights';
 import { makeReflectiveFloor, type ReflectiveFloor } from './reflector';
 import { QUALITY, autoQuality, type QualityTier, type QualitySpec } from './quality';
+import type { HeroFloor, IRenderer } from './api';
 
-export interface HeroFloor { y: number; size: number; tint: string; shape: 'circle' | 'plane' }
+export type { HeroFloor } from './api';   // back-compat: world.ts imports HeroFloor from here
 
-export class Renderer {
+export class Renderer implements IRenderer {
+  readonly backend = 'webgl2' as const;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly canvas: HTMLCanvasElement;

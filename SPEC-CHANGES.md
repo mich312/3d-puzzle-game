@@ -6,14 +6,25 @@ divergences, each with the reasoning. Everything not listed here is implemented 
 strictly-co-op protected tier, downed/revive/checkpoints, shard progression, help
 beacons, guest persistence, reconnection, telemetry, softlock protection).
 
-## 1. Renderer: WebGL2-first (WebGPU-ready), not WebGPU-first
-Three.js `WebGLRenderer` with the full intended look — normal-mapped PBR, ACES
-tone-mapping, bloom, per-world fog/lighting scripts. The renderer sits behind
-`client/render/renderer.ts` so a `WebGPURenderer` swap stays a boot-time change.
-**Why:** WebGL2 runs everywhere today (including this project's own headless test rig);
-WebGPU + TSL in three still churns API-wise. Shipping look > shipping API. The *material*
-strategy the spec wanted (tiling procedural normals, no unique bakes) is exactly what's
-implemented — generated at runtime from seeded noise, zero asset files.
+## 1. Renderer: WebGL2 default + opt-in WebGPU (behind a fallback)
+Three.js `WebGLRenderer` is the default and carries the full intended look —
+normal-mapped PBR, ACES tone-mapping, bloom, planar mirror floors, per-world
+fog/lighting. Both backends now sit behind an `IRenderer` interface
+(`client/render/api.ts`); `create.ts` picks one at boot from the saved preference
+with **automatic fallback to WebGL2** if WebGPU is unavailable or init fails.
+
+A **WebGPU backend** (`client/render/webgpu.ts`, three's `WebGPURenderer`) is
+selectable in Settings → Graphics API (experimental). It is dynamically imported so
+WebGL2 users never bundle it (~548 KB split chunk). This first WebGPU pass renders a
+correct base image — scene, lights, shadows, ACES, sky, fog — with these deferred to
+a follow-up (all need TSL/node ports, done once verified on real WebGPU hardware):
+bloom post, planar mirror floors, and the GLSL ray-marched projectile (which falls
+back to an additive glow sprite on WebGPU). **Why staged:** WebGPU can't be validated
+in this project's headless test sandbox (no Dawn/Vulkan backend — `navigator.gpu` is
+absent), so the untestable surface is kept minimal and strictly opt-in; the tested
+WebGL2 path is the default and remains unchanged. The *material* strategy (tiling
+procedural normals, no unique bakes, generated at runtime from seeded noise) is
+backend-agnostic.
 
 ## 2. Physics: custom shared AABB collision, not Rapier WASM
 `shared/collision.ts` is used by both the server (authoritative bodies, beams, hit

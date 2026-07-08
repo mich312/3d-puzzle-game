@@ -21,6 +21,7 @@ export interface HudSettings {
   sensitivity: number; master: number; music: number; sfx: number;
   difficulty: 'normal' | 'story'; reduceMotion: boolean;
   quality: 'low' | 'medium' | 'high';
+  renderer: 'webgl2' | 'webgpu';
 }
 
 const CSS = `
@@ -131,6 +132,7 @@ export class Hud {
     difficulty: (localStorage.getItem('t-diff') ?? 'normal') as 'normal' | 'story',
     reduceMotion: localStorage.getItem('t-motion') === '1',
     quality: (localStorage.getItem('t-quality') ?? 'medium') as 'low' | 'medium' | 'high',
+    renderer: (localStorage.getItem('t-renderer') ?? 'webgl2') as 'webgl2' | 'webgpu',
   };
 
   constructor(cb: HudCallbacks) {
@@ -397,6 +399,11 @@ export class Hud {
           <option value="medium" ${s.quality === 'medium' ? 'selected' : ''}>Medium — reflections, lights</option>
           <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High — full effects</option>
         </select></label>
+      <label>Graphics API
+        <select id="st-renderer" style="background:#221f38;color:#e8e4f0;border:1px solid #555;padding:4px 8px;border-radius:6px">
+          <option value="webgl2" ${s.renderer === 'webgl2' ? 'selected' : ''}>WebGL2 (stable)</option>
+          <option value="webgpu" ${s.renderer === 'webgpu' ? 'selected' : ''}>WebGPU (experimental)</option>
+        </select></label>
       <label>Reduce motion <input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''}/></label>
       <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
         <button id="mn-resume">Resume</button>
@@ -413,6 +420,7 @@ export class Hud {
       s.sfx = Number((c.querySelector('#st-sfx') as HTMLInputElement).value);
       s.difficulty = (c.querySelector('#st-diff') as HTMLSelectElement).value as 'normal' | 'story';
       s.quality = (c.querySelector('#st-quality') as HTMLSelectElement).value as 'low' | 'medium' | 'high';
+      s.renderer = (c.querySelector('#st-renderer') as HTMLSelectElement).value as 'webgl2' | 'webgpu';
       s.reduceMotion = (c.querySelector('#st-motion') as HTMLInputElement).checked;
       localStorage.setItem('t-sens', String(s.sensitivity));
       localStorage.setItem('t-master', String(s.master));
