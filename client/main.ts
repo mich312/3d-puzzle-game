@@ -154,6 +154,11 @@ function handleMsg(msg: ServerMsg) {
       }
       if (s.beacons) hud.setBeacons(s.beacons, !inLevel);
       updateRoster(s.players);
+      const self = s.players.find((p) => p.id === playerId);
+      if (self && Math.abs(self.hp - selfHp) > 0.5 && self.state === 'alive') {
+        selfHp = self.hp;
+        hud.setHealth(selfHp, selfDowned);
+      }
       break;
     }
     case 'peer_joined': hud.toast(`${msg.player.name} stepped through.`); break;
