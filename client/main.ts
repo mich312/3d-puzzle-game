@@ -1,12 +1,6 @@
 // THRESHOLD client entry: wires renderer, world, controller, net, HUD, audio.
 import * as THREE from 'three';
-import { createRenderer, type RendererPref } from './render/create';
-import { detectWebGPU } from './render/gpu';
-import type { IRenderer } from './render/api';
-import { setRenderBackend } from './render/materials';
-import { installDiag, showDiag } from './diag';
-
-installDiag();   // capture console/window errors from boot onward (for the WebGPU overlay)
+import { Renderer } from './render/renderer';
 import { World } from './world';
 import { PlayerController } from './player';
 import { Peers, Enemies, Echoes, Pings } from './entities';
@@ -24,7 +18,7 @@ import { PALETTE } from '../shared/palette';
 
 const TOTAL_SHARDS = 11;
 
-let renderer: IRenderer;
+let renderer: Renderer;
 let world: World | null = null;
 let controller: PlayerController;
 let peers: Peers;
@@ -58,7 +52,7 @@ let reviveHideTimer: ReturnType<typeof setTimeout> | undefined;
 let started = false;
 
 const hud = new Hud({
-  onStart(name) { start(name).catch((e) => { console.error('[boot] renderer failed:', e); hud.toast('Renderer failed to start — see console.', 'warn'); }); },
+  onStart(name) { start(name); },
   onEquip(d) { rig.equipped = d; net.send({ t: 'equip', v: 1, device: d }); refreshDeviceBar(); },
   onUnlockSkill(s) { net.send({ t: 'unlock_skill', v: 1, skill: s }); },
   onRespec() { net.send({ t: 'respec', v: 1 }); },
@@ -81,36 +75,14 @@ function applySettings() {
       renderer.setQuality(s.quality);
       projectiles?.setQuality(renderer.q.projectileLights);
     }
-    // switching graphics API rebuilds the renderer at boot — persist + prompt reload
-    const activePref = renderer.backend === 'webgpu' ? 'webgpu' : 'webgl2';
-    if (s.renderer !== activePref) {
-      localStorage.setItem('t-renderer', s.renderer);
-      hud.toast(`Graphics API set to ${s.renderer === 'webgpu' ? 'WebGPU' : 'WebGL2'} — reload the page to apply.`, 'info');
-    }
   }
   net?.send({ t: 'set_opts', v: 1, difficulty: s.difficulty });
 }
 
-async function start(name: string) {
+function start(name: string) {
   started = true;
-  const pref = (localStorage.getItem('t-renderer') ?? 'webgl2') as RendererPref;
-  const { renderer: r, fallback } = await createRenderer(document.getElementById('app')!, pref);
-  renderer = r;
-  setRenderBackend(renderer.backend);        // WebGPU: build materials without tangent-dependent normal maps
+  renderer = new Renderer(document.getElementById('app')!);
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
-  hud.settings.renderer = renderer.backend === 'webgpu' ? 'webgpu' : 'webgl2';
-  // report the active backend + whether WebGPU is available on this machine
-  const ri = renderer.rendererInfo();
-  if (renderer.backend === 'webgpu') showDiag(`rendering: ${ri.api} · ${ri.gpu}`);
-  hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, renderer.backend === 'webgpu' ? 'active' : 'checking…');
-  if (fallback) hud.toast(fallback, 'warn');
-  detectWebGPU().then((info) => {
-    const line = renderer.backend === 'webgpu'
-      ? `active (${info.adapter ?? ri.gpu})`
-      : info.webgpu ? `available (${info.adapter}) — enable in settings` : `not available — ${info.reason}`;
-    hud.setGraphicsInfo(`${ri.api} · ${ri.gpu}`, line);
-    console.log(`[gpu] rendering on ${ri.api} (${ri.gpu}); WebGPU: ${info.webgpu ? 'available — ' + info.adapter : 'no (' + info.reason + ')'}`);
-  });
   controller = new PlayerController(() => world?.colliders ?? []);
   controller.attach(renderer.canvas);
   peers = new Peers(renderer.scene, () => playerId, renderer.lights);
@@ -118,7 +90,7 @@ async function start(name: string) {
   echoes = new Echoes(renderer.scene);
   pings = new Pings(renderer.scene);
   particles = new Particles(renderer.scene);
-  projectiles = new Projectiles(renderer.scene, particles, renderer.lights, renderer.backend === 'webgpu');
+  projectiles = new Projectiles(renderer.scene, particles, renderer.lights);
   projectiles.setQuality(renderer.q.projectileLights);
   viewmodel = new Viewmodel(renderer.camera);
   renderer.scene.add(renderer.camera);       // camera must be in-scene to carry the viewmodel

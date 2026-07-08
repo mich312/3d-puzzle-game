@@ -21,7 +21,6 @@ export interface HudSettings {
   sensitivity: number; master: number; music: number; sfx: number;
   difficulty: 'normal' | 'story'; reduceMotion: boolean;
   quality: 'low' | 'medium' | 'high';
-  renderer: 'webgl2' | 'webgpu';
 }
 
 const CSS = `
@@ -132,7 +131,6 @@ export class Hud {
     difficulty: (localStorage.getItem('t-diff') ?? 'normal') as 'normal' | 'story',
     reduceMotion: localStorage.getItem('t-motion') === '1',
     quality: (localStorage.getItem('t-quality') ?? 'medium') as 'low' | 'medium' | 'high',
-    renderer: (localStorage.getItem('t-renderer') ?? 'webgl2') as 'webgl2' | 'webgpu',
   };
 
   constructor(cb: HudCallbacks) {
@@ -373,13 +371,6 @@ export class Hud {
     this.$('#loadout').style.display = 'block';
     this.panelOpen = true;
   }
-  private graphicsInfo = { api: 'detecting…', webgpu: '' };
-  setGraphicsInfo(api: string, webgpu: string) {
-    this.graphicsInfo = { api, webgpu };
-    const el = this.root.querySelector('#gpu-readout');
-    if (el) el.innerHTML = `Rendering: <b>${esc(this.graphicsInfo.api)}</b><br/>WebGPU: ${esc(this.graphicsInfo.webgpu)}`;
-  }
-
   showMenu(inLevel: boolean) {
     const c = this.$('#menu-content');
     const s = this.settings;
@@ -399,19 +390,13 @@ export class Hud {
           <option value="medium" ${s.quality === 'medium' ? 'selected' : ''}>Medium — reflections, lights</option>
           <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High — full effects</option>
         </select></label>
-      <label>Graphics API
-        <select id="st-renderer" style="background:#221f38;color:#e8e4f0;border:1px solid #555;padding:4px 8px;border-radius:6px">
-          <option value="webgl2" ${s.renderer === 'webgl2' ? 'selected' : ''}>WebGL2 (stable)</option>
-          <option value="webgpu" ${s.renderer === 'webgpu' ? 'selected' : ''}>WebGPU (experimental)</option>
-        </select></label>
       <label>Reduce motion <input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''}/></label>
       <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
         <button id="mn-resume">Resume</button>
         <button id="mn-invite">Copy invite link</button>
         ${inLevel ? '<button id="mn-beacon">Raise help beacon</button><button id="mn-reset">Reset level</button><button id="mn-leave">Return to Nexus</button>' : ''}
       </div>
-      <p id="gpu-readout" style="opacity:0.6;font-size:12px;margin-top:14px;line-height:1.5">Rendering: <b>${esc(this.graphicsInfo.api)}</b><br/>WebGPU: ${esc(this.graphicsInfo.webgpu)}</p>
-      <p style="opacity:0.5;font-size:12px;margin-top:8px">Guest progress is saved in this browser. Every co-op level is beatable by two players with the starter Pulse — devices, items and skills open extra solo routes.</p>
+      <p style="opacity:0.5;font-size:12px;margin-top:14px">Guest progress is saved in this browser. Every co-op level is beatable by two players with the starter Pulse — devices, items and skills open extra solo routes.</p>
     `;
     const upd = () => {
       s.sensitivity = Number((c.querySelector('#st-sens') as HTMLInputElement).value);
@@ -420,7 +405,6 @@ export class Hud {
       s.sfx = Number((c.querySelector('#st-sfx') as HTMLInputElement).value);
       s.difficulty = (c.querySelector('#st-diff') as HTMLSelectElement).value as 'normal' | 'story';
       s.quality = (c.querySelector('#st-quality') as HTMLSelectElement).value as 'low' | 'medium' | 'high';
-      s.renderer = (c.querySelector('#st-renderer') as HTMLSelectElement).value as 'webgl2' | 'webgpu';
       s.reduceMotion = (c.querySelector('#st-motion') as HTMLInputElement).checked;
       localStorage.setItem('t-sens', String(s.sensitivity));
       localStorage.setItem('t-master', String(s.master));

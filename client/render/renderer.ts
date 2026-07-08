@@ -1,6 +1,6 @@
 // Renderer behind a thin interface (spec §10): WebGL2 + PBR + bloom post stack,
 // a budgeted dynamic-light pool, and quality-tiered heavy effects (planar mirror
-// floors, tuned bloom). WebGPU-ready: swap the factory here later.
+// floors, tuned bloom).
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -11,12 +11,10 @@ import { makeSky } from './sky';
 import { DynamicLights } from './lights';
 import { makeReflectiveFloor, type ReflectiveFloor } from './reflector';
 import { QUALITY, autoQuality, type QualityTier, type QualitySpec } from './quality';
-import type { HeroFloor, IRenderer } from './api';
 
-export type { HeroFloor } from './api';   // back-compat: world.ts imports HeroFloor from here
+export interface HeroFloor { y: number; size: number; tint: string; shape: 'circle' | 'plane' }
 
-export class Renderer implements IRenderer {
-  readonly backend = 'webgl2' as const;
+export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly canvas: HTMLCanvasElement;
@@ -76,18 +74,6 @@ export class Renderer implements IRenderer {
   }
 
   get quality(): QualityTier { return this.q.tier; }
-
-  /** active graphics backend + GPU string, for the settings readout */
-  rendererInfo(): { api: string; gpu: string } {
-    const ctx = this.gl.getContext();
-    const api = (typeof WebGL2RenderingContext !== 'undefined' && ctx instanceof WebGL2RenderingContext) ? 'WebGL2' : 'WebGL';
-    let gpu = 'unknown GPU';
-    try {
-      const dbg = ctx.getExtension('WEBGL_debug_renderer_info');
-      if (dbg) gpu = String(ctx.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
-    } catch { /* privacy-blocked */ }
-    return { api, gpu };
-  }
 
   setQuality(tier: QualityTier) {
     this.q = QUALITY[tier];
