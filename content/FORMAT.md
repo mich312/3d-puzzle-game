@@ -38,7 +38,7 @@ Levels are JSON files in `content/worlds/<world>/<id>.json`, typed by `shared/le
 | `switch` | `latched` (default true; else momentary 3 s) — activated by a **Pulse shot** | `<id>.on` |
 | `carryable` | `mass:"light"\|"heavy"` (heavy needs 2 players grabbing, or Quick-Carry skill, or Tractor) , `kind` cosmetic | — |
 | `collectible` | `grants:"<item>"`, `hidden` (true = shimmer only via Phase Sight) | `<id>.collected` |
-| `socket` | `accepts:"<item>"` — use_item slots a carried item in | `<id>.filled` |
+| `socket` | `accepts:"<x>"` — filled by an inventory item (use_item) OR by setting down a carryable whose id/kind matches within 1.3m (docking) | `<id>.filled` |
 | `emitter` | `dir:[x,y,z]` — traces a light beam, blocked by geometry/doors | — |
 | `receiver` | lit when a beam reaches it | `<id>.lit` |
 | `hazard` | `kind:"steam"\|"void"\|"spark"`, `freezable`, `dps` (default 20) | `<id>.frozen` |

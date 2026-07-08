@@ -150,6 +150,7 @@ interface Body {
   mass: 'light' | 'heavy'; kind: string; holders: string[];
   half: number;              // half-extent of the cube (collision)
   resting: boolean;
+  docked?: string;           // socket id this body is seated in (locks it in place)
 }
 
 interface PortalPlacement { owner: string; slot: 0 | 1; pos: Vec3; normal: Vec3 }
@@ -357,7 +358,7 @@ export class LevelInstance extends Instance {
   grab(p: PlayerSession, targetId: string) {
     if (p.state === 'downed' || p.carrying) return;
     const b = this.bodies.get(targetId);
-    if (!b || v3.dist(p.pos, b.pos) > 3) return;
+    if (!b || b.docked || v3.dist(p.pos, b.pos) > 3) return;
     if (b.holders.includes(p.id)) return;
     if (b.mass === 'heavy' && b.holders.length === 0 && !p.hasSkill('quick-carry')) {
       // first grabber "braces" it — needs a second player (shared-carry) unless Quick Carry
@@ -638,6 +639,7 @@ export class LevelInstance extends Instance {
     // held bodies follow holders; loose bodies simulate; tractor moves targets —
     // ALL body motion now goes through collision sweeps (no more clipping walls)
     for (const b of this.bodies.values()) {
+      if (b.docked) continue;                    // seated in a socket — inert
       b.holders = b.holders.filter((h) => {
         const holder = this.players.get(h);
         return holder?.state === 'alive' && holder.connected;
@@ -696,6 +698,25 @@ export class LevelInstance extends Instance {
         if (l > 0.5) {
           const pull = e.def.twoRole ? 0 : DEVICE_COMBAT.tractorPullForce * 0.55;   // colossus: exposes core, doesn't move
           e.pos = v3.add(e.pos, v3.scale(v3.norm([d[0], 0, d[2]]), Math.min(l, pull * dt)));
+        }
+      }
+    }
+
+    // socket docking: an unheld carryable matching `accepts`, set down within
+    // reach, seats itself and fills the socket (physical ferrying — the tractor
+    // and shared-carry paths both end here)
+    for (const it of this.inter.values()) {
+      if (it.type !== 'socket') continue;
+      const st = this.states.get(it.id)!;
+      if (st.filled) continue;
+      for (const b of this.bodies.values()) {
+        if (b.holders.length || b.docked) continue;
+        if ((b.id === it.accepts || b.kind === it.accepts) && v3.dist(b.pos, it.pos) < 1.3) {
+          b.docked = it.id;
+          b.pos = [it.pos[0], it.pos[1] + b.half + 0.15, it.pos[2]];
+          b.vel = [0, 0, 0];
+          this.setState(it.id, { filled: true });
+          break;
         }
       }
     }

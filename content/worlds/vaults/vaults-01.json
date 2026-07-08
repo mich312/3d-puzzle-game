@@ -3,79 +3,1263 @@
   "id": "vaults-01",
   "name": "Cold Store",
   "world": "vaults",
-  "coop": "solo",
-  "dependency": ["asymmetric-ability"],
-  "encounters": ["environmental-kill"],
-  "players": { "min": 1, "max": 4 },
+  "coop": "co-op-required",
+  "dependency": [
+    "asymmetric-ability",
+    "simultaneity"
+  ],
+  "encounters": [
+    "environmental-kill"
+  ],
+  "players": {
+    "min": 2,
+    "max": 4
+  },
   "requiresDevice": [],
   "grantsDevice": "freeze",
-  "intro": "The Ray is yours at the pedestal. Freeze the breath of the vault — then freeze what breathes.",
-  "fog": { "color": "#2c2848", "density": 0.034 },
-  "spawns": { "entry": [0, 1, 7] },
-  "checkpoints": [[0, 1, 7], [0, 1, -12], [0, 1, -24], [0, 1, -32]],
+  "designNotes": "Grab the Freeze Ray; one player freezes the steam fountain into a climb-block while the other races up to the ledge lever to lower the drawbridge for both; freeze-shatter the drifter pack, ferry the coolant cell to its mount to kill the exit-hall steam curtain, then one holds the lift plate while the other flash-freezes the exit vent to solve.",
+  "intro": "The Ray is yours at the pedestal. Freeze the vault's breath to climb it \u2014 then freeze what breathes.",
+  "fog": {
+    "color": "#2c2848",
+    "density": 0.034
+  },
+  "spawns": {
+    "entry": [
+      0,
+      1,
+      9
+    ]
+  },
+  "checkpoints": [
+    [
+      0,
+      1,
+      9
+    ],
+    [
+      0,
+      1,
+      -4
+    ],
+    [
+      0,
+      1,
+      -19
+    ],
+    [
+      0,
+      1,
+      -28
+    ]
+  ],
   "geometry": [
-    { "shape": "box", "pos": [0, -0.5, 4], "size": [10, 1, 12], "material": "stone" },
-    { "shape": "box", "pos": [0, 2, 10], "size": [10, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [-5, 2, 4], "size": [1, 4, 12], "material": "stone" },
-    { "shape": "box", "pos": [5, 2, 4], "size": [1, 4, 12], "material": "stone" },
-    { "shape": "box", "pos": [-3.5, 2, -2], "size": [3, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [3.5, 2, -2], "size": [3, 4, 1], "material": "stone" },
-    { "shape": "cylinder", "pos": [0, 0.25, 4], "size": [1, 0.5, 1], "material": "metal" },
-    { "shape": "cylinder", "pos": [0, 1.1, 4], "size": [0.5, 1.6, 0.5], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 1.4 },
-    { "shape": "box", "pos": [0, 2.1, 4], "size": [0.9, 0.35, 0.9], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 2.0, "collider": false },
-
-    { "shape": "box", "pos": [0, -0.5, -8], "size": [4, 1, 12], "material": "metal" },
-    { "shape": "box", "pos": [-2, 2, -8], "size": [1, 4, 12], "material": "metal" },
-    { "shape": "box", "pos": [2, 2, -8], "size": [1, 4, 12], "material": "metal" },
-    { "shape": "box", "pos": [0, 4.4, -8], "size": [4, 0.2, 12], "material": "metal", "emissive": "#8f86d8", "emissiveIntensity": 0.4, "collider": false },
-
-    { "shape": "box", "pos": [0, -0.5, -20], "size": [12, 1, 12], "material": "stone" },
-    { "shape": "box", "pos": [-4, 2, -14], "size": [4, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [4, 2, -14], "size": [4, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [-6, 2, -20], "size": [1, 4, 12], "material": "stone" },
-    { "shape": "box", "pos": [6, 2, -20], "size": [1, 4, 12], "material": "stone" },
-    { "shape": "box", "pos": [-4, 2, -26], "size": [4, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [4, 2, -26], "size": [4, 4, 1], "material": "stone" },
-    { "shape": "cylinder", "pos": [-4.5, 2, -17], "size": [0.5, 4, 0.5], "material": "metal" },
-    { "shape": "cylinder", "pos": [4.5, 2, -17], "size": [0.5, 4, 0.5], "material": "metal" },
-    { "shape": "cylinder", "pos": [-4.5, 2, -23], "size": [0.5, 4, 0.5], "material": "metal" },
-    { "shape": "cylinder", "pos": [4.5, 2, -23], "size": [0.5, 4, 0.5], "material": "metal" },
-
-    { "shape": "box", "pos": [0, -0.5, -32], "size": [10, 1, 12], "material": "stone" },
-    { "shape": "box", "pos": [-3.5, 2, -26], "size": [3, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [3.5, 2, -26], "size": [3, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [-5, 2, -32], "size": [1, 4, 12], "material": "stone" },
-    { "shape": "box", "pos": [5, 2, -32], "size": [1, 4, 12], "material": "stone" },
-    { "shape": "box", "pos": [-3.25, 2, -38], "size": [3.5, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [3.25, 2, -38], "size": [3.5, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [0, 4.25, -38], "size": [10, 0.5, 1], "material": "stone", "collider": false },
-    { "shape": "box", "pos": [0, 2, -38], "size": [3, 4, 0.6], "material": "metal", "door": { "id": "exitGate", "openWhen": "d1.down && exitSwitch.on" } },
-    { "shape": "box", "pos": [3.6, 1.6, -33.4], "size": [0.8, 1.2, 0.6], "material": "metal", "emissive": "#8f86d8", "emissiveIntensity": 0.6 },
-
-    { "shape": "box", "pos": [0, -0.5, -41], "size": [6, 1, 6], "material": "stone" },
-    { "shape": "box", "pos": [-3, 2, -41], "size": [1, 4, 6], "material": "stone" },
-    { "shape": "box", "pos": [3, 2, -41], "size": [1, 4, 6], "material": "stone" },
-    { "shape": "box", "pos": [0, 2, -44], "size": [6, 4, 1], "material": "stone" },
-    { "shape": "box", "pos": [0, 3.5, -42.5], "size": [2.2, 0.4, 2.2], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 1.4, "collider": false },
-
-    { "shape": "box", "pos": [-4.9, 3.4, -20], "size": [0.15, 0.3, 12], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 0.6, "collider": false },
-    { "shape": "box", "pos": [4.9, 3.4, -20], "size": [0.15, 0.3, 12], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 0.6, "collider": false }
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.5,
+        7
+      ],
+      "size": [
+        10,
+        1,
+        10
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2,
+        12
+      ],
+      "size": [
+        10,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -5,
+        2,
+        7
+      ],
+      "size": [
+        1,
+        4,
+        10
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        5,
+        2,
+        7
+      ],
+      "size": [
+        1,
+        4,
+        10
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.25,
+        7
+      ],
+      "size": [
+        1,
+        0.5,
+        1
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        1.1,
+        7
+      ],
+      "size": [
+        0.5,
+        1.6,
+        0.5
+      ],
+      "material": "crystal",
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 1.4
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.1,
+        7
+      ],
+      "size": [
+        0.9,
+        0.35,
+        0.9
+      ],
+      "material": "crystal",
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 2.0,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -3.5,
+        2,
+        2
+      ],
+      "size": [
+        3,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        3.5,
+        2,
+        2
+      ],
+      "size": [
+        3,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.25,
+        2
+      ],
+      "size": [
+        3,
+        0.5,
+        1
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.5,
+        -4
+      ],
+      "size": [
+        10,
+        1,
+        12
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -5,
+        2,
+        -4
+      ],
+      "size": [
+        1,
+        4,
+        12
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        5,
+        2,
+        -4
+      ],
+      "size": [
+        1,
+        4,
+        12
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.05,
+        -4
+      ],
+      "size": [
+        1.4,
+        0.1,
+        1.4
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 0.4
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        1.0,
+        -4
+      ],
+      "size": [
+        1.3,
+        2.0,
+        1.3
+      ],
+      "material": "crystal",
+      "color": "#bfe6ff",
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 0.7,
+      "activeWhen": "fountain.frozen"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4,
+        2.25,
+        -4
+      ],
+      "size": [
+        2,
+        0.5,
+        4
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4,
+        2.7,
+        -6
+      ],
+      "size": [
+        2,
+        0.4,
+        0.3
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -3.5,
+        2,
+        -10
+      ],
+      "size": [
+        3,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        3.5,
+        2,
+        -10
+      ],
+      "size": [
+        3,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.25,
+        -10
+      ],
+      "size": [
+        3,
+        0.5,
+        1
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -2,
+        -12
+      ],
+      "size": [
+        4,
+        3,
+        4
+      ],
+      "material": "void",
+      "collider": false,
+      "emissive": "#241f3c",
+      "emissiveIntensity": 0.4
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.25,
+        -12
+      ],
+      "size": [
+        3.4,
+        0.5,
+        4
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3,
+      "activeWhen": "drawbridge.state==1"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.5,
+        -19
+      ],
+      "size": [
+        14,
+        1,
+        10
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -7,
+        2,
+        -19
+      ],
+      "size": [
+        1,
+        4,
+        10
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        7,
+        2,
+        -19
+      ],
+      "size": [
+        1,
+        4,
+        10
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2,
+        -14.5
+      ],
+      "size": [
+        6,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -5,
+        2,
+        -14.5
+      ],
+      "size": [
+        4,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        5,
+        2,
+        -14.5
+      ],
+      "size": [
+        4,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.5,
+        -0.5,
+        -19
+      ],
+      "size": [
+        3,
+        1,
+        4
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -10,
+        2,
+        -19
+      ],
+      "size": [
+        1,
+        4,
+        4
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -8.5,
+        0.2,
+        -19
+      ],
+      "size": [
+        0.9,
+        0.2,
+        0.9
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.5,
+        2,
+        -24
+      ],
+      "size": [
+        5,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.5,
+        2,
+        -24
+      ],
+      "size": [
+        5,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.25,
+        -24
+      ],
+      "size": [
+        3,
+        0.5,
+        1
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.5,
+        -30
+      ],
+      "size": [
+        10,
+        1,
+        12
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -5,
+        2,
+        -30
+      ],
+      "size": [
+        1,
+        4,
+        12
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        5,
+        2,
+        -30
+      ],
+      "size": [
+        1,
+        4,
+        12
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        1.5,
+        -25.5
+      ],
+      "size": [
+        3.6,
+        3,
+        0.5
+      ],
+      "material": "crystal",
+      "color": "#cfe8ff",
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 0.5,
+      "activeWhen": "!coolantMount.filled"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        3,
+        0.25,
+        -28
+      ],
+      "size": [
+        1.2,
+        0.5,
+        1.2
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -3.25,
+        2,
+        -36
+      ],
+      "size": [
+        3.5,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        3.25,
+        2,
+        -36
+      ],
+      "size": [
+        3.5,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.25,
+        -36
+      ],
+      "size": [
+        10,
+        0.5,
+        1
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2,
+        -36
+      ],
+      "size": [
+        3,
+        4,
+        0.6
+      ],
+      "material": "metal",
+      "door": {
+        "id": "blastDoor",
+        "openWhen": "coolantMount.filled"
+      }
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -3,
+        0.05,
+        -31
+      ],
+      "size": [
+        2.4,
+        0.1,
+        2.4
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.5,
+        -40
+      ],
+      "size": [
+        6,
+        1,
+        6
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -3,
+        2,
+        -40
+      ],
+      "size": [
+        1,
+        4,
+        6
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        3,
+        2,
+        -40
+      ],
+      "size": [
+        1,
+        4,
+        6
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2,
+        -43
+      ],
+      "size": [
+        6,
+        4,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        3.5,
+        -41.5
+      ],
+      "size": [
+        2.2,
+        0.4,
+        2.2
+      ],
+      "material": "crystal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.4,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.9,
+        3.4,
+        -4
+      ],
+      "size": [
+        0.15,
+        0.3,
+        10
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.9,
+        3.4,
+        -4
+      ],
+      "size": [
+        0.15,
+        0.3,
+        10
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.9,
+        3.4,
+        -19
+      ],
+      "size": [
+        0.15,
+        0.3,
+        10
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.9,
+        3.4,
+        -19
+      ],
+      "size": [
+        0.15,
+        0.3,
+        10
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.9,
+        3.4,
+        -30
+      ],
+      "size": [
+        0.15,
+        0.3,
+        10
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.9,
+        3.4,
+        -30
+      ],
+      "size": [
+        0.15,
+        0.3,
+        10
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4,
+        2.0,
+        -16
+      ],
+      "size": [
+        0.4,
+        4.0,
+        0.4
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4,
+        4.2,
+        -16
+      ],
+      "size": [
+        0.64,
+        0.35,
+        0.64
+      ],
+      "material": "crystal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.1,
+      "collider": false
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        4,
+        2.0,
+        -16
+      ],
+      "size": [
+        0.4,
+        4.0,
+        0.4
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4,
+        4.2,
+        -16
+      ],
+      "size": [
+        0.64,
+        0.35,
+        0.64
+      ],
+      "material": "crystal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.1,
+      "collider": false
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4,
+        2.0,
+        -22
+      ],
+      "size": [
+        0.4,
+        4.0,
+        0.4
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4,
+        4.2,
+        -22
+      ],
+      "size": [
+        0.64,
+        0.35,
+        0.64
+      ],
+      "material": "crystal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.1,
+      "collider": false
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        4,
+        2.0,
+        -22
+      ],
+      "size": [
+        0.4,
+        4.0,
+        0.4
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4,
+        4.2,
+        -22
+      ],
+      "size": [
+        0.64,
+        0.35,
+        0.64
+      ],
+      "material": "crystal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.1,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.4,
+        -19
+      ],
+      "size": [
+        14,
+        0.2,
+        10
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -2.2,
+        0.1,
+        -4
+      ],
+      "size": [
+        0.5,
+        0.1,
+        3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "color": "#cfe8ff",
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        2.2,
+        0.1,
+        -4
+      ],
+      "size": [
+        0.5,
+        0.1,
+        3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "color": "#cfe8ff",
+      "emissive": "#9fdcff",
+      "emissiveIntensity": 0.5
+    }
   ],
   "interactables": [
-    { "type": "hazard", "id": "steamA", "pos": [0, 1.5, -5], "size": [4, 3, 1.5], "kind": "steam", "freezable": true, "dps": 20 },
-    { "type": "hazard", "id": "steamB", "pos": [0, 1.5, -11], "size": [4, 3, 1.5], "kind": "steam", "freezable": true, "dps": 20 },
-    { "type": "switch", "id": "exitSwitch", "pos": [3.6, 1.8, -33.4], "latched": true }
+    {
+      "type": "hazard",
+      "id": "fountain",
+      "pos": [
+        0,
+        1.5,
+        -4
+      ],
+      "size": [
+        2,
+        3,
+        2
+      ],
+      "kind": "steam",
+      "freezable": true,
+      "dps": 20
+    },
+    {
+      "type": "lever",
+      "id": "drawbridge",
+      "pos": [
+        4,
+        2.9,
+        -4
+      ],
+      "states": 2
+    },
+    {
+      "type": "hazard",
+      "id": "icewall",
+      "pos": [
+        -6.4,
+        1.5,
+        -19
+      ],
+      "size": [
+        0.8,
+        3,
+        3
+      ],
+      "kind": "spark",
+      "freezable": true,
+      "dps": 18
+    },
+    {
+      "type": "carryable",
+      "id": "coolant",
+      "pos": [
+        -8.5,
+        0.8,
+        -19
+      ],
+      "mass": "light",
+      "kind": "cell"
+    },
+    {
+      "type": "socket",
+      "id": "coolantMount",
+      "pos": [
+        3,
+        0.9,
+        -28
+      ],
+      "accepts": "coolant"
+    },
+    {
+      "type": "hazard",
+      "id": "exitVent",
+      "pos": [
+        0,
+        1.5,
+        -33.5
+      ],
+      "size": [
+        3,
+        3,
+        1.4
+      ],
+      "kind": "steam",
+      "freezable": true,
+      "dps": 22
+    },
+    {
+      "type": "plate",
+      "id": "liftPlate",
+      "pos": [
+        -3,
+        0.15,
+        -31
+      ],
+      "size": [
+        2,
+        0.3,
+        2
+      ],
+      "reads": "any"
+    }
   ],
   "enemies": [
-    { "type": "drifter", "id": "d1", "spawn": [0, 1, -20], "patrol": [[-3, 1, -20], [3, 1, -20]], "weakTo": ["freeze-shatter"] }
+    {
+      "type": "drifter",
+      "id": "d1",
+      "spawn": [
+        0,
+        1,
+        -19
+      ],
+      "patrol": [
+        [
+          -3,
+          1,
+          -19
+        ],
+        [
+          3,
+          1,
+          -19
+        ]
+      ],
+      "weakTo": [
+        "freeze-shatter"
+      ]
+    },
+    {
+      "type": "drifter",
+      "id": "d2",
+      "spawn": [
+        -3,
+        1,
+        -21
+      ],
+      "patrol": [
+        [
+          -5,
+          1,
+          -21
+        ],
+        [
+          2,
+          1,
+          -17
+        ]
+      ],
+      "weakTo": [
+        "freeze-shatter"
+      ]
+    },
+    {
+      "type": "drifter",
+      "id": "d3",
+      "spawn": [
+        3,
+        1,
+        -17
+      ],
+      "patrol": [
+        [
+          5,
+          1,
+          -17
+        ],
+        [
+          -2,
+          1,
+          -21
+        ]
+      ],
+      "weakTo": [
+        "freeze-shatter"
+      ]
+    }
   ],
   "portals": [
-    { "id": "exit", "pos": [0, 1.3, -42.5], "linkedTo": "nexus", "label": "Threshold", "requiresSolved": true },
-    { "id": "back", "pos": [0, 1.3, 8.6], "linkedTo": "nexus", "label": "Back to Nexus" }
+    {
+      "id": "exit",
+      "pos": [
+        0,
+        1.3,
+        -41.5
+      ],
+      "linkedTo": "nexus",
+      "label": "Threshold",
+      "requiresSolved": true
+    },
+    {
+      "id": "back",
+      "pos": [
+        0,
+        1.3,
+        10
+      ],
+      "linkedTo": "nexus",
+      "label": "Back to Nexus"
+    }
   ],
-  "placeablePortals": { "enabled": false },
+  "placeablePortals": {
+    "enabled": false
+  },
   "puzzle": {
-    "solved": "d1.down && exitSwitch.on",
+    "solved": "exitVent.frozen && coolantMount.filled && liftPlate.pressed",
     "shard": "vaults-01",
     "skillPoints": 1
   }

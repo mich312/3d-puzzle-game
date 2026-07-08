@@ -4,11 +4,12 @@
   "name": "Meridian",
   "world": "observatory",
   "coop": "co-op-required",
-  "dependency": ["simultaneity", "sightline"],
+  "dependency": ["simultaneity", "sightline", "asymmetric-info", "spatial-separation"],
   "encounters": ["wave-under-pressure"],
   "players": { "min": 2, "max": 4 },
   "requiresDevice": [],
-  "intro": "Three rings, all lit at once. Set the orbs, hold the last — and keep the dark from reaching them.",
+  "intro": "Three rings, one sight-line. Read the marks from the high platforms, set the orbs, then hold the meridian together.",
+  "designNotes": "Orrery alignment. em1 fires north (-z) along x=0,y=3 toward rec1; three ring-occluders sit on that line at z=6/0/-6, each vanishing only when its rotator (ringX/ringY/ringZ) reaches state 2. The correct state (2) for each ring is legible only from a different elevated hint platform: hint1 is reachable directly off the north ledge, but hint2 (east) and hint3 (west) can only be climbed while a partner stands on liftA / liftB to raise the lift bridges — asymmetric-info access. Align all three rings so the beam threads to rec1, then both players hold syncA and syncB together while the two drifters and the sower are cleared. Families in solved: mechanism (rotators) + beam-item (receiver) + mass (plates) + combat.",
   "fog": { "color": "#252043", "density": 0.026 },
   "spawns": { "entry": [0, 1, 13] },
   "checkpoints": [[0, 1, 13]],
@@ -18,7 +19,7 @@
 
     { "shape": "box", "pos": [-9.25, 3, -16], "size": [15.5, 6, 1], "material": "stone", "portalSurface": true },
     { "shape": "box", "pos": [9.25, 3, -16], "size": [15.5, 6, 1], "material": "stone", "portalSurface": true },
-    { "shape": "box", "pos": [0, 1.75, -16], "size": [3, 3.5, 0.6], "material": "metal", "door": { "id": "meridianGate", "openWhen": "ringA.pressed && ringB.pressed && ringC.pressed && allEnemiesDown" } },
+    { "shape": "box", "pos": [0, 1.75, -16], "size": [3, 3.5, 0.6], "material": "metal", "door": { "id": "meridianGate", "openWhen": "rec1.lit && syncA.pressed && syncB.pressed && allEnemiesDown" } },
     { "shape": "box", "pos": [0, 3, 16], "size": [34, 6, 1], "material": "stone", "portalSurface": true },
     { "shape": "box", "pos": [16, 3, 0], "size": [1, 6, 34], "material": "stone", "portalSurface": true },
     { "shape": "box", "pos": [-16, 3, 0], "size": [1, 6, 34], "material": "stone", "portalSurface": true },
@@ -72,22 +73,58 @@
     { "shape": "cylinder", "pos": [15, 4.5, 0], "size": [0.5, 9, 0.5], "material": "stone" },
     { "shape": "box", "pos": [-15, 8.8, 0], "size": [1.4, 0.3, 1.4], "material": "crystal", "emissive": "#b8a8ff", "emissiveIntensity": 1.0, "collider": false },
     { "shape": "box", "pos": [15, 8.8, 0], "size": [1.4, 0.3, 1.4], "material": "crystal", "emissive": "#b8a8ff", "emissiveIntensity": 1.0, "collider": false },
-    { "shape": "box", "pos": [11, 9.5, 11], "size": [0.7, 0.7, 0.7], "material": "crystal", "emissive": "#d8ccff", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.4 }
+    { "shape": "box", "pos": [11, 9.5, 11], "size": [0.7, 0.7, 0.7], "material": "crystal", "emissive": "#d8ccff", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.4 },
+
+    { "shape": "cylinder", "pos": [0, 1.5, 10], "size": [0.5, 3, 0.5], "material": "metal" },
+    { "shape": "cylinder", "pos": [0, 3.1, 10], "size": [0.62, 0.24, 0.62], "material": "crystal", "emissive": "#b8a8ff", "emissiveIntensity": 1.6, "collider": false },
+    { "shape": "cylinder", "pos": [0, 1.5, -13], "size": [0.5, 3, 0.5], "material": "metal" },
+    { "shape": "cylinder", "pos": [0, 3.1, -13], "size": [0.62, 0.24, 0.62], "material": "crystal", "emissive": "#d8ccff", "emissiveIntensity": 1.8, "collider": false },
+
+    { "shape": "box", "pos": [0, 3, 6], "size": [2, 2, 1], "material": "crystal", "color": "#3a3560", "emissive": "#b8a8ff", "emissiveIntensity": 0.35, "activeWhen": "ringX.state!=2" },
+    { "shape": "box", "pos": [0, 3, 0], "size": [2, 2, 1], "material": "crystal", "color": "#3a3560", "emissive": "#b8a8ff", "emissiveIntensity": 0.35, "activeWhen": "ringY.state!=2" },
+    { "shape": "box", "pos": [0, 3, -6], "size": [2, 2, 1], "material": "crystal", "color": "#3a3560", "emissive": "#b8a8ff", "emissiveIntensity": 0.35, "activeWhen": "ringZ.state!=2" },
+
+    { "shape": "box", "pos": [0, 3, 6], "size": [2.7, 2.7, 0.12], "material": "crystal", "collider": false, "emissive": "#b8a8ff", "emissiveIntensity": 1.4, "rotY": 0.78, "activeWhen": "ringX.state!=2" },
+    { "shape": "box", "pos": [0, 3, 0], "size": [2.7, 2.7, 0.12], "material": "crystal", "collider": false, "emissive": "#b8a8ff", "emissiveIntensity": 1.4, "rotY": 0.4, "activeWhen": "ringY.state!=2" },
+    { "shape": "box", "pos": [0, 3, -6], "size": [2.7, 2.7, 0.12], "material": "crystal", "collider": false, "emissive": "#b8a8ff", "emissiveIntensity": 1.4, "rotY": 0.9, "activeWhen": "ringZ.state!=2" },
+
+    { "shape": "box", "pos": [-6, 3.75, -12], "size": [3, 0.5, 3], "material": "stone" },
+    { "shape": "box", "pos": [-6, 4.06, -12], "size": [3, 0.1, 3], "material": "tile", "collider": false, "emissive": "#b8a8ff", "emissiveIntensity": 0.3 },
+    { "shape": "box", "pos": [-6.6, 4.3, -12], "size": [0.35, 0.4, 0.35], "material": "crystal", "collider": false, "emissive": "#d8ccff", "emissiveIntensity": 2.4 },
+    { "shape": "box", "pos": [-5.4, 4.3, -12], "size": [0.35, 0.4, 0.35], "material": "crystal", "collider": false, "emissive": "#d8ccff", "emissiveIntensity": 2.4 },
+
+    { "shape": "box", "pos": [9, 3.75, -11], "size": [3, 0.5, 3], "material": "stone" },
+    { "shape": "box", "pos": [9, 4.06, -11], "size": [3, 0.1, 3], "material": "tile", "collider": false, "emissive": "#b8a8ff", "emissiveIntensity": 0.3 },
+    { "shape": "box", "pos": [8.4, 4.3, -11], "size": [0.35, 0.4, 0.35], "material": "crystal", "collider": false, "emissive": "#d8ccff", "emissiveIntensity": 2.4 },
+    { "shape": "box", "pos": [9.6, 4.3, -11], "size": [0.35, 0.4, 0.35], "material": "crystal", "collider": false, "emissive": "#d8ccff", "emissiveIntensity": 2.4 },
+
+    { "shape": "box", "pos": [-9, 3.75, 11], "size": [3, 0.5, 3], "material": "stone" },
+    { "shape": "box", "pos": [-9, 4.06, 11], "size": [3, 0.1, 3], "material": "tile", "collider": false, "emissive": "#b8a8ff", "emissiveIntensity": 0.3 },
+    { "shape": "box", "pos": [-9.6, 4.3, 11], "size": [0.35, 0.4, 0.35], "material": "crystal", "collider": false, "emissive": "#d8ccff", "emissiveIntensity": 2.4 },
+    { "shape": "box", "pos": [-8.4, 4.3, 11], "size": [0.35, 0.4, 0.35], "material": "crystal", "collider": false, "emissive": "#d8ccff", "emissiveIntensity": 2.4 },
+
+    { "shape": "box", "pos": [11.5, 3.75, -11], "size": [2, 0.4, 3], "material": "metal", "emissive": "#b8a8ff", "emissiveIntensity": 0.4, "activeWhen": "liftA.pressed" },
+    { "shape": "box", "pos": [-11.5, 3.75, 11], "size": [2, 0.4, 3], "material": "metal", "emissive": "#b8a8ff", "emissiveIntensity": 0.4, "activeWhen": "liftB.pressed" },
+
+    { "shape": "box", "pos": [8, 11, -4], "size": [0.7, 0.7, 0.7], "material": "crystal", "emissive": "#b8a8ff", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.7 },
+    { "shape": "box", "pos": [-8, 10.5, 4], "size": [0.8, 0.8, 0.8], "material": "crystal", "emissive": "#d8ccff", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.2 },
+    { "shape": "box", "pos": [4, 9, 12], "size": [0.7, 0.7, 0.7], "material": "crystal", "emissive": "#b8a8ff", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.55 }
   ],
   "interactables": [
-    { "type": "plate", "id": "ringA", "pos": [-8, 0, -5], "size": [2.4, 0.3, 2.4], "reads": "any" },
-    { "type": "plate", "id": "ringB", "pos": [8, 0, -5], "size": [2.4, 0.3, 2.4], "reads": "any" },
-    { "type": "plate", "id": "ringC", "pos": [0, 0, 8], "size": [2.4, 0.3, 2.4], "reads": "any" },
-    { "type": "carryable", "id": "orbA", "pos": [-2, 0.6, 0], "mass": "light", "kind": "orb" },
-    { "type": "carryable", "id": "orbB", "pos": [0, 0.6, 1.5], "mass": "light", "kind": "orb" },
-    { "type": "carryable", "id": "orbC", "pos": [2, 0.6, 0], "mass": "light", "kind": "orb" }
+    { "type": "emitter", "id": "em1", "pos": [0, 3, 10], "dir": [0, 0, -1] },
+    { "type": "rotator", "id": "ringX", "pos": [-6, 0.8, 2], "states": 4 },
+    { "type": "rotator", "id": "ringY", "pos": [0, 0.8, 2], "states": 4 },
+    { "type": "rotator", "id": "ringZ", "pos": [6, 0.8, 2], "states": 4 },
+    { "type": "receiver", "id": "rec1", "pos": [0, 3, -13] },
+    { "type": "plate", "id": "syncA", "pos": [-3, 0, 8], "size": [2, 0.3, 2], "reads": "any" },
+    { "type": "plate", "id": "syncB", "pos": [3, 0, 8], "size": [2, 0.3, 2], "reads": "any" },
+    { "type": "plate", "id": "liftA", "pos": [11, 0, -6], "size": [2, 0.3, 2], "reads": "any" },
+    { "type": "plate", "id": "liftB", "pos": [-11, 0, 6], "size": [2, 0.3, 2], "reads": "any" }
   ],
   "enemies": [
     { "type": "drifter", "id": "d1", "spawn": [0, 4, -13], "patrol": [[-4, 1, -8], [4, 1, -8]], "weakTo": ["pulse"] },
     { "type": "drifter", "id": "d2", "spawn": [13, 4, 0], "patrol": [[8, 1, -2], [8, 1, 4]], "weakTo": ["pulse"] },
-    { "type": "drifter", "id": "d3", "spawn": [-13, 4, 0], "patrol": [[-8, 1, -2], [-8, 1, 4]], "weakTo": ["pulse"] },
-    { "type": "sower", "id": "s1", "spawn": [8, 4, -13], "patrol": [[6, 4, -13], [-6, 4, -13]], "weakTo": ["pulse"] },
-    { "type": "warden", "id": "w1", "spawn": [0, 4, 13], "patrol": [[-4, 4, 13], [4, 4, 13]], "weakTo": ["pulse"] }
+    { "type": "sower", "id": "s1", "spawn": [-8, 4, -13], "patrol": [[-6, 4, -13], [6, 4, -13]], "weakTo": ["pulse"] }
   ],
   "portals": [
     { "id": "exit", "pos": [0, 1.3, -19], "linkedTo": "nexus", "label": "Threshold", "requiresSolved": true },
@@ -95,8 +132,7 @@
   ],
   "placeablePortals": { "enabled": true, "budgetPerPlayer": 2 },
   "puzzle": {
-    "solved": "ringA.pressed && ringB.pressed && ringC.pressed && allEnemiesDown",
-    "soloSolution": "ringA.pressed && ringB.pressed && ringC.pressed && allEnemiesDown",
+    "solved": "ringX.state==2 && ringY.state==2 && ringZ.state==2 && rec1.lit && syncA.pressed && syncB.pressed && allEnemiesDown",
     "shard": "observatory-01",
     "skillPoints": 2
   }

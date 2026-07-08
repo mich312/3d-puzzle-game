@@ -186,14 +186,6 @@ async function testCoopAtrium02() {
   await sleep(800);
   check((a.snapshot?.players.length ?? 0) === 2, 'both bots share one instance');
 
-  // read plate positions from the level def the server sent
-  const lv = a.snapshot?.level ?? (a.msgs.find((m) => m.t === 'joined') as { snapshot?: InstanceSnapshot })?.snapshot?.level;
-  const joined = a.msgs.find((m) => m.t === 'joined' && (m as { snapshot: InstanceSnapshot }).snapshot.levelId === 'atrium-02') as { snapshot: InstanceSnapshot } | undefined;
-  const def = joined?.snapshot.level;
-  const bellA = def?.interactables?.find((i) => i.id === 'bellA') as { pos: Vec3 } | undefined;
-  const bellB = def?.interactables?.find((i) => i.id === 'bellB') as { pos: Vec3 } | undefined;
-  if (!bellA || !bellB) throw new Error('bells not found in level def');
-
   // kill the drifters first (they'd interrupt) — fight from range; they chase
   for (let i = 0; i < 40; i++) {
     const alive = (a.snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
@@ -209,10 +201,27 @@ async function testCoopAtrium02() {
   }
   check((a.snapshot?.enemies ?? []).every((e) => e.state === 'down'), 'arena cleared');
 
-  await a.walkTo([bellA.pos[0], bellA.pos[1] + 1, bellA.pos[2]]);
-  await b.walkTo([bellB.pos[0], bellB.pos[1] + 1, bellB.pos[2]]);
-  await a.until(() => a.solved, 'simultaneity solve', 12000);
-  check(true, 'both plates pressed at once → solved');
+  // the intended multi-step solve (see designNotes in atrium-02.json):
+  // 1. A holds bellA (extends the east bridge)
+  await a.walkTo([-11, 1.2, 6]);
+  await a.until(() => a.st('bellA')?.pressed === true, 'bellA held');
+  check(true, 'A holds bellA — east bridge extends');
+  // 2. B ferries the cube across to the tuner, sets it to state 2
+  await b.walkTo([-6, 1, 11]);
+  await b.attempt(() => b.send({ t: 'grab', v: 1, target: 'cube' }),
+    () => (b.snapshot?.bodies ?? []).some((bd) => bd.id === 'cube' && bd.heldBy === b.id), 'grab cube');
+  await b.walkTo([11, 1, 2]);      // across the east bridge line
+  await b.walkTo([8, 1, -7]);
+  await b.attempt(() => b.send({ t: 'interact', v: 1, target: 'tuner' }),
+    () => b.st('tuner')?.state === 2, 'tuner to state 2', 12000);
+  check(true, 'B set the tuner (west bridge + exit gate open)');
+  // 3. B drops the cube on mass-2 bellB and stands with it
+  await b.walkTo([11, 1, -9]);
+  b.send({ t: 'release', v: 1 });
+  await b.until(() => b.st('bellB')?.pressed === true, 'bellB pressed (player+cube mass 2)', 10000);
+  check(true, 'B + cube satisfy the mass-2 bell');
+  await a.until(() => a.solved, 'multi-step co-op solve', 12000);
+  check(true, 'both bells held + tuner set → solved');
   check(a.shards.includes('atrium-02') , 'A got shard');
   await b.until(() => b.shards.includes('atrium-02'), 'B shard');
   check(true, 'B got shard (everyone present)');
@@ -253,84 +262,145 @@ async function testDownRevive() {
 }
 
 async function testFreezeVaults01() {
-  console.log('\n— TEST 4: Freeze Ray mechanics in vaults-01 (Cold Store) —');
+  console.log('\n— TEST 4: co-op Freeze mechanics in vaults-01 (Cold Store) —');
   const a = new Bot('BotFrost');
-  await a.open();
+  const b = new Bot('BotFrostMate');
+  await a.open(); await b.open();
   a.send({ t: 'enter_level', v: 1, level: 'vaults-01' });
-  await a.until(() => a.levelId === 'vaults-01', 'enter vaults-01');
+  await sleep(400);
+  b.send({ t: 'enter_level', v: 1, level: 'vaults-01' });
+  await a.until(() => a.levelId === 'vaults-01', 'A enters');
+  await b.until(() => b.levelId === 'vaults-01', 'B enters');
   a.send({ t: 'reset_level', v: 1 });
   await sleep(800);
   const gotFreeze = a.msgs.some((m) => m.t === 'devices' && m.devices.includes('freeze'));
   check(gotFreeze, 'Freeze Ray granted on entry');
 
-  // freeze the first steam hazard from in front of it
-  await a.walkTo([0, 1, -2]);
-  a.send({ t: 'equip', v: 1, device: 'freeze' });
-  await a.attempt(() => {
-    const origin: Vec3 = [a.pos[0], a.pos[1] + 1.5, a.pos[2]];
-    const d: Vec3 = [0 - origin[0], 1.5 - origin[1], -5 - origin[2]];
-    const l = Math.hypot(...d) || 1;
-    a.send({ t: 'fire', v: 1, device: 'freeze', origin, dir: [d[0] / l, d[1] / l, d[2] / l] });
-  }, () => a.st('steamA')?.frozen === true, 'steamA frozen');
-  check(true, 'steam hazard frozen (puzzle use)');
-
-  // freeze the drifter, then shatter it with a pulse (environmental kill)
-  await a.walkTo([0, 1, -8]);
-  await a.attempt(() => {
-    const origin: Vec3 = [a.pos[0], a.pos[1] + 1.5, a.pos[2]];
-    const d2: Vec3 = [0 - origin[0], 1.5 - origin[1], -11 - origin[2]];
-    const l = Math.hypot(...d2) || 1;
-    a.send({ t: 'fire', v: 1, device: 'freeze', origin, dir: [d2[0] / l, d2[1] / l, d2[2] / l] });
-  }, () => a.st('steamB')?.frozen === true, 'steamB frozen');
-  await a.walkTo([0, 1, -15]);
+  // clear the drifter pack: freeze-shatter the first, pulse the rest
+  await a.walkTo([0, 1, -12]);
   await a.attempt(() => {
     const e = a.enemy('d1');
-    if (e) fireAt(a, 'freeze', [e.p[0], e.p[1] + 0.8, e.p[2]], 'd1');
-  }, () => a.enemy('d1')?.state === 'frozen', 'drifter frozen', 15000);
+    if (e && e.state !== 'down') fireAt(a, 'freeze', [e.p[0], e.p[1] + 0.8, e.p[2]], 'd1');
+  }, () => ['frozen', 'down'].includes(a.enemy('d1')?.state ?? ''), 'freeze d1', 15000);
   check(true, 'drifter frozen solid');
   await a.attempt(() => {
     const e = a.enemy('d1');
     if (e) fireAt(a, 'pulse', [e.p[0], e.p[1] + 0.8, e.p[2]], 'd1');
   }, () => a.enemy('d1')?.state === 'down', 'freeze-shatter', 12000);
   check(true, 'frozen enemy shattered by pulse');
+  for (let i = 0; i < 30; i++) {
+    const alive = (a.snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
+    if (!alive.length) break;
+    const e = alive[0];
+    await fireAt(a, 'pulse', [e.p[0], e.p[1] + 0.8, e.p[2]], e.id);
+    await sleep(700);
+  }
+  check((a.snapshot?.enemies ?? []).every((e) => e.state === 'down'), 'pack cleared');
 
-  // pulse the exit switch and finish
-  await a.walkTo([0, 1, -24]);
-  await a.walkTo([0, 1, -30]);
-  await a.attempt(() => fireAt(a, 'pulse', [3.6, 1.8, -33.4]),
-    () => a.st('exitSwitch')?.on === true, 'exitSwitch');
+  // B ferries the coolant cell to its mount (kills the exit steam curtain)
+  await b.walkTo([-8.5, 1, -16]);
+  await b.walkTo([-8.5, 1, -19]);
+  await b.attempt(() => b.send({ t: 'grab', v: 1, target: 'coolant' }),
+    () => (b.snapshot?.bodies ?? []).some((bd) => bd.id === 'coolant' && bd.heldBy === b.id), 'grab coolant');
+  await b.walkTo([3, 1, -26.8]);
+  await b.attempt(() => b.send({ t: 'release', v: 1 }),
+    () => b.st('coolantMount')?.filled === true, 'dock coolant', 12000);
+  check(true, 'coolant cell docked in its mount — steam curtain off, blast door open');
+
+  // A holds the lift plate while B flash-freezes the exit vent
+  await a.walkTo([-3, 1, -31]);
+  await a.until(() => a.st('liftPlate')?.pressed === true, 'lift plate held');
+  await b.walkTo([0, 1, -30]);
+  await b.attempt(() => {
+    const origin: Vec3 = [b.pos[0], b.pos[1] + 1.5, b.pos[2]];
+    const d: Vec3 = [0 - origin[0], 1.5 - origin[1], -33.5 - origin[2]];
+    const l = Math.hypot(...d) || 1;
+    b.send({ t: 'fire', v: 1, device: 'freeze', origin, dir: [d[0] / l, d[1] / l, d[2] / l] });
+  }, () => a.st('exitVent')?.frozen === true, 'freeze exit vent', 15000);
   await a.until(() => a.solved, 'vaults-01 solved');
-  check(a.shards.includes('vaults-01'), 'shard granted (solo freeze route)');
-  a.close();
+  check(a.shards.includes('vaults-01') && b.shards.includes('vaults-01'), 'shards granted to both');
+  a.close(); b.close();
 }
 
 async function testPortalsGardens02() {
-  console.log('\n— TEST 5: Portal Device placement + traversal in gardens-02 —');
+  console.log('\n— TEST 5: portal logistics in gardens-02 (Root & Bloom) —');
   const a = new Bot('BotPortal');
-  await a.open();
+  const b = new Bot('BotBloom');
+  await a.open(); await b.open();
   a.send({ t: 'enter_level', v: 1, level: 'gardens-02' });
-  await a.until(() => a.levelId === 'gardens-02', 'enter gardens-02');
+  await sleep(400);
+  b.send({ t: 'enter_level', v: 1, level: 'gardens-02' });
+  await a.until(() => a.levelId === 'gardens-02', 'A enters');
+  await b.until(() => b.levelId === 'gardens-02', 'B enters');
   a.send({ t: 'reset_level', v: 1 });
   await sleep(800);
   const gotGun = a.msgs.some((m) => m.t === 'devices' && m.devices.includes('portalgun'));
   check(gotGun, 'Portal Device granted on entry');
 
-  // place both portals on the flanking portalSurface walls (near side / far side)
+  // place a portal pair on the flanking portalSurface walls and traverse the chasm
   await a.walkTo([0, 1, 14]);
   a.send({ t: 'place_portal', v: 1, slot: 0, pos: [-12.4, 1.6, 14], normal: [1, 0, 0] });
   a.send({ t: 'place_portal', v: 1, slot: 1, pos: [-12.4, 1.6, -14], normal: [1, 0, 0] });
   await a.until(() => (a.snapshot?.portalsPlaced?.length ?? 0) >= 2, 'both portals placed', 6000);
   check(true, 'two portals placed on legal surfaces');
-
-  // walk into portal A → server should teleport us across the chasm
   const before = a.pos[2];
   await a.walkTo([-11.6, 1.6, 14]);
-  await a.until(() => a.pos[2] < 0, 'traversal (respawn/portal_traverse moves us)', 8000);
+  await a.until(() => a.pos[2] < 0, 'traversal', 8000);
   check(a.pos[2] < 0, `traversed the chasm via portals (z ${before.toFixed(0)} → ${a.pos[2].toFixed(0)})`);
-  a.close();
+
+  // clear the sower (stops the adds) then the warden + stragglers
+  for (let i = 0; i < 50; i++) {
+    const alive = (a.snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
+    if (!alive.length) break;
+    const target = alive.find((e) => e.id === 's1') ?? alive[0];
+    const dx = a.pos[0] - target.p[0], dz = a.pos[2] - target.p[2];
+    const dist = Math.hypot(dx, dz) || 1;
+    if (dist > 12) await a.walkTo([target.p[0] + (dx / dist) * 9, target.p[1], target.p[2] + (dz / dist) * 9]);
+    await fireAt(a, 'pulse', [target.p[0], target.p[1] + 0.9, target.p[2]], target.id);
+    await sleep(700);
+  }
+  check((a.snapshot?.enemies ?? []).every((e) => e.state === 'down'), 'sower + warden cleared');
+
+  // B holds the far plate → cage opens; A collects the bloom bulb + sockets it
+  await b.walkTo([-6, 1, -8]);
+  await b.until(() => b.st('holdPlateFar')?.pressed === true, 'far plate held');
+  await a.walkTo([8, 1, 15]);
+  await a.attempt(() => a.send({ t: 'pickup', v: 1, itemId: 'bloomBulb' }),
+    () => a.st('bloomBulb')?.collected === true, 'collect bloom bulb', 12000);
+  await a.walkTo([8, 1, -16.5]);
+  await a.attempt(() => a.send({ t: 'use_item', v: 1, item: 'bloombulb', socketId: 'bloomMount' }),
+    () => a.st('bloomMount')?.filled === true, 'socket bloom bulb', 12000);
+  check(true, 'bloom bulb ferried and socketed');
+
+  // final: both exit plates at once (B's is the portal-only high ledge)
+  await a.walkTo([6, 1, -20]);
+  await b.walkTo([-9, 5.2, -16]);
+  await a.until(() => a.solved, 'gardens-02 solved', 15000);
+  check(a.shards.includes('gardens-02') && b.shards.includes('gardens-02'), 'shards granted to both');
+  a.close(); b.close();
+}
+
+async function testChatAndPing() {
+  console.log('\n— TEST 0: chat + ping relay in the shared lobby —');
+  const a = new Bot('BotTalk');
+  const b = new Bot('BotListen');
+  await a.open(); await b.open();
+  await sleep(300);
+  a.send({ t: 'chat', v: 1, text: 'hello threshold' });
+  await b.until(() => b.msgs.some((m) => m.t === 'chat' && m.text === 'hello threshold'), 'chat relayed');
+  check(true, 'chat relayed to instance peers');
+  a.send({ t: 'chat', v: 1, text: 'spam1' });
+  a.send({ t: 'chat', v: 1, text: 'spam2' });   // within 700ms — must be dropped
+  await sleep(500);
+  check(!b.msgs.some((m) => m.t === 'chat' && m.text === 'spam2'), 'rate limit drops rapid messages');
+  a.send({ t: 'ping', v: 1, pos: [a.pos[0] + 3, a.pos[1], a.pos[2]] });
+  await b.until(() => b.msgs.some((m) => m.t === 'ping'), 'ping relayed');
+  check(true, 'ping marker relayed');
+  a.close(); b.close();
 }
 
 try {
+  await testChatAndPing();
   await testSoloAtrium01();
   await testCoopAtrium02();
   await testDownRevive();
