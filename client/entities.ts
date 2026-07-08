@@ -103,23 +103,40 @@ function bubbleSprite(text: string): THREE.Sprite {
   return sp;
 }
 
+const BAR_W = 320, BAR_H = 44;
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+}
 function makeBar(color: string): THREE.Sprite {
   const c = document.createElement('canvas');
-  c.width = 128; c.height = 16;
+  c.width = BAR_W; c.height = BAR_H;
   const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 8;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  sp.scale.set(1.2, 0.15, 1);
+  sp.scale.set(1.3, 0.18, 1);
   sp.userData = { canvas: c, tex, color };
   return sp;
 }
 function setBar(sp: THREE.Sprite, pct: number) {
   const { canvas, tex, color } = sp.userData as { canvas: HTMLCanvasElement; tex: THREE.CanvasTexture; color: string };
   const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, 128, 16);
-  ctx.fillStyle = 'rgba(10,10,20,0.6)';
-  ctx.fillRect(0, 0, 128, 16);
-  ctx.fillStyle = color;
-  ctx.fillRect(2, 2, Math.max(0, pct) * 124, 12);
+  const p = Math.max(0, Math.min(1, pct));
+  ctx.clearRect(0, 0, BAR_W, BAR_H);
+  // rounded dark track with border
+  ctx.fillStyle = 'rgba(8,7,16,0.72)';
+  roundRect(ctx, 2, 2, BAR_W - 4, BAR_H - 4, 18); ctx.fill();
+  ctx.strokeStyle = 'rgba(180,170,230,0.35)'; ctx.lineWidth = 3;
+  roundRect(ctx, 2, 2, BAR_W - 4, BAR_H - 4, 18); ctx.stroke();
+  // gradient fill
+  const w = (BAR_W - 20) * p;
+  if (w > 1) {
+    const g = ctx.createLinearGradient(10, 0, 10 + w, 0);
+    const col = new THREE.Color(color);
+    g.addColorStop(0, `#${col.clone().offsetHSL(0, 0, -0.12).getHexString()}`);
+    g.addColorStop(1, `#${col.clone().offsetHSL(0, 0, 0.12).getHexString()}`);
+    ctx.fillStyle = g;
+    roundRect(ctx, 10, 10, w, BAR_H - 20, 12); ctx.fill();
+  }
   tex.needsUpdate = true;
 }
 
@@ -219,12 +236,134 @@ export class Echoes {
 const HOSTILE = new THREE.Color(PALETTE.hostile);
 const ICE = new THREE.Color('#bfe8ff');
 
+interface EnemyBuild { core: THREE.Mesh; parts: THREE.Object3D[]; height: number }
+
+/** Detailed, layered enemy models — faceted bodies, emissive cores, orbiting
+ *  parts. `bodyMats`/`glowMats` collect the materials the state machine recolours;
+ *  `spinners` collect groups that rotate each frame. */
+function buildEnemy(
+  type: string,
+  bodyMats: THREE.MeshStandardMaterial[],
+  glowMats: THREE.MeshStandardMaterial[],
+  spinners: THREE.Object3D[],
+): EnemyBuild {
+  const bodyMat = () => {
+    const m = new THREE.MeshStandardMaterial({
+      color: '#3f3b57', roughness: 0.42, metalness: 0.35,
+      emissive: HOSTILE, emissiveIntensity: 0.55, flatShading: true,
+    });
+    bodyMats.push(m);
+    return m;
+  };
+  const glowMat = () => {
+    const m = new THREE.MeshStandardMaterial({
+      color: PALETTE.hostile, emissive: PALETTE.hostile, emissiveIntensity: 1.5, roughness: 0.3,
+    });
+    glowMats.push(m);
+    return m;
+  };
+  const auraMat = () => new THREE.MeshBasicMaterial({
+    color: PALETTE.hostile, transparent: true, opacity: 0.07, side: THREE.BackSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const parts: THREE.Object3D[] = [];
+
+  if (type === 'drifter') {
+    const body = bodyMat(), glow = glowMat();
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 1), body);
+    core.position.y = 1.15;
+    const inner = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), glow);
+    inner.position.y = 1.15; parts.push(inner);
+    const aura = new THREE.Mesh(new THREE.IcosahedronGeometry(0.74, 1), auraMat());
+    aura.position.y = 1.15; parts.push(aura);
+    const orbit = new THREE.Group(); orbit.position.y = 1.15; orbit.userData.spin = 1.6;
+    for (let i = 0; i < 3; i++) {
+      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.14), glow);
+      const a = (i / 3) * Math.PI * 2;
+      shard.position.set(Math.cos(a) * 0.66, Math.sin(a * 1.3) * 0.18, Math.sin(a) * 0.66);
+      orbit.add(shard);
+    }
+    spinners.push(orbit); parts.push(orbit);
+    return { core, parts, height: 1.6 };
+  }
+
+  if (type === 'warden') {
+    const body = bodyMat(), glow = glowMat();
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.74, 1.5, 6), body);
+    core.position.y = 1.05;
+    const head = new THREE.Mesh(new THREE.OctahedronGeometry(0.34), body);
+    head.position.y = 2.0; parts.push(head);
+    for (const side of [-1, 1]) {
+      const sh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.66), body);
+      sh.position.set(side * 0.72, 1.6, 0); sh.rotation.z = side * 0.35; parts.push(sh);
+    }
+    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.12), glow);
+    slit.position.set(0, 1.2, -0.56); parts.push(slit);
+    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 6, 16), glow);
+    crown.position.y = 2.0; crown.rotation.x = Math.PI / 2; parts.push(crown);
+    const shield = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 2.1, 6, 1, true),
+      new THREE.MeshBasicMaterial({ color: PALETTE.portalA, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }));
+    shield.position.y = 1.1; shield.name = 'shield'; parts.push(shield);
+    return { core, parts, height: 2.2 };
+  }
+
+  if (type === 'sower') {
+    const body = bodyMat(), glow = glowMat();
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), body);
+    core.position.y = 0.95;
+    const maw = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.11, 8, 18), glow);
+    maw.position.y = 0.95; maw.rotation.x = Math.PI / 2; parts.push(maw);
+    const sac = new THREE.Mesh(new THREE.SphereGeometry(0.74, 16, 12), auraMat());
+    sac.position.y = 0.95; parts.push(sac);
+    const spin = new THREE.Group(); spin.position.y = 0.95; spin.userData.spin = 0.9;
+    for (let i = 0; i < 8; i++) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.5, 6), body);
+      const a = (i / 8) * Math.PI * 2;
+      spike.position.set(Math.cos(a) * 0.62, 0, Math.sin(a) * 0.62);
+      spike.rotation.z = -Math.PI / 2; spike.rotation.y = -a;
+      spin.add(spike);
+    }
+    spinners.push(spin); parts.push(spin);
+    return { core, parts, height: 1.4 };
+  }
+
+  // colossus
+  const body = bodyMat(), glow = glowMat();
+  const core = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 1.2), body);
+  core.position.y = 1.75;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.9, 1.4), body);
+  base.position.y = 0.5; parts.push(base);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.8), body);
+  head.position.y = 2.95; parts.push(head);
+  const eye = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.1), glow);
+  eye.position.set(0, 2.98, -0.42); parts.push(eye);
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.7, 0.5), body);
+    arm.position.set(side * 1.15, 1.7, 0); parts.push(arm);
+    const fist = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.55, 0.62), body);
+    fist.position.set(side * 1.15, 0.85, 0); parts.push(fist);
+  }
+  // glowing cracks down the torso
+  for (let i = 0; i < 3; i++) {
+    const crack = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.2, 0.06), glow);
+    crack.position.set((i - 1) * 0.4, 1.7, -0.61); crack.rotation.z = (i - 1) * 0.12; parts.push(crack);
+  }
+  const heartMat = glowMat();
+  const heart = new THREE.Mesh(new THREE.OctahedronGeometry(0.46), heartMat);
+  heart.position.set(0, 1.95, -0.62); heart.name = 'heart'; parts.push(heart);
+  const heartRing = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.06, 8, 20), body);
+  heartRing.position.set(0, 1.95, -0.5); parts.push(heartRing);
+  return { core, parts, height: 3.4 };
+}
+
 class EnemyVis {
   group = new THREE.Group();
   interp = new Interpolator();
   hasTarget = false;
   core: THREE.Mesh;
-  extra: THREE.Mesh[] = [];
+  private bodyMats: THREE.MeshStandardMaterial[] = [];   // recoloured to show state
+  private glowMats: THREE.MeshStandardMaterial[] = [];   // hostile accent, iced on freeze
+  private spinners: THREE.Object3D[] = [];               // parts that rotate each frame
   hpBar: THREE.Sprite;
   private lh: LightHandle;
   telegraphT = 0;
@@ -234,51 +373,14 @@ class EnemyVis {
   height: number;
 
   constructor(snap: EnemySnap, private lights: DynamicLights) {
-    const mat = new THREE.MeshStandardMaterial({ color: '#4a4560', roughness: 0.5, emissive: HOSTILE, emissiveIntensity: 0.6 });
-    this.height = 1.6;
-    switch (snap.type) {
-      case 'drifter': {
-        this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), mat);
-        this.core.position.y = 1.1;
-        break;
-      }
-      case 'warden': {
-        this.height = 2.2;
-        this.core = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.9, 0.7), mat);
-        this.core.position.y = 1.1;
-        const shield = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 2.0, 16, 1, true),
-          new THREE.MeshBasicMaterial({ color: PALETTE.portalA, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
-        shield.position.y = 1.1; shield.name = 'shield';
-        this.extra.push(shield);
-        break;
-      }
-      case 'sower': {
-        this.core = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 12), mat);
-        this.core.position.y = 0.9;
-        for (let i = 0; i < 6; i++) {
-          const spike = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 6), mat);
-          const a = (i / 6) * Math.PI * 2;
-          spike.position.set(Math.cos(a) * 0.6, 0.9, Math.sin(a) * 0.6);
-          spike.rotation.z = -Math.PI / 2; spike.rotation.y = -a;
-          this.extra.push(spike);
-        }
-        break;
-      }
-      default: { // colossus
-        this.height = 3.4;
-        this.core = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.8, 1.4), mat);
-        this.core.position.y = 1.7;
-        const heart = new THREE.Mesh(new THREE.OctahedronGeometry(0.4),
-          new THREE.MeshStandardMaterial({ color: PALETTE.hostile, emissive: PALETTE.hostile, emissiveIntensity: 2.5 }));
-        heart.position.set(0, 1.9, -0.8); heart.name = 'heart';
-        this.extra.push(heart);
-      }
-    }
+    const b = buildEnemy(snap.type, this.bodyMats, this.glowMats, this.spinners);
+    this.core = b.core;
+    this.height = b.height;
     this.core.castShadow = true;
     this.hpBar = makeBar(PALETTE.hostile);
     this.hpBar.position.y = this.height + 0.5;
     this.lh = lights.register(PALETTE.hostile, { intensity: 0.8, range: 7, priority: 2 });
-    this.group.add(this.core, this.hpBar, ...this.extra);
+    this.group.add(this.core, this.hpBar, ...b.parts);
     this.group.position.set(...snap.p);
     this.interp.push(snap.p, snap.yaw);
   }
@@ -289,12 +391,17 @@ class EnemyVis {
     this.interp.push(snap.p, snap.yaw);
     this.hasTarget = !!snap.target && snap.state !== 'down' && snap.state !== 'frozen';
     setBar(this.hpBar, snap.hp / snap.maxHp);
-    const mat = this.core.material as THREE.MeshStandardMaterial;
     this.dead = snap.state === 'down';
     this.frozen = snap.state === 'frozen';
-    if (snap.state === 'frozen') { mat.emissive.copy(ICE); mat.emissiveIntensity = 1.2; mat.color.set('#9fc8e0'); }
-    else if (snap.state === 'staggered') { mat.emissive.set('#ffffff'); mat.emissiveIntensity = 1.0; }
-    else { mat.emissive.copy(HOSTILE); mat.color.set('#4a4560'); mat.emissiveIntensity = this.dead ? 0 : 0.6; }
+    for (const m of this.bodyMats) {
+      if (snap.state === 'frozen') { m.emissive.copy(ICE); m.emissiveIntensity = 1.0; m.color.set('#9fc8e0'); }
+      else if (snap.state === 'staggered') { m.emissive.set('#ffffff'); m.emissiveIntensity = 0.9; m.color.set('#6a6480'); }
+      else { m.emissive.copy(HOSTILE); m.color.set('#3f3b57'); m.emissiveIntensity = this.dead ? 0 : 0.55; }
+    }
+    for (const m of this.glowMats) {
+      if (snap.state === 'frozen') { m.emissive.copy(ICE); m.color.set('#bfe8ff'); m.emissiveIntensity = 1.4; }
+      else { m.emissive.copy(HOSTILE); m.color.set(PALETTE.hostile); m.emissiveIntensity = this.dead ? 0 : 1.6; }
+    }
     const shield = this.group.getObjectByName('shield') as THREE.Mesh | undefined;
     if (shield) shield.visible = snap.state !== 'staggered' && snap.state !== 'down' && snap.state !== 'frozen';
   }
@@ -303,12 +410,13 @@ class EnemyVis {
     const s = this.interp.sample(this.group.position);
     if (s) this.group.rotation.y = s.yaw;
     this.lh.pos.copy(this.group.position).setY(this.group.position.y + this.height * 0.55);
+    if (!this.dead && !this.frozen) for (const sp of this.spinners) sp.rotation.y += dt * sp.userData.spin;
     if (this.telegraphT > 0) {
       this.telegraphT = Math.max(0, this.telegraphT - dt);
       const flash = 0.5 + Math.sin(time * 24) * 0.5;
       this.lh.intensity = 0.8 + flash * 4;
       this.lh.color.set(PALETTE.hostile);
-      (this.core.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.6 + flash * 2;
+      for (const m of this.bodyMats) m.emissiveIntensity = 0.55 + flash * 1.8;
     } else if (!this.dead) {
       this.lh.intensity = 0.8;
       this.lh.color.set(this.frozen ? '#9fdcff' : PALETTE.hostile);

@@ -87,26 +87,30 @@ const ROLES: Record<MaterialRole, RoleSpec> = {
 function buildTextures(role: MaterialRole) {
   if (texCache.has(role)) return texCache.get(role)!;
   const spec = ROLES[role];
-  const n = 256;
+  const n = 512;                       // HD: 4x the texel density of the old 256
   let height = noiseField(n, spec.seed, 4);
 
+  const sc = n / 256;                  // keep pattern scale constant as resolution grows
   if (spec.grain === 'brushed') {
+    const step = Math.round(6 * sc);
     const h2 = new Float32Array(n * n);
     for (let y = 0; y < n; y++)
       for (let x = 0; x < n; x++)
-        h2[y * n + x] = height[y * n + Math.floor(x / 6) * 6] * 0.3 + Math.sin(y * 0.9 + height[y * n + x] * 6) * 0.06;
+        h2[y * n + x] = height[y * n + Math.floor(x / step) * step] * 0.3 + Math.sin(y * 0.9 / sc + height[y * n + x] * 6) * 0.06;
     height = h2;
   } else if (spec.grain === 'planks') {
+    const pw = 42 * sc;
     for (let y = 0; y < n; y++)
       for (let x = 0; x < n; x++) {
-        const plank = Math.floor(y / 42);
-        const edge = Math.min(1, Math.abs((y % 42) - 21) / 4);
-        height[y * n + x] = height[y * n + x] * 0.5 + edge * 0.4 + (plank % 2) * 0.05 + Math.sin(x * 0.35 + plank * 9) * 0.04;
+        const plank = Math.floor(y / pw);
+        const edge = Math.min(1, Math.abs((y % pw) - pw / 2) / (4 * sc));
+        height[y * n + x] = height[y * n + x] * 0.5 + edge * 0.4 + (plank % 2) * 0.05 + Math.sin(x * 0.35 / sc + plank * 9) * 0.04;
       }
   } else if (spec.grain === 'tiles') {
+    const tw = 64 * sc, half = tw / 2;
     for (let y = 0; y < n; y++)
       for (let x = 0; x < n; x++) {
-        const gx = Math.abs((x % 64) - 32) / 32, gy = Math.abs((y % 64) - 32) / 32;
+        const gx = Math.abs((x % tw) - half) / half, gy = Math.abs((y % tw) - half) / half;
         const groove = Math.min(1, Math.min(gx, gy) * 10);
         height[y * n + x] = height[y * n + x] * 0.35 + groove * 0.6;
       }
@@ -139,7 +143,9 @@ function buildTextures(role: MaterialRole) {
     const t = new THREE.CanvasTexture(canvas);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = 16;                 // max the GPU allows (three clamps to hw limit)
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
     return t;
   };
   const out = {

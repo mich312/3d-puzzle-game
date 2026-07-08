@@ -14,16 +14,26 @@ import type { HeroFloor } from './render/renderer';
 export type IState = Record<string, number | boolean>;
 
 export function textSprite(text: string, color = '#ffffff', size = 0.5): THREE.Sprite {
+  // high-DPI supersampled label: crisp text with a soft halo + dark outline
+  const W = 1024, H = 256;
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d')!;
-  c.width = 512; c.height = 128;
-  ctx.font = '600 44px "Segoe UI", system-ui, sans-serif';
+  c.width = W; c.height = H;
+  ctx.font = '600 92px "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 12;
+  ctx.lineJoin = 'round';
+  // dark halo for legibility over bright emissives
+  ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 22;
+  ctx.strokeStyle = 'rgba(10,8,20,0.9)'; ctx.lineWidth = 10;
+  ctx.strokeText(text, W / 2, H / 2);
+  ctx.shadowBlur = 0;
   ctx.fillStyle = color;
-  ctx.fillText(text, 256, 64);
+  ctx.fillText(text, W / 2, H / 2);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
   sp.scale.set(4 * size, size, 1);
   return sp;
