@@ -52,6 +52,8 @@ export class PlayerSession {
   portalCooldownUntil = 0;
   ignoreMovesUntil = 0;
   lastToastAt = 0;
+  lastChatAt = 0;
+  lastPingAt = 0;
   connected = true;
   disconnectedAt?: number;
 
@@ -143,7 +145,12 @@ export class LobbyInstance extends Instance {
 // ---------- interactable runtime state ----------
 type IState = Record<string, number | boolean>;
 
-interface Body { id: string; pos: Vec3; vel: Vec3; spawn: Vec3; mass: 'light' | 'heavy'; kind: string; holders: string[] }
+interface Body {
+  id: string; pos: Vec3; vel: Vec3; spawn: Vec3;
+  mass: 'light' | 'heavy'; kind: string; holders: string[];
+  half: number;              // half-extent of the cube (collision)
+  resting: boolean;
+}
 
 interface PortalPlacement { owner: string; slot: 0 | 1; pos: Vec3; normal: Vec3 }
 
@@ -188,7 +195,11 @@ export class LevelInstance extends Instance {
         case 'receiver': this.states.set(it.id, { lit: false }); break;
         case 'hazard': this.states.set(it.id, { frozen: false, frozenUntil: 0 }); break;
         case 'carryable':
-          this.bodies.set(it.id, { id: it.id, pos: [...it.pos] as Vec3, vel: [0, 0, 0], spawn: [...it.pos] as Vec3, mass: it.mass ?? 'light', kind: it.kind ?? 'cube', holders: [] });
+          this.bodies.set(it.id, {
+            id: it.id, pos: [...it.pos] as Vec3, vel: [0, 0, 0], spawn: [...it.pos] as Vec3,
+            mass: it.mass ?? 'light', kind: it.kind ?? 'cube', holders: [],
+            half: (it.mass ?? 'light') === 'heavy' ? 0.55 : 0.3, resting: false,
+          });
           break;
         case 'emitter': break;
       }
@@ -494,6 +505,49 @@ export class LevelInstance extends Instance {
   }
 
   // ----- helpers -----
+  /** axis sweep for a body cube vs level colliders + other bodies.
+      Returns true if this axis move landed on/against a surface from above (grounded, y-axis only). */
+  sweepBodyAxis(b: Body, axis: 0 | 1 | 2, delta: number): boolean {
+    if (delta === 0 && axis !== 1) return false;
+    const p = [...b.pos] as Vec3;
+    p[axis] += delta;
+    const overlapsBox = (min: Vec3, max: Vec3) =>
+      p[0] - b.half < max[0] && p[0] + b.half > min[0] &&
+      p[1] - b.half < max[1] && p[1] + b.half > min[1] &&
+      p[2] - b.half < max[2] && p[2] + b.half > min[2];
+    let grounded = false;
+    const resolve = (min: Vec3, max: Vec3) => {
+      if (!overlapsBox(min, max)) return;
+      if (delta > 0) p[axis] = min[axis] - b.half - 0.001;
+      else p[axis] = max[axis] + b.half + 0.001;
+      if (axis === 1 && delta <= 0) { grounded = true; b.vel[1] = 0; }
+      else if (axis === 1) b.vel[1] = 0;
+      else b.vel[axis] *= -0.35;   // restitution off walls
+    };
+    for (const c of this.colliders) {
+      if (!c.active) continue;
+      resolve(c.min, c.max);
+    }
+    for (const o of this.bodies.values()) {
+      if (o.id === b.id) continue;
+      resolve(
+        [o.pos[0] - o.half, o.pos[1] - o.half, o.pos[2] - o.half],
+        [o.pos[0] + o.half, o.pos[1] + o.half, o.pos[2] + o.half]);
+    }
+    b.pos[axis] = p[axis];
+    return grounded;
+  }
+
+  /** move a body toward a target point with collision, capping per-tick travel */
+  sweepBodyTo(b: Body, desired: Vec3, maxStep: number) {
+    const d = v3.sub(desired, b.pos);
+    const l = v3.len(d);
+    const step = l > maxStep ? v3.scale(d, maxStep / l) : d;
+    this.sweepBodyAxis(b, 0, step[0]);
+    this.sweepBodyAxis(b, 2, step[2]);
+    this.sweepBodyAxis(b, 1, step[1]);
+  }
+
   /** line-of-sight to a point, ignoring geometry within `slack` metres of it
       (e.g. a switch's own decorative housing must not block the shot) */
   clearToPoint(origin: Vec3, point: Vec3, slack: number): boolean {
@@ -581,9 +635,13 @@ export class LevelInstance extends Instance {
       }
     }
 
-    // held bodies follow holders; loose bodies fall; tractor moves targets
+    // held bodies follow holders; loose bodies simulate; tractor moves targets —
+    // ALL body motion now goes through collision sweeps (no more clipping walls)
     for (const b of this.bodies.values()) {
-      b.holders = b.holders.filter((h) => this.players.get(h)?.state === 'alive');
+      b.holders = b.holders.filter((h) => {
+        const holder = this.players.get(h);
+        return holder?.state === 'alive' && holder.connected;
+      });
       const needsTwo = b.mass === 'heavy';
       const canCarry = b.holders.length >= 2 || (b.holders.length === 1 && (!needsTwo || this.players.get(b.holders[0])!.hasSkill('quick-carry')));
       if (b.holders.length > 0 && canCarry) {
@@ -594,8 +652,10 @@ export class LevelInstance extends Instance {
         // player forward is (-sin yaw, 0, -cos yaw) — carry held objects in front
         const fx = hs.reduce((s, h) => s - Math.sin(h.yaw), 0) / hs.length;
         const fz = hs.reduce((s, h) => s - Math.cos(h.yaw), 0) / hs.length;
-        b.pos = [cx + fx * 1.2, cy + 1.0, cz + fz * 1.2];
+        const desired: Vec3 = [cx + fx * 1.2, cy + 1.0, cz + fz * 1.2];
+        this.sweepBodyTo(b, desired, 0.8);
         b.vel = [0, 0, 0];
+        b.resting = false;
         continue;
       }
       // tractor override
@@ -606,18 +666,24 @@ export class LevelInstance extends Instance {
         const l = v3.len(d);
         if (l > 0.3) {
           const step = Math.min(l, DEVICE_COMBAT.tractorPullForce * dt);
-          b.pos = v3.add(b.pos, v3.scale(v3.norm(d), step));
+          this.sweepBodyTo(b, v3.add(b.pos, v3.scale(v3.norm(d), step)), step + 0.01);
         }
         b.vel = [0, 0, 0];
+        b.resting = false;
         continue;
       }
-      // gravity + rest
-      const g = groundHeight(this.colliders, b.pos[0], b.pos[1], b.pos[2]);
-      b.pos = v3.add(b.pos, v3.scale(b.vel, dt));
-      b.vel[0] *= Math.max(0, 1 - 4 * dt); b.vel[2] *= Math.max(0, 1 - 4 * dt);
-      if (g !== null && b.pos[1] <= g + 0.31) { b.pos[1] = g + 0.3; b.vel[1] = 0; }
-      else { b.vel[1] -= 22 * dt; }
-      if (b.pos[1] < this.killY) { b.pos = [...b.spawn] as Vec3; b.vel = [0, 0, 0]; }  // auto-unstick
+      // free body: gravity + friction + collision sweeps with restitution
+      if (!b.resting || Math.hypot(b.vel[0], b.vel[2]) > 0.02) {
+        b.vel[1] -= 22 * dt;
+        this.sweepBodyAxis(b, 0, b.vel[0] * dt);
+        this.sweepBodyAxis(b, 2, b.vel[2] * dt);
+        const grounded = this.sweepBodyAxis(b, 1, b.vel[1] * dt);
+        b.vel[0] *= Math.max(0, 1 - (grounded ? 8 : 2) * dt);
+        b.vel[2] *= Math.max(0, 1 - (grounded ? 8 : 2) * dt);
+        b.resting = grounded && Math.hypot(b.vel[0], b.vel[1], b.vel[2]) < 0.15;
+        if (b.resting) b.vel = [0, 0, 0];
+      }
+      if (b.pos[1] < this.killY) { b.pos = [...b.spawn] as Vec3; b.vel = [0, 0, 0]; b.resting = false; }  // auto-unstick
     }
 
     // tractor on enemies: drag toward aim
@@ -840,6 +906,8 @@ export class LevelInstance extends Instance {
     }
     this.beacon = false;
     this.updateBeacon();
+    const names = this.present().map((p) => p.profile.name).join(', ');
+    this.broadcast({ t: 'chat', v: 1, from: '', name: 'THRESHOLD', accent: '#ffd98a', text: `${names} crossed the Threshold — ${this.level.name} (${(timeMs / 1000).toFixed(1)}s)`, system: true });
   }
 
   tickSnapshot(): InstanceSnapshot {
@@ -870,6 +938,8 @@ export class GameServer {
   levels = new Map<string, LevelInstance>();
   sessions = new Map<string, PlayerSession>();          // by player id
   byToken = new Map<string, PlayerSession>();
+  /** co-op entry gate: players waiting at a level's threshold until min players gather */
+  waiting = new Map<string, Map<string, { p: PlayerSession; at: number }>>();
   private levelTimer: ReturnType<typeof setInterval>;
   private lobbyTimer: ReturnType<typeof setInterval>;
 
@@ -896,6 +966,16 @@ export class GameServer {
     for (const l of this.lobbies) {
       try { l.tick(); } catch (e) { console.error('[tick] lobby crashed:', (e as Error).stack); }
     }
+    // expire stale gate-waits (player wandered off / disconnected)
+    const now = Date.now();
+    let changed = false;
+    for (const [lvl, q] of this.waiting) {
+      for (const [id, w] of q) {
+        if (!w.p.connected || now - w.at > 90_000) { q.delete(id); changed = true; }
+      }
+      if (q.size === 0) this.waiting.delete(lvl);
+    }
+    if (changed) this.pushBeacons();
   }
 
   connect(link: ClientLink, token?: string, name?: string): PlayerSession {
@@ -969,6 +1049,38 @@ export class GameServer {
   enterLevel(p: PlayerSession, levelId: string, spawnName = 'entry') {
     const def = getLevel(levelId);
     if (!def) { p.toast('That way is closed.', 'warn'); return; }
+    const inst = this.levels.get(levelId);
+    // co-op entry gate (1.1): a min>=2 level opens only when enough players gather
+    // at its threshold — unless someone is already inside to join
+    const connectedInside = inst?.present().length ?? 0;
+    if (def.players.min >= 2 && connectedInside === 0) {
+      let q = this.waiting.get(levelId);
+      if (!q) { q = new Map(); this.waiting.set(levelId, q); }
+      const wasQueued = q.has(p.id);
+      this.dequeue(p, levelId);                 // leave any other queue
+      q.set(p.id, { p, at: Date.now() });
+      if (q.size >= def.players.min) {
+        const group = [...q.values()].map((w) => w.p).filter((w) => w.connected);
+        this.waiting.delete(levelId);
+        for (const gp of group) this.actuallyEnter(gp, levelId, spawnName);
+        this.pushBeacons();
+        return;
+      }
+      p.portalCooldownUntil = Date.now() + 2500;   // don't re-trigger every tick at the portal
+      if (!wasQueued) {
+        p.link.send({ t: 'gate_wait', v: 1, level: levelId, levelName: def.name, waiting: q.size, needed: def.players.min });
+        p.toast(`${def.name} needs ${def.players.min} — waiting at the threshold. The Nexus can see you.`, 'info');
+        this.pushBeacons();
+      }
+      return;
+    }
+    this.actuallyEnter(p, levelId, spawnName);
+  }
+
+  private actuallyEnter(p: PlayerSession, levelId: string, spawnName = 'entry') {
+    const def = getLevel(levelId);
+    if (!def) return;
+    this.dequeue(p);
     p.instance?.removePlayer(p);
     let inst = this.levels.get(levelId);
     if (!inst) {
@@ -979,11 +1091,28 @@ export class GameServer {
     inst.addPlayer(p, spawnName);
   }
 
+  /** remove a player from one or all waiting queues */
+  dequeue(p: PlayerSession, exceptLevel?: string) {
+    let changed = false;
+    for (const [lvl, q] of this.waiting) {
+      if (lvl === exceptLevel) continue;
+      if (q.delete(p.id)) changed = true;
+      if (q.size === 0) this.waiting.delete(lvl);
+    }
+    if (changed) this.pushBeacons();
+  }
+
   joinInstance(p: PlayerSession, key: string) {
-    // key may be a level id or an instance id
+    // beacon entries for gate-waits use the "wait-<levelId>" pseudo-id
+    if (key.startsWith('wait-')) { this.enterLevel(p, key.slice(5)); return; }
     let inst = this.levels.get(key);
     if (!inst) inst = [...this.levels.values()].find((i) => i.id === key);
     if (!inst) { this.toLobby(p); return; }
+    if (inst.present().length === 0 && inst.level.players.min >= 2) {
+      this.enterLevel(p, inst.level.id);        // empty gated level → same queue rules
+      return;
+    }
+    this.dequeue(p);
     p.instance?.removePlayer(p);
     inst.addPlayer(p);
   }
@@ -997,6 +1126,15 @@ export class GameServer {
           present: inst.players.size, needed: Math.max(0, inst.level.players.min - inst.players.size),
         });
       }
+    }
+    // players waiting at co-op entry gates surface as joinable beacons too
+    for (const [levelId, q] of this.waiting) {
+      const def = getLevel(levelId);
+      if (!def || q.size === 0) continue;
+      out.push({
+        instanceId: `wait-${levelId}`, level: levelId, levelName: def.name,
+        present: q.size, needed: Math.max(1, def.players.min - q.size),
+      });
     }
     return out;
   }
@@ -1091,6 +1229,24 @@ export class GameServer {
         if (!p.hasSkill('echo-core')) break;
         p.echo = msg.place ? ([...p.pos] as Vec3) : undefined;
         break;
+      case 'chat': {
+        const now = Date.now();
+        if (now - p.lastChatAt < 700) break;
+        // strip control chars; client escapes HTML on render
+        const text = msg.text.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 200);
+        if (!text) break;
+        p.lastChatAt = now;
+        p.instance?.broadcast({ t: 'chat', v: 1, from: p.id, name: p.profile.name, accent: p.accent, text });
+        break;
+      }
+      case 'ping': {
+        const now = Date.now();
+        if (now - p.lastPingAt < 1000) break;
+        if (v3.dist(p.pos, msg.pos) > 120) break;
+        p.lastPingAt = now;
+        p.instance?.broadcast({ t: 'ping', v: 1, from: p.id, accent: p.accent, pos: msg.pos });
+        break;
+      }
       case 'set_opts': if (msg.difficulty) p.difficulty = msg.difficulty; break;
       case 'set_name':
         p.profile.name = msg.name.slice(0, 24) || p.profile.name;

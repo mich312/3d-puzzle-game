@@ -4,13 +4,15 @@ import * as THREE from 'three';
 import type { EnemySnap, PlayerSnap } from '../shared/messages';
 import { PALETTE } from '../shared/palette';
 import { textSprite } from './world';
+import { Interpolator } from './interp';
 
 // ---------- peers ----------
 class PeerAvatar {
   group = new THREE.Group();
-  target = new THREE.Vector3();
-  targetYaw = 0;
+  interp = new Interpolator();
   downed = false;
+  private bubble?: THREE.Sprite;
+  private bubbleUntil = 0;
   hpBar: THREE.Sprite;
   body: THREE.Mesh;
   downedLight: THREE.PointLight;
@@ -37,12 +39,11 @@ class PeerAvatar {
     this.downedLight.position.y = 1;
     this.group.add(this.body, head, visor, name, this.hpBar, this.downedLight);
     this.group.position.set(...snap.p);
-    this.target.set(...snap.p);
+    this.interp.push(snap.p, snap.yaw);
   }
 
   apply(snap: PlayerSnap) {
-    this.target.set(...snap.p);
-    this.targetYaw = snap.yaw;
+    this.interp.push(snap.p, snap.yaw);
     setBar(this.hpBar, snap.hp / 100);
     const downed = snap.state === 'downed';
     this.downed = downed;
@@ -52,12 +53,51 @@ class PeerAvatar {
     this.body.position.y = downed ? 0.4 : 0.85;
   }
 
-  update(dt: number) {
-    this.group.position.lerp(this.target, Math.min(1, dt * 12));
-    const dy = this.targetYaw - this.group.rotation.y;
-    this.group.rotation.y += (((dy + Math.PI) % (Math.PI * 2)) - Math.PI + Math.PI * 2) % (Math.PI * 2) * Math.min(1, dt * 10) - 0;
-    this.group.rotation.y = this.targetYaw; // simple: snap yaw (interp above is cosmetic)
+  say(text: string) {
+    if (this.bubble) this.group.remove(this.bubble);
+    this.bubble = bubbleSprite(text);
+    this.bubble.position.y = 2.6;
+    this.group.add(this.bubble);
+    this.bubbleUntil = performance.now() + 4500 + text.length * 40;
   }
+
+  update(dt: number) {
+    const s = this.interp.sample(this.group.position);
+    if (s) this.group.rotation.y = s.yaw;
+    if (this.bubble && performance.now() > this.bubbleUntil) {
+      this.group.remove(this.bubble);
+      this.bubble = undefined;
+    }
+  }
+}
+
+function bubbleSprite(text: string): THREE.Sprite {
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d')!;
+  ctx.font = '500 30px "Segoe UI", system-ui, sans-serif';
+  const short = text.length > 60 ? text.slice(0, 58) + '…' : text;
+  const w = Math.min(560, Math.max(120, ctx.measureText(short).width + 44));
+  c.width = 576; c.height = 96;
+  ctx.font = '500 30px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const x0 = (c.width - w) / 2;
+  ctx.fillStyle = 'rgba(16,14,28,0.88)';
+  ctx.strokeStyle = 'rgba(170,160,230,0.55)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(x0, 14, w, 60, 14);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();          // little tail
+  ctx.moveTo(c.width / 2 - 8, 74); ctx.lineTo(c.width / 2, 90); ctx.lineTo(c.width / 2 + 8, 74);
+  ctx.fillStyle = 'rgba(16,14,28,0.88)';
+  ctx.fill();
+  ctx.fillStyle = '#efeaf8';
+  ctx.fillText(short, c.width / 2, 45, w - 30);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(3.2, 0.53, 1);
+  return sp;
 }
 
 function makeBar(color: string): THREE.Sprite {
@@ -102,10 +142,46 @@ export class Peers {
     if (a) { this.scene.remove(a.group); this.map.delete(id); }
   }
   update(dt: number) { for (const a of this.map.values()) a.update(dt); }
+  say(id: string, text: string) { this.map.get(id)?.say(text); }
   positionOf(id: string): THREE.Vector3 | undefined { return this.map.get(id)?.group.position; }
   clear() { for (const [id] of this.map) this.remove(id); }
   /** downed peers for revive prompts */
   entries() { return this.map.entries(); }
+}
+
+// ---------- ping markers ("look here") ----------
+export class Pings {
+  private list: { group: THREE.Group; until: number; ring: THREE.Mesh }[] = [];
+  constructor(private scene: THREE.Scene) {}
+  add(pos: [number, number, number], accent: string) {
+    const g = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 8, 28),
+      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.9, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.16, 5, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
+    beam.position.y = 2.5;
+    const light = new THREE.PointLight(accent, 2, 8);
+    light.position.y = 1;
+    g.add(ring, beam, light);
+    g.position.set(...pos);
+    this.scene.add(g);
+    this.list.push({ group: g, until: performance.now() + 4000, ring });
+  }
+  update(dt: number) {
+    const now = performance.now();
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const p = this.list[i];
+      const left = (p.until - now) / 4000;
+      if (left <= 0) { this.scene.remove(p.group); this.list.splice(i, 1); continue; }
+      p.ring.scale.setScalar(1 + Math.sin(now * 0.008) * 0.18);
+      p.group.children.forEach((c) => {
+        const m = (c as THREE.Mesh).material as THREE.Material & { opacity?: number };
+        if (m && 'opacity' in m) m.opacity = Math.min(1, left * 2) * ((c as THREE.Mesh).geometry?.type === 'TorusGeometry' ? 0.9 : 0.4);
+      });
+    }
+  }
+  clear() { for (const p of this.list) this.scene.remove(p.group); this.list.length = 0; }
 }
 
 // ---------- echo ghosts (Echo Core skill) ----------
@@ -142,8 +218,8 @@ const ICE = new THREE.Color('#bfe8ff');
 
 class EnemyVis {
   group = new THREE.Group();
-  target = new THREE.Vector3();
-  targetYaw = 0;
+  interp = new Interpolator();
+  hasTarget = false;
   core: THREE.Mesh;
   extra: THREE.Mesh[] = [];
   hpBar: THREE.Sprite;
@@ -201,12 +277,12 @@ class EnemyVis {
     this.light.position.y = 1.2;
     this.group.add(this.core, this.hpBar, this.light, ...this.extra);
     this.group.position.set(...snap.p);
-    this.target.set(...snap.p);
+    this.interp.push(snap.p, snap.yaw);
   }
 
   apply(snap: EnemySnap) {
-    this.target.set(...snap.p);
-    this.targetYaw = snap.yaw;
+    this.interp.push(snap.p, snap.yaw);
+    this.hasTarget = !!snap.target && snap.state !== 'down' && snap.state !== 'frozen';
     setBar(this.hpBar, snap.hp / snap.maxHp);
     const mat = this.core.material as THREE.MeshStandardMaterial;
     this.dead = snap.state === 'down';
@@ -218,8 +294,8 @@ class EnemyVis {
   }
 
   update(dt: number, time: number) {
-    this.group.position.lerp(this.target, Math.min(1, dt * 10));
-    this.group.rotation.y = this.targetYaw;
+    const s = this.interp.sample(this.group.position);
+    if (s) this.group.rotation.y = s.yaw;
     if (this.telegraphT > 0) {
       this.telegraphT = Math.max(0, this.telegraphT - dt);
       const flash = 0.5 + Math.sin(time * 24) * 0.5;
@@ -272,6 +348,14 @@ export class Enemies {
   }
   meshEntries(): { id: string; obj: THREE.Object3D; height: number; dead: boolean }[] {
     return [...this.map.entries()].map(([id, v]) => ({ id, obj: v.group, height: v.height, dead: v.dead }));
+  }
+  /** positions of aggroed enemies — drives ember-trail particles */
+  aggroPositions(): THREE.Vector3[] {
+    const out: THREE.Vector3[] = [];
+    for (const v of this.map.values()) {
+      if (v.hasTarget && !v.dead) out.push(v.group.position.clone().setY(v.group.position.y + v.height * 0.6));
+    }
+    return out;
   }
   anyAggro(selfPos: THREE.Vector3): boolean {
     for (const v of this.map.values()) {

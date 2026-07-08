@@ -110,9 +110,11 @@ export function validateLevel(lv: LevelDef): string[] {
       if (!lv.puzzle.solved) errs.push('puzzle.solved missing');
       if (lv.coop === 'strictly-co-op' && lv.puzzle.soloSolution)
         errs.push('strictly-co-op level must not declare a soloSolution');
-      // Invariant guard: base path never requires a non-starter device
-      if (lv.players.min >= 2 && lv.requiresDevice.some((d) => d !== 'pulse'))
-        errs.push('base co-op path may not require a non-starter device (invariant)');
+      // Invariant guard: base path may only require the starter Pulse or a device
+      // this level itself grants on entry (progression-order checks live in the
+      // cross-level validator, tools/validate-content.ts)
+      if (lv.players.min >= 2 && lv.requiresDevice.some((d) => d !== 'pulse' && d !== lv.grantsDevice))
+        errs.push('base co-op path may not require an unavailable device (invariant)');
     }
     if ((lv.enemies?.length ?? 0) > 20) errs.push('enemy budget exceeded (max 20 per instance)');
     const bodies = (lv.interactables ?? []).filter((i) => i.type === 'carryable').length;

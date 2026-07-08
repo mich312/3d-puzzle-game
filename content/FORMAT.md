@@ -10,7 +10,8 @@ Levels are JSON files in `content/worlds/<world>/<id>.json`, typed by `shared/le
   `pos:[0,-0.5,0], size:[20,1,20]` gives a walkable plane at y=0). Spawns go ~1 above the floor.
 - Keep levels compact: a level is a handful of connected rooms/terraces, total footprint
   under ~90×90 m. Use verticality (ledges, drops) — combat wants cover and sightlines.
-- **Budgets:** ≤ 20 enemies, ≤ 24 carryables, ≤ ~180 geometry entries per level.
+- **Budgets:** ≤ 20 enemies, ≤ 24 carryables, ≤ ~180 geometry entries per level
+  (the open-world Nexus may go up to ~500 — the client distance-culls).
 - Fog + emissive accents do the mood work. 90% of geometry uses cool materials
   (`stone`, `tile`, `metal`); reserve `accent` (warm `#ffd98a`) for interactable hints,
   `crystal` for glowy set-pieces. Add `emissive` sparingly.
@@ -63,14 +64,22 @@ Enemy state: `<enemyId>.down`, plus `allEnemiesDown` and `playersPresent`.
 ## The puzzle block (every non-nexus level)
 ```jsonc
 "puzzle": {
-  "solved": "gate.open && allEnemiesDown",   // BASE co-op path: two players, Pulse only, zero items
-  "soloSolution": "beamMount.filled && allEnemiesDown",  // optional, gear-gated; OMIT for strictly-co-op
+  "solved": "gate.open && allEnemiesDown",   // the co-op path: min players, base gear
   "shard": "<levelId>", "skillPoints": 1
 }
 ```
-**Invariants (validator-enforced):** the `solved` expression must be reachable by
-`players.min` players with only the Pulse and no items. Solo routes are additive.
-`strictly-co-op` ⇒ no `soloSolution`.
+**1.1 rules (validator-enforced):**
+- Every level except the nexus and the `atrium-01` tutorial is **co-op**:
+  `players.min >= 2`, coop tier `co-op-required` or `strictly-co-op`, and NO
+  `soloSolution` (retired — hidden collectibles remain as secrets only).
+- **Brainy depth:** `solved` (with door `openWhen` chains expanded) must span **>= 2
+  interaction families beyond switches and combat**. Families: mass (plates/carryables),
+  beam-item (emitter/receiver/socket/collectible), mechanism (rotator/lever),
+  freeze (hazards), switch, combat. A pulse-switch may never be the effective final gate.
+- `requiresDevice` may list only the Pulse, this level's own `grantsDevice`, or a
+  device granted by a level with a lower Nexus shard gate.
+- The `solved` expression must be reachable by `players.min` players with those
+  devices and no items.
 
 ## Design language (spec §13)
 Declare `coop` tier, `dependency` tags (`simultaneity`, `asymmetric-info`,

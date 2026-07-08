@@ -6,47 +6,7216 @@
   "coop": "solo",
   "dependency": [],
   "encounters": [],
-  "players": { "min": 1, "max": 24 },
+  "players": {
+    "min": 1,
+    "max": 24
+  },
   "requiresDevice": [],
-  "intro": "Walk to a portal. Wave someone in, or go alone.",
-  "fog": { "color": "#4a4468", "density": 0.022 },
-  "spawns": { "entry": [0, 1, 14] },
+  "intro": "The archipelago drifts in the deep. Cross a bridge, arm a portal \u2014 wave someone in, or go alone.",
+  "fog": {
+    "color": "#4a4468",
+    "density": 0.014
+  },
+  "spawns": {
+    "entry": [
+      0,
+      1,
+      12
+    ],
+    "atrium": [
+      0,
+      5.0,
+      -40
+    ],
+    "vaults": [
+      40,
+      4.0,
+      0
+    ],
+    "gardens": [
+      0,
+      3.0,
+      40
+    ],
+    "observatory": [
+      -40,
+      7.0,
+      0
+    ]
+  },
   "geometry": [
-    { "shape": "box", "pos": [0, -0.5, 0], "size": [46, 1, 46], "material": "tile" },
-    { "shape": "cylinder", "pos": [0, 0.25, 0], "size": [4.2, 0.5, 4.2], "material": "stone" },
-    { "shape": "cylinder", "pos": [0, 1.1, 0], "size": [0.5, 1.6, 0.5], "material": "crystal", "emissive": "#cfc4ff", "emissiveIntensity": 1.2 },
-    { "shape": "cylinder", "pos": [0, 2.2, 0], "size": [0.9, 0.35, 0.9], "material": "crystal", "emissive": "#cfc4ff", "emissiveIntensity": 2.0, "collider": false },
-
-    { "shape": "box", "pos": [0, 1.5, -23], "size": [46, 3, 1], "material": "stone" },
-    { "shape": "box", "pos": [0, 1.5, 23], "size": [46, 3, 1], "material": "stone" },
-    { "shape": "box", "pos": [-23, 1.5, 0], "size": [1, 3, 46], "material": "stone" },
-    { "shape": "box", "pos": [23, 1.5, 0], "size": [1, 3, 46], "material": "stone" },
-
-    { "shape": "cylinder", "pos": [-14, 3, -14], "size": [0.7, 6, 0.7], "material": "stone" },
-    { "shape": "cylinder", "pos": [14, 3, -14], "size": [0.7, 6, 0.7], "material": "stone" },
-    { "shape": "cylinder", "pos": [-14, 3, 14], "size": [0.7, 6, 0.7], "material": "stone" },
-    { "shape": "cylinder", "pos": [14, 3, 14], "size": [0.7, 6, 0.7], "material": "stone" },
-    { "shape": "box", "pos": [-14, 6.2, -14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#6ec6ff", "emissiveIntensity": 1.0, "collider": false },
-    { "shape": "box", "pos": [14, 6.2, -14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#6ec6ff", "emissiveIntensity": 1.0, "collider": false },
-    { "shape": "box", "pos": [-14, 6.2, 14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 1.0, "collider": false },
-    { "shape": "box", "pos": [14, 6.2, 14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 1.0, "collider": false },
-
-    { "shape": "box", "pos": [0, 0.15, -19], "size": [20, 0.3, 5], "material": "stone" },
-    { "shape": "box", "pos": [19, 0.15, 0], "size": [5, 0.3, 20], "material": "stone" },
-    { "shape": "box", "pos": [0, 0.15, 19], "size": [20, 0.3, 5], "material": "stone" },
-    { "shape": "box", "pos": [-19, 0.15, 0], "size": [5, 0.3, 14], "material": "stone" }
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -0.5,
+        0
+      ],
+      "size": [
+        15.0,
+        1,
+        15.0
+      ],
+      "material": "tile"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.04,
+        0
+      ],
+      "size": [
+        13.5,
+        0.08,
+        13.5
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.12
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.06,
+        0
+      ],
+      "size": [
+        4.5,
+        0.05,
+        4.5
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.4,
+        0
+      ],
+      "size": [
+        3.0,
+        0.8,
+        3.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.95,
+        0
+      ],
+      "size": [
+        2.2,
+        0.3,
+        2.2
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 0.4
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        1.9,
+        0
+      ],
+      "size": [
+        0.55,
+        2.0,
+        0.55
+      ],
+      "material": "crystal",
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 1.4
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        3.2,
+        0
+      ],
+      "size": [
+        1.0,
+        0.4,
+        1.0
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 2.4
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        6.0,
+        0
+      ],
+      "size": [
+        1.1,
+        8.0,
+        1.1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        14.0,
+        0
+      ],
+      "size": [
+        0.7,
+        8.0,
+        0.7
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        21.0,
+        0
+      ],
+      "size": [
+        0.38,
+        6.0,
+        0.38
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        25.5,
+        0
+      ],
+      "size": [
+        0.18,
+        3.0,
+        0.18
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#cfc4ff",
+      "emissiveIntensity": 1.6
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        27.6,
+        0
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#cfc4ff",
+      "emissiveIntensity": 2.6,
+      "rotY": 0.7
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        11.087,
+        2.5,
+        4.592
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        11.087,
+        5.15,
+        4.592
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        11.087,
+        5.6,
+        4.592
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        4.592,
+        2.5,
+        11.087
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        4.592,
+        5.15,
+        11.087
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.592,
+        5.6,
+        11.087
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4.592,
+        2.5,
+        11.087
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4.592,
+        5.15,
+        11.087
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.592,
+        5.6,
+        11.087
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -11.087,
+        2.5,
+        4.592
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -11.087,
+        5.15,
+        4.592
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -11.087,
+        5.6,
+        4.592
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -11.087,
+        2.5,
+        -4.592
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -11.087,
+        5.15,
+        -4.592
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -11.087,
+        5.6,
+        -4.592
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4.592,
+        2.5,
+        -11.087
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4.592,
+        5.15,
+        -11.087
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.592,
+        5.6,
+        -11.087
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        4.592,
+        2.5,
+        -11.087
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        4.592,
+        5.15,
+        -11.087
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.592,
+        5.6,
+        -11.087
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        11.087,
+        2.5,
+        -4.592
+      ],
+      "size": [
+        0.55,
+        5.0,
+        0.55
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        11.087,
+        5.15,
+        -4.592
+      ],
+      "size": [
+        0.75,
+        0.3,
+        0.75
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        11.087,
+        5.6,
+        -4.592
+      ],
+      "size": [
+        0.9,
+        0.5,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.974,
+        0.45,
+        6.248
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 0.449
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.974,
+        1.0,
+        6.248
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 0.449
+    },
+    {
+      "shape": "box",
+      "pos": [
+        11.258,
+        0.45,
+        8.978
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 0.673
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.978,
+        0.45,
+        11.258
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 0.898
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.978,
+        1.0,
+        11.258
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 0.898
+    },
+    {
+      "shape": "box",
+      "pos": [
+        6.248,
+        0.45,
+        12.974
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 1.122
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -6.248,
+        0.45,
+        12.974
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 2.02
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.978,
+        0.45,
+        11.258
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 2.244
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.978,
+        1.0,
+        11.258
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 2.244
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -11.258,
+        0.45,
+        8.978
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 2.468
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.974,
+        0.45,
+        6.248
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 2.693
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.974,
+        1.0,
+        6.248
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 2.693
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.974,
+        0.45,
+        -6.248
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 3.59
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.974,
+        1.0,
+        -6.248
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 3.59
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -11.258,
+        0.45,
+        -8.978
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 3.815
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.978,
+        0.45,
+        -11.258
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 4.039
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.978,
+        1.0,
+        -11.258
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 4.039
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -6.248,
+        0.45,
+        -12.974
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 4.264
+    },
+    {
+      "shape": "box",
+      "pos": [
+        6.248,
+        0.45,
+        -12.974
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 5.161
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.978,
+        0.45,
+        -11.258
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 5.386
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.978,
+        1.0,
+        -11.258
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 5.386
+    },
+    {
+      "shape": "box",
+      "pos": [
+        11.258,
+        0.45,
+        -8.978
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 5.61
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.974,
+        0.45,
+        -6.248
+      ],
+      "size": [
+        1.3,
+        0.9,
+        0.5
+      ],
+      "material": "stone",
+      "rotY": 5.834
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.974,
+        1.0,
+        -6.248
+      ],
+      "size": [
+        0.35,
+        0.35,
+        0.35
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8b9fd0",
+      "emissiveIntensity": 0.9,
+      "rotY": 5.834
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -4.0,
+        0
+      ],
+      "size": [
+        12.0,
+        7.0,
+        12.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -9.5,
+        0
+      ],
+      "size": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#403c54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -14.0,
+        0
+      ],
+      "size": [
+        2.2,
+        5.0,
+        2.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#38344a"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        9.0,
+        -5.5,
+        0.0
+      ],
+      "size": [
+        1.2,
+        4.5,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413c56"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0.0,
+        -5.5,
+        9.0
+      ],
+      "size": [
+        1.2,
+        4.5,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413c56"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -9.0,
+        -5.5,
+        0.0
+      ],
+      "size": [
+        1.2,
+        4.5,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413c56"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -0.0,
+        -5.5,
+        -9.0
+      ],
+      "size": [
+        1.2,
+        4.5,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413c56"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        3.2,
+        -50
+      ],
+      "size": [
+        26,
+        1.6,
+        26
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.05,
+        -50
+      ],
+      "size": [
+        25,
+        0.1,
+        25
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.12
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -0.5,
+        -50
+      ],
+      "size": [
+        12.5,
+        7.0,
+        12.5
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#463f5c"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -6.0,
+        -50
+      ],
+      "size": [
+        6.25,
+        6.0,
+        6.25
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3d374f"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -10.5,
+        -50
+      ],
+      "size": [
+        2.25,
+        5.0,
+        2.25
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#332f45"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        8.125,
+        -2.0,
+        -50.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4.062,
+        -2.0,
+        -42.964
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -4.063,
+        -2.0,
+        -57.036
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -9,
+        6.5,
+        -59
+      ],
+      "size": [
+        1.0,
+        5.0,
+        1.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -9,
+        6.5,
+        -43
+      ],
+      "size": [
+        1.0,
+        5.0,
+        1.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        9,
+        6.5,
+        -59
+      ],
+      "size": [
+        1.0,
+        5.0,
+        1.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        9,
+        6.5,
+        -43
+      ],
+      "size": [
+        1.0,
+        5.0,
+        1.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        9.2,
+        -59
+      ],
+      "size": [
+        19,
+        0.8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        9.2,
+        -43
+      ],
+      "size": [
+        19,
+        0.8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        9.9,
+        -59
+      ],
+      "size": [
+        4,
+        0.5,
+        1.0
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.4
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -11,
+        6.2,
+        -61
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -11,
+        8.6,
+        -61
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -11,
+        6.2,
+        -39
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -11,
+        8.6,
+        -39
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        11,
+        6.2,
+        -61
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        11,
+        8.6,
+        -61
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        11,
+        6.2,
+        -39
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        11,
+        8.6,
+        -39
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.4,
+        4.45,
+        -62.3
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.2,
+        4.45,
+        -62.3
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        4.45,
+        -62.3
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.2,
+        4.45,
+        -62.3
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.4,
+        4.45,
+        -62.3
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.4,
+        -54
+      ],
+      "size": [
+        9,
+        0.8,
+        4
+      ],
+      "material": "stone",
+      "color": "#5b6a94"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        4.7,
+        -54
+      ],
+      "size": [
+        9.4,
+        0.1,
+        4.4
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        50,
+        2.2,
+        0
+      ],
+      "size": [
+        24,
+        1.6,
+        24
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        50,
+        3.05,
+        0
+      ],
+      "size": [
+        23,
+        0.1,
+        23
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.1
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        50,
+        -1.5,
+        0
+      ],
+      "size": [
+        12.0,
+        7.0,
+        12.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#463f5c"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        50,
+        -7.0,
+        0
+      ],
+      "size": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3d374f"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        50,
+        -11.5,
+        0
+      ],
+      "size": [
+        2.16,
+        5.0,
+        2.16
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#332f45"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        57.8,
+        -3.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        46.1,
+        -3.0,
+        6.755
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        46.1,
+        -3.0,
+        -6.755
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        44,
+        6.0,
+        -8
+      ],
+      "size": [
+        1.6,
+        6.0,
+        1.6
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        44,
+        9.2,
+        -8
+      ],
+      "size": [
+        1.9,
+        0.5,
+        1.9
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.9,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        56,
+        6.0,
+        -8
+      ],
+      "size": [
+        1.6,
+        6.0,
+        1.6
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        56,
+        9.2,
+        -8
+      ],
+      "size": [
+        1.9,
+        0.5,
+        1.9
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.9,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        44,
+        6.0,
+        8
+      ],
+      "size": [
+        1.6,
+        6.0,
+        1.6
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        44,
+        9.2,
+        8
+      ],
+      "size": [
+        1.9,
+        0.5,
+        1.9
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.9,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        56,
+        6.0,
+        8
+      ],
+      "size": [
+        1.6,
+        6.0,
+        1.6
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        56,
+        9.2,
+        8
+      ],
+      "size": [
+        1.9,
+        0.5,
+        1.9
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.9,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        42,
+        6.0,
+        0
+      ],
+      "size": [
+        1.6,
+        6.0,
+        1.6
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        42,
+        9.2,
+        0
+      ],
+      "size": [
+        1.9,
+        0.5,
+        1.9
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.9,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        58,
+        6.0,
+        0
+      ],
+      "size": [
+        1.6,
+        6.0,
+        1.6
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        58,
+        9.2,
+        0
+      ],
+      "size": [
+        1.9,
+        0.5,
+        1.9
+      ],
+      "material": "metal",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.9,
+      "collider": false
+    },
+    {
+      "shape": "box",
+      "pos": [
+        61.7,
+        3.45,
+        -8.4
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "metal",
+      "color": "#4a4470"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        61.7,
+        3.45,
+        -4.2
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "metal",
+      "color": "#4a4470"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        61.7,
+        3.45,
+        0.0
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "metal",
+      "color": "#4a4470"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        61.7,
+        3.45,
+        4.2
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "metal",
+      "color": "#4a4470"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        61.7,
+        3.45,
+        8.4
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "metal",
+      "color": "#4a4470"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        52,
+        3.4,
+        0
+      ],
+      "size": [
+        6,
+        0.8,
+        10
+      ],
+      "material": "stone",
+      "color": "#332f52"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        52,
+        3.7,
+        0
+      ],
+      "size": [
+        6.4,
+        0.1,
+        10.4
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        1.2,
+        50
+      ],
+      "size": [
+        24,
+        1.6,
+        24
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.05,
+        50
+      ],
+      "size": [
+        23,
+        0.1,
+        23
+      ],
+      "material": "wood",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.14
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -2.5,
+        50
+      ],
+      "size": [
+        12.0,
+        7.0,
+        12.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#463f5c"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -8.0,
+        50
+      ],
+      "size": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3d374f"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        -12.5,
+        50
+      ],
+      "size": [
+        2.16,
+        5.0,
+        2.16
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#332f45"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        7.8,
+        -4.0,
+        50.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -3.9,
+        -4.0,
+        56.755
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -3.9,
+        -4.0,
+        43.245
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.25,
+        56
+      ],
+      "size": [
+        16,
+        0.5,
+        2.5
+      ],
+      "material": "stone",
+      "color": "#6a5540"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.55,
+        56
+      ],
+      "size": [
+        16.4,
+        0.1,
+        2.9
+      ],
+      "material": "wood",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.22
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.5,
+        59
+      ],
+      "size": [
+        14,
+        1.0,
+        2.5
+      ],
+      "material": "stone",
+      "color": "#6a5540"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        3.05,
+        59
+      ],
+      "size": [
+        14.4,
+        0.1,
+        2.9
+      ],
+      "material": "wood",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.22
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.75,
+        61.5
+      ],
+      "size": [
+        12,
+        1.5,
+        2.5
+      ],
+      "material": "stone",
+      "color": "#6a5540"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        3.55,
+        61.5
+      ],
+      "size": [
+        12.4,
+        0.1,
+        2.9
+      ],
+      "material": "wood",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.22
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -10,
+        4.0,
+        41
+      ],
+      "size": [
+        0.45,
+        4.0,
+        0.45
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -10,
+        6.2,
+        41
+      ],
+      "size": [
+        0.7,
+        0.35,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.1
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -10,
+        4.0,
+        50
+      ],
+      "size": [
+        0.45,
+        4.0,
+        0.45
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -10,
+        6.2,
+        50
+      ],
+      "size": [
+        0.7,
+        0.35,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.1
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -10,
+        4.0,
+        59
+      ],
+      "size": [
+        0.45,
+        4.0,
+        0.45
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -10,
+        6.2,
+        59
+      ],
+      "size": [
+        0.7,
+        0.35,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.1
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        10,
+        4.0,
+        41
+      ],
+      "size": [
+        0.45,
+        4.0,
+        0.45
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        10,
+        6.2,
+        41
+      ],
+      "size": [
+        0.7,
+        0.35,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.1
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        10,
+        4.0,
+        50
+      ],
+      "size": [
+        0.45,
+        4.0,
+        0.45
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        10,
+        6.2,
+        50
+      ],
+      "size": [
+        0.7,
+        0.35,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.1
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        10,
+        4.0,
+        59
+      ],
+      "size": [
+        0.45,
+        4.0,
+        0.45
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        10,
+        6.2,
+        59
+      ],
+      "size": [
+        0.7,
+        0.35,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.1
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.4,
+        2.45,
+        61.9
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "wood",
+      "color": "#5a4632"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -4.2,
+        2.45,
+        61.9
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "wood",
+      "color": "#5a4632"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.45,
+        61.9
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "wood",
+      "color": "#5a4632"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.2,
+        2.45,
+        61.9
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "wood",
+      "color": "#5a4632"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.4,
+        2.45,
+        61.9
+      ],
+      "size": [
+        2.0,
+        0.9,
+        0.5
+      ],
+      "material": "wood",
+      "color": "#5a4632"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        5.2,
+        0
+      ],
+      "size": [
+        24,
+        1.6,
+        24
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        6.05,
+        0
+      ],
+      "size": [
+        11,
+        0.1,
+        11
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.12
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        1.5,
+        0
+      ],
+      "size": [
+        12.0,
+        7.0,
+        12.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#463f5c"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        -4.0,
+        0
+      ],
+      "size": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3d374f"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        -8.5,
+        0
+      ],
+      "size": [
+        2.16,
+        5.0,
+        2.16
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#332f45"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -42.2,
+        0.0,
+        0.0
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -53.9,
+        0.0,
+        6.755
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -53.9,
+        0.0,
+        -6.755
+      ],
+      "size": [
+        1.0,
+        4.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#413b55"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        6.25,
+        0
+      ],
+      "size": [
+        4.5,
+        0.12,
+        4.5
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.7
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        6.25,
+        0
+      ],
+      "size": [
+        7.5,
+        0.12,
+        7.5
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.7
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        6.25,
+        0
+      ],
+      "size": [
+        10.0,
+        0.12,
+        10.0
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.7
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -42.0,
+        9.5,
+        0.0
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 1.6,
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -46.0,
+        10.1,
+        6.928
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 1.6,
+      "rotY": 1.047
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -54.0,
+        10.7,
+        6.928
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 1.6,
+      "rotY": 2.094
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -58.0,
+        9.5,
+        0.0
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 1.6,
+      "rotY": 3.142
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -54.0,
+        10.1,
+        -6.928
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 1.6,
+      "rotY": 4.189
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -46.0,
+        10.7,
+        -6.928
+      ],
+      "size": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 1.6,
+      "rotY": 5.236
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -50,
+        8.0,
+        0
+      ],
+      "size": [
+        0.5,
+        4.0,
+        0.5
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        1.4,
+        1.4,
+        1.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#eae6ff",
+      "emissiveIntensity": 2.2,
+      "rotY": 0.6
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        11,
+        0.18,
+        0.18
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.8,
+      "rotY": 0.4
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        0.18,
+        0.18,
+        11
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.8,
+      "rotY": 0.4
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        11,
+        0.18,
+        0.18
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.8,
+      "rotY": 1.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        0.18,
+        0.18,
+        11
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.8,
+      "rotY": 1.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        11,
+        0.18,
+        0.18
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.8,
+      "rotY": 2.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -50,
+        10.6,
+        0
+      ],
+      "size": [
+        0.18,
+        0.18,
+        11
+      ],
+      "material": "metal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.8,
+      "rotY": 2.0
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -60,
+        8.2,
+        -10
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone",
+      "color": "#403a63"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -60,
+        10.6,
+        -10
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -60,
+        8.2,
+        10
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone",
+      "color": "#403a63"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -60,
+        10.6,
+        10
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -40,
+        8.2,
+        -10
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone",
+      "color": "#403a63"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -40,
+        10.6,
+        -10
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -40,
+        8.2,
+        10
+      ],
+      "size": [
+        0.5,
+        4.4,
+        0.5
+      ],
+      "material": "stone",
+      "color": "#403a63"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -40,
+        10.6,
+        10
+      ],
+      "size": [
+        0.7,
+        0.4,
+        0.7
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -61.9,
+        6.45,
+        -8.4
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -61.9,
+        6.45,
+        -4.2
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -61.9,
+        6.45,
+        0.0
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -61.9,
+        6.45,
+        4.2
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -61.9,
+        6.45,
+        8.4
+      ],
+      "size": [
+        0.5,
+        0.9,
+        2.0
+      ],
+      "material": "stone",
+      "color": "#3a3560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        -0.012,
+        -14.8
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.298,
+        -14.8
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.459,
+        -16.4
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.917,
+        -18.0
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.227,
+        -18.0
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.352,
+        -19.6
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.759,
+        -21.2
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.069,
+        -21.2
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.13,
+        -22.8
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.461,
+        -24.4
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.771,
+        -24.4
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.75,
+        -26.0
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.995,
+        -27.6
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.305,
+        -27.6
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.197,
+        -29.2
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.359,
+        -30.8
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.669,
+        -30.8
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.486,
+        -32.4
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.583,
+        -34.0
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.893,
+        -34.0
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.659,
+        -35.6
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        3.721,
+        -37.2
+      ],
+      "size": [
+        4.0,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        4.031,
+        -37.2
+      ],
+      "size": [
+        3.6,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        2.3,
+        2.617,
+        -19.28
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        2.3,
+        3.917,
+        -19.28
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -2.3,
+        2.617,
+        -19.28
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -2.3,
+        3.917,
+        -19.28
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        2.3,
+        4.857,
+        -32.72
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        2.3,
+        6.157,
+        -32.72
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -2.3,
+        4.857,
+        -32.72
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -2.3,
+        6.157,
+        -32.72
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        14.8,
+        -0.066,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        14.8,
+        0.244,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        16.4,
+        0.297,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        18.0,
+        0.65,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        18.0,
+        0.96,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        19.6,
+        0.985,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        21.2,
+        1.297,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        21.2,
+        1.607,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        22.8,
+        1.581,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        24.4,
+        1.833,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        24.4,
+        2.143,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        26.0,
+        2.05,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        27.6,
+        2.233,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        27.6,
+        2.543,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        29.2,
+        2.381,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        30.8,
+        2.497,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        30.8,
+        2.807,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        32.4,
+        2.585,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        34.0,
+        2.65,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        34.0,
+        2.96,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        35.6,
+        2.697,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        37.2,
+        2.734,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.5,
+        3.4
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        37.2,
+        3.044,
+        0.0
+      ],
+      "size": [
+        1.7,
+        0.08,
+        3.0
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        19.28,
+        2.27,
+        2.0
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        19.28,
+        3.57,
+        2.0
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        19.28,
+        2.27,
+        -2.0
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        19.28,
+        3.57,
+        -2.0
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32.72,
+        3.95,
+        2.0
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        32.72,
+        5.25,
+        2.0
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32.72,
+        3.95,
+        -2.0
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        32.72,
+        5.25,
+        -2.0
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        -0.1,
+        14.8
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.21,
+        14.8
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.197,
+        16.4
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.483,
+        18.0
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.793,
+        18.0
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.752,
+        19.6
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        0.997,
+        21.2
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.307,
+        21.2
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.214,
+        22.8
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.399,
+        24.4
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.709,
+        24.4
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.55,
+        26.0
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.666,
+        27.6
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.976,
+        27.6
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.748,
+        29.2
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.797,
+        30.8
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.107,
+        30.8
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.819,
+        32.4
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.817,
+        34.0
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.127,
+        34.0
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.797,
+        35.6
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        1.767,
+        37.2
+      ],
+      "size": [
+        4.6,
+        0.5,
+        1.7
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0.0,
+        2.077,
+        37.2
+      ],
+      "size": [
+        4.2,
+        0.08,
+        1.7
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -2.6,
+        2.05,
+        19.28
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -2.6,
+        3.35,
+        19.28
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        2.6,
+        2.05,
+        19.28
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        2.6,
+        3.35,
+        19.28
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -2.6,
+        3.17,
+        32.72
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -2.6,
+        4.47,
+        32.72
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        2.6,
+        3.17,
+        32.72
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "wood"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        2.6,
+        4.47,
+        32.72
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -14.706,
+        -0.018,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -14.706,
+        0.292,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -16.118,
+        0.444,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -17.529,
+        0.9,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -17.529,
+        1.21,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -18.941,
+        1.347,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -20.353,
+        1.782,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -20.353,
+        2.092,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -21.765,
+        2.201,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -23.176,
+        2.604,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -23.176,
+        2.914,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -24.588,
+        2.987,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -26.0,
+        3.35,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -26.0,
+        3.66,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -27.412,
+        3.693,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -28.824,
+        4.015,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -28.824,
+        4.325,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -30.235,
+        4.319,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -31.647,
+        4.605,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -31.647,
+        4.915,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -33.059,
+        4.876,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -34.471,
+        5.135,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -34.471,
+        5.445,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -35.882,
+        5.385,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -37.294,
+        5.629,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.5,
+        3.0
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -37.294,
+        5.939,
+        0.0
+      ],
+      "size": [
+        1.512,
+        0.08,
+        2.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -19.28,
+        2.802,
+        -1.8
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -19.28,
+        4.102,
+        -1.8
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -19.28,
+        2.802,
+        1.8
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -19.28,
+        4.102,
+        1.8
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32.72,
+        6.162,
+        -1.8
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -32.72,
+        7.462,
+        -1.8
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32.72,
+        6.162,
+        1.8
+      ],
+      "size": [
+        0.16,
+        2.2,
+        0.16
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -32.72,
+        7.462,
+        1.8
+      ],
+      "size": [
+        0.4,
+        0.4,
+        0.4
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        34,
+        -30.4,
+        1.6
+      ],
+      "size": [
+        4.0,
+        0.8,
+        4.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        34,
+        -29.97,
+        1.6
+      ],
+      "size": [
+        3.6,
+        0.06,
+        3.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        34,
+        -33.0,
+        1.6
+      ],
+      "size": [
+        3.2,
+        5.0,
+        3.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        34,
+        -36.5,
+        1.6
+      ],
+      "size": [
+        1.2,
+        4.0,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        13.2,
+        0.006,
+        -12.756
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        13.2,
+        0.476,
+        -12.756
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        15.8,
+        0.161,
+        -14.911
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        18.4,
+        0.317,
+        -17.067
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        18.4,
+        0.787,
+        -17.067
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        21.0,
+        0.472,
+        -19.222
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        23.6,
+        0.628,
+        -21.378
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        23.6,
+        1.098,
+        -21.378
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        26.2,
+        0.783,
+        -23.533
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        28.8,
+        0.939,
+        -25.689
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        28.8,
+        1.409,
+        -25.689
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        31.4,
+        1.094,
+        -27.844
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        34,
+        3.0,
+        -30
+      ],
+      "size": [
+        0.25,
+        1.6,
+        0.25
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.4
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32,
+        31.6,
+        1.2
+      ],
+      "size": [
+        4.0,
+        0.8,
+        4.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32,
+        32.03,
+        1.2
+      ],
+      "size": [
+        3.6,
+        0.06,
+        3.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32,
+        29.0,
+        1.2
+      ],
+      "size": [
+        3.2,
+        5.0,
+        3.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32,
+        25.5,
+        1.2
+      ],
+      "size": [
+        1.2,
+        4.0,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        12.978,
+        -0.039,
+        12.978
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.978,
+        0.431,
+        12.978
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        15.356,
+        0.072,
+        15.356
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        17.733,
+        0.183,
+        17.733
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        17.733,
+        0.653,
+        17.733
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        20.111,
+        0.294,
+        20.111
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        22.489,
+        0.406,
+        22.489
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        22.489,
+        0.876,
+        22.489
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        24.867,
+        0.517,
+        24.867
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        27.244,
+        0.628,
+        27.244
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        27.244,
+        1.098,
+        27.244
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        29.622,
+        0.739,
+        29.622
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        32,
+        2.6,
+        32
+      ],
+      "size": [
+        0.25,
+        1.6,
+        0.25
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32,
+        31.6,
+        1.8
+      ],
+      "size": [
+        4.0,
+        0.8,
+        4.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32,
+        32.03,
+        1.8
+      ],
+      "size": [
+        3.6,
+        0.06,
+        3.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32,
+        29.0,
+        1.8
+      ],
+      "size": [
+        3.2,
+        5.0,
+        3.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32,
+        25.5,
+        1.8
+      ],
+      "size": [
+        1.2,
+        4.0,
+        1.2
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -12.978,
+        0.028,
+        12.978
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.978,
+        0.498,
+        12.978
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -15.356,
+        0.206,
+        15.356
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -17.733,
+        0.383,
+        17.733
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -17.733,
+        0.853,
+        17.733
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -20.111,
+        0.561,
+        20.111
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -22.489,
+        0.739,
+        22.489
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -22.489,
+        1.209,
+        22.489
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -24.867,
+        0.917,
+        24.867
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -27.244,
+        1.094,
+        27.244
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -27.244,
+        1.564,
+        27.244
+      ],
+      "size": [
+        0.6,
+        0.08,
+        0.6
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.9
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -29.622,
+        1.272,
+        29.622
+      ],
+      "size": [
+        0.9,
+        0.7,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -32,
+        3.2,
+        32
+      ],
+      "size": [
+        0.25,
+        1.6,
+        0.25
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -34,
+        3.1,
+        -34
+      ],
+      "size": [
+        5.0,
+        0.8,
+        5.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -34,
+        3.53,
+        -34
+      ],
+      "size": [
+        4.6,
+        0.06,
+        4.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -34,
+        0.5,
+        -34
+      ],
+      "size": [
+        4.0,
+        5.0,
+        4.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -34,
+        -3.0,
+        -34
+      ],
+      "size": [
+        1.5,
+        4.0,
+        1.5
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -34,
+        5.1,
+        -34
+      ],
+      "size": [
+        0.4,
+        3.0,
+        0.4
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -34,
+        6.8,
+        -34
+      ],
+      "size": [
+        0.8,
+        0.5,
+        0.8
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -70,
+        7.6,
+        -60
+      ],
+      "size": [
+        6.0,
+        0.8,
+        6.0
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -70,
+        8.03,
+        -60
+      ],
+      "size": [
+        5.6,
+        0.06,
+        5.6
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -70,
+        5.0,
+        -60
+      ],
+      "size": [
+        4.8,
+        5.0,
+        4.8
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -70,
+        1.5,
+        -60
+      ],
+      "size": [
+        1.8,
+        4.0,
+        1.8
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -70,
+        9.6,
+        -60
+      ],
+      "size": [
+        0.4,
+        3.0,
+        0.4
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -70,
+        11.3,
+        -60
+      ],
+      "size": [
+        0.8,
+        0.5,
+        0.8
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        68,
+        4.6,
+        58
+      ],
+      "size": [
+        5.5,
+        0.8,
+        5.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        68,
+        5.03,
+        58
+      ],
+      "size": [
+        5.1,
+        0.06,
+        5.1
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        68,
+        2.0,
+        58
+      ],
+      "size": [
+        4.4,
+        5.0,
+        4.4
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        68,
+        -1.5,
+        58
+      ],
+      "size": [
+        1.65,
+        4.0,
+        1.65
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        68,
+        6.6,
+        58
+      ],
+      "size": [
+        0.4,
+        3.0,
+        0.4
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        68,
+        8.3,
+        58
+      ],
+      "size": [
+        0.8,
+        0.5,
+        0.8
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        66,
+        9.6,
+        -64
+      ],
+      "size": [
+        4.5,
+        0.8,
+        4.5
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        66,
+        10.03,
+        -64
+      ],
+      "size": [
+        4.1,
+        0.06,
+        4.1
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.25
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        66,
+        7.0,
+        -64
+      ],
+      "size": [
+        3.6,
+        5.0,
+        3.6
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3a54"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        66,
+        3.5,
+        -64
+      ],
+      "size": [
+        1.35,
+        4.0,
+        1.35
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#352f47"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        66,
+        11.6,
+        -64
+      ],
+      "size": [
+        0.4,
+        3.0,
+        0.4
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        66,
+        13.3,
+        -64
+      ],
+      "size": [
+        0.8,
+        0.5,
+        0.8
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -7.0,
+        11.0,
+        -26.0
+      ],
+      "size": [
+        1.0,
+        8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        7.0,
+        11.0,
+        -26.0
+      ],
+      "size": [
+        1.0,
+        8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        15,
+        -26
+      ],
+      "size": [
+        15,
+        1.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        15.7,
+        -26
+      ],
+      "size": [
+        5.6,
+        0.4,
+        0.5
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3,
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        26.0,
+        10.0,
+        -7.0
+      ],
+      "size": [
+        1.0,
+        8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        26.0,
+        10.0,
+        7.0
+      ],
+      "size": [
+        1.0,
+        8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        26,
+        14,
+        0
+      ],
+      "size": [
+        15,
+        1.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        26,
+        14.7,
+        0
+      ],
+      "size": [
+        5.6,
+        0.4,
+        0.5
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.3,
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -7.5,
+        10.0,
+        26.0
+      ],
+      "size": [
+        1.0,
+        8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        7.5,
+        10.0,
+        26.0
+      ],
+      "size": [
+        1.0,
+        8,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        14,
+        26
+      ],
+      "size": [
+        16,
+        1.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        14.7,
+        26
+      ],
+      "size": [
+        6.0,
+        0.4,
+        0.5
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#ffd9a0",
+      "emissiveIntensity": 1.3,
+      "rotY": 0.0
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -26.0,
+        13.5,
+        -7.0
+      ],
+      "size": [
+        1.0,
+        9,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -26.0,
+        13.5,
+        7.0
+      ],
+      "size": [
+        1.0,
+        9,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -26,
+        18,
+        0
+      ],
+      "size": [
+        15,
+        1.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -26,
+        18.7,
+        0
+      ],
+      "size": [
+        5.6,
+        0.4,
+        0.5
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.3,
+      "rotY": 1.571
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -45.574,
+        17.0,
+        -45.739
+      ],
+      "size": [
+        1.0,
+        10,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.8
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -34.426,
+        17.0,
+        -34.261
+      ],
+      "size": [
+        1.0,
+        10,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.8
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -40,
+        22,
+        -40
+      ],
+      "size": [
+        17,
+        1.0,
+        1.0
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#4a4560",
+      "rotY": 0.8
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -40,
+        22.7,
+        -40
+      ],
+      "size": [
+        6.4,
+        0.4,
+        0.5
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3,
+      "rotY": 0.8
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -53.88,
+        24.333,
+        16.62
+      ],
+      "size": [
+        0.959,
+        2.326,
+        0.959
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#c9c2ef",
+      "emissiveIntensity": 0.989902031307372,
+      "rotY": 2.492
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -59.214,
+        8.096,
+        9.088
+      ],
+      "size": [
+        0.936,
+        1.412,
+        0.936
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.6096445343671775,
+      "rotY": 2.15
+    },
+    {
+      "shape": "box",
+      "pos": [
+        80.957,
+        25.225,
+        21.809
+      ],
+      "size": [
+        1.185,
+        2.583,
+        1.185
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#c9c2ef",
+      "emissiveIntensity": 1.42312845151872,
+      "rotY": 2.578
+    },
+    {
+      "shape": "box",
+      "pos": [
+        20.583,
+        23.35,
+        8.627
+      ],
+      "size": [
+        1.12,
+        2.006,
+        1.12
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#b8a8ff",
+      "emissiveIntensity": 1.3909594434680574,
+      "rotY": 0.605
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4.013,
+        4.101,
+        38.913
+      ],
+      "size": [
+        0.502,
+        0.948,
+        0.502
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.3512677356279763,
+      "rotY": 2.888
+    },
+    {
+      "shape": "box",
+      "pos": [
+        31.633,
+        20.676,
+        18.229
+      ],
+      "size": [
+        1.015,
+        1.507,
+        1.015
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.566287886410407,
+      "rotY": 1.241
+    },
+    {
+      "shape": "box",
+      "pos": [
+        25.733,
+        25.077,
+        -37.066
+      ],
+      "size": [
+        1.417,
+        2.346,
+        1.417
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.727042148338794,
+      "rotY": 0.162
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -46.86,
+        13.235,
+        46.588
+      ],
+      "size": [
+        1.079,
+        2.52,
+        1.079
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.0697755868501426,
+      "rotY": 0.27
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -40.996,
+        20.677,
+        71.783
+      ],
+      "size": [
+        0.542,
+        1.218,
+        0.542
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.8109550137809918,
+      "rotY": 1.441
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -64.115,
+        8.144,
+        5.32
+      ],
+      "size": [
+        1.011,
+        1.923,
+        1.011
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.1837517881133257,
+      "rotY": 1.224
+    },
+    {
+      "shape": "box",
+      "pos": [
+        19.991,
+        23.015,
+        -1.251
+      ],
+      "size": [
+        1.57,
+        2.771,
+        1.57
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#c9c2ef",
+      "emissiveIntensity": 1.6848651127489709,
+      "rotY": 0.653
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -59.472,
+        18.12,
+        46.567
+      ],
+      "size": [
+        0.52,
+        0.862,
+        0.52
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.0582775578616204,
+      "rotY": 2.395
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -18.688,
+        5.615,
+        34.528
+      ],
+      "size": [
+        0.508,
+        1.1,
+        0.508
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#c9c2ef",
+      "emissiveIntensity": 0.8155090734458256,
+      "rotY": 1.143
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -20.344,
+        16.92,
+        -19.628
+      ],
+      "size": [
+        1.399,
+        3.413,
+        1.399
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.9828277157786852,
+      "rotY": 0.478
+    },
+    {
+      "shape": "box",
+      "pos": [
+        61.377,
+        9.489,
+        -39.809
+      ],
+      "size": [
+        0.628,
+        1.027,
+        0.628
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#c9c2ef",
+      "emissiveIntensity": 1.7501358523086452,
+      "rotY": 2.735
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -37.715,
+        6.284,
+        -28.702
+      ],
+      "size": [
+        0.446,
+        0.753,
+        0.446
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 1.5045794605583769,
+      "rotY": 0.797
+    },
+    {
+      "shape": "box",
+      "pos": [
+        26.258,
+        10.456,
+        -52.578
+      ],
+      "size": [
+        0.611,
+        0.947,
+        0.611
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.2792999070835585,
+      "rotY": 2.026
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -18.527,
+        8.673,
+        -16.515
+      ],
+      "size": [
+        1.498,
+        2.221,
+        1.498
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.2114265624113791,
+      "rotY": 0.772
+    },
+    {
+      "shape": "box",
+      "pos": [
+        36.696,
+        15.682,
+        11.062
+      ],
+      "size": [
+        1.568,
+        2.876,
+        1.568
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.6909402299698124,
+      "rotY": 3.04
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -35.841,
+        16.858,
+        -54.141
+      ],
+      "size": [
+        0.568,
+        1.426,
+        0.568
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.274792897032294,
+      "rotY": 1.108
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.398,
+        17.164,
+        20.529
+      ],
+      "size": [
+        0.49,
+        1.115,
+        0.49
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.118904490296586,
+      "rotY": 3.098
+    },
+    {
+      "shape": "box",
+      "pos": [
+        49.406,
+        20.214,
+        25.276
+      ],
+      "size": [
+        1.48,
+        3.481,
+        1.48
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.71500257955204,
+      "rotY": 1.091
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -31.132,
+        23.164,
+        -72.122
+      ],
+      "size": [
+        0.901,
+        2.194,
+        0.901
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.3728074983845096,
+      "rotY": 1.937
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -42.765,
+        17.395,
+        38.995
+      ],
+      "size": [
+        0.496,
+        1.286,
+        0.496
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9fb6ff",
+      "emissiveIntensity": 1.6797918291110268,
+      "rotY": 2.257
+    }
   ],
   "portals": [
-    { "id": "to-atrium-01", "pos": [-6, 1.3, -19], "linkedTo": "atrium-01", "label": "First Light", "color": "#6ec6ff" },
-    { "id": "to-atrium-02", "pos": [0, 1.3, -19], "linkedTo": "atrium-02", "label": "Two Bells", "color": "#6ec6ff", "requiresShards": 1 },
-    { "id": "to-atrium-03", "pos": [6, 1.3, -19], "linkedTo": "atrium-03", "label": "The Choir", "color": "#6ec6ff", "requiresShards": 2 },
-    { "id": "to-vaults-01", "pos": [19, 1.3, -6], "linkedTo": "vaults-01", "label": "Cold Store", "color": "#8f86d8", "requiresShards": 3 },
-    { "id": "to-vaults-02", "pos": [19, 1.3, 0], "linkedTo": "vaults-02", "label": "The Undercroft", "color": "#8f86d8", "requiresShards": 4 },
-    { "id": "to-vaults-03", "pos": [19, 1.3, 6], "linkedTo": "vaults-03", "label": "Shatterhall", "color": "#8f86d8", "requiresShards": 5 },
-    { "id": "to-gardens-01", "pos": [-6, 1.3, 19], "linkedTo": "gardens-01", "label": "The Terraces", "color": "#ffd9a0", "requiresShards": 6 },
-    { "id": "to-gardens-02", "pos": [0, 1.3, 19], "linkedTo": "gardens-02", "label": "Root & Bloom", "color": "#ffd9a0", "requiresShards": 7 },
-    { "id": "to-gardens-03", "pos": [6, 1.3, 19], "linkedTo": "gardens-03", "label": "The Long Stair", "color": "#ffd9a0", "requiresShards": 8 },
-    { "id": "to-observatory-01", "pos": [-19, 1.3, -3], "linkedTo": "observatory-01", "label": "Meridian", "color": "#b8a8ff", "requiresShards": 9 },
-    { "id": "to-observatory-02", "pos": [-19, 1.3, 3], "linkedTo": "observatory-02", "label": "The Final Threshold", "color": "#b8a8ff", "requiresShards": 10 }
-  ]
+    {
+      "id": "to-atrium-01",
+      "pos": [
+        -5,
+        5.3,
+        -50
+      ],
+      "linkedTo": "atrium-01",
+      "label": "First Light",
+      "color": "#6ec6ff"
+    },
+    {
+      "id": "to-atrium-02",
+      "pos": [
+        0,
+        5.3,
+        -50
+      ],
+      "linkedTo": "atrium-02",
+      "label": "Two Bells",
+      "color": "#6ec6ff",
+      "requiresShards": 1
+    },
+    {
+      "id": "to-atrium-03",
+      "pos": [
+        5,
+        5.3,
+        -50
+      ],
+      "linkedTo": "atrium-03",
+      "label": "The Choir",
+      "color": "#6ec6ff",
+      "requiresShards": 2
+    },
+    {
+      "id": "to-vaults-01",
+      "pos": [
+        50,
+        4.3,
+        -5
+      ],
+      "linkedTo": "vaults-01",
+      "label": "Cold Store",
+      "color": "#8f86d8",
+      "requiresShards": 3
+    },
+    {
+      "id": "to-vaults-02",
+      "pos": [
+        50,
+        4.3,
+        0
+      ],
+      "linkedTo": "vaults-02",
+      "label": "The Undercroft",
+      "color": "#8f86d8",
+      "requiresShards": 4
+    },
+    {
+      "id": "to-vaults-03",
+      "pos": [
+        50,
+        4.3,
+        5
+      ],
+      "linkedTo": "vaults-03",
+      "label": "Shatterhall",
+      "color": "#8f86d8",
+      "requiresShards": 5
+    },
+    {
+      "id": "to-gardens-01",
+      "pos": [
+        -5,
+        3.3,
+        50
+      ],
+      "linkedTo": "gardens-01",
+      "label": "The Terraces",
+      "color": "#ffd9a0",
+      "requiresShards": 6
+    },
+    {
+      "id": "to-gardens-02",
+      "pos": [
+        0,
+        3.3,
+        50
+      ],
+      "linkedTo": "gardens-02",
+      "label": "Root & Bloom",
+      "color": "#ffd9a0",
+      "requiresShards": 7
+    },
+    {
+      "id": "to-gardens-03",
+      "pos": [
+        5,
+        3.3,
+        50
+      ],
+      "linkedTo": "gardens-03",
+      "label": "The Long Stair",
+      "color": "#ffd9a0",
+      "requiresShards": 8
+    },
+    {
+      "id": "to-observatory-01",
+      "pos": [
+        -50,
+        7.3,
+        -3
+      ],
+      "linkedTo": "observatory-01",
+      "label": "Meridian",
+      "color": "#b8a8ff",
+      "requiresShards": 9
+    },
+    {
+      "id": "to-observatory-02",
+      "pos": [
+        -50,
+        7.3,
+        3
+      ],
+      "linkedTo": "observatory-02",
+      "label": "The Final Threshold",
+      "color": "#b8a8ff",
+      "requiresShards": 10
+    }
+  ],
+  "interactables": [
+    {
+      "type": "collectible",
+      "id": "nexus-secret-1",
+      "pos": [
+        34,
+        2.4,
+        -30
+      ],
+      "grants": "stargem",
+      "hidden": true
+    },
+    {
+      "type": "collectible",
+      "id": "nexus-secret-2",
+      "pos": [
+        32,
+        2.0,
+        32
+      ],
+      "grants": "stargem",
+      "hidden": true
+    },
+    {
+      "type": "collectible",
+      "id": "nexus-secret-3",
+      "pos": [
+        -32,
+        2.6,
+        32
+      ],
+      "grants": "stargem",
+      "hidden": true
+    }
+  ],
+  "placeablePortals": {
+    "enabled": false
+  }
 }

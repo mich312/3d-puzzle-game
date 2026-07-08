@@ -26,6 +26,8 @@ export type ClientMsg =
   | { t: 'respec'; v: 1 }
   | { t: 'revive_start'; v: 1; target: string } | { t: 'revive_cancel'; v: 1 }
   | { t: 'reset_level'; v: 1 }
+  | { t: 'chat'; v: 1; text: string }                 // instance-scoped chat (rate-limited, sanitized)
+  | { t: 'ping'; v: 1; pos: Vec3 }                    // "look here" world marker
   | { t: 'echo'; v: 1; place: boolean }               // Echo Core skill: leave/recall a stationary echo
   | { t: 'set_opts'; v: 1; difficulty?: 'story' | 'normal' }
   | { t: 'set_name'; v: 1; name: string }
@@ -86,5 +88,8 @@ export type ServerMsg =
   | { t: 'shards'; v: 1; shards: string[]; unlockedWorlds: string[] }
   | { t: 'beacons'; v: 1; beacons: InstanceSnapshot['beacons'] }
   | { t: 'reset_done'; v: 1 }
+  | { t: 'chat'; v: 1; from: string; name: string; accent: string; text: string; system?: boolean }
+  | { t: 'ping'; v: 1; from: string; accent: string; pos: Vec3 }
+  | { t: 'gate_wait'; v: 1; level: string; levelName: string; waiting: number; needed: number }
   | { t: 'toast'; v: 1; text: string; kind?: 'info' | 'success' | 'warn' }
   | { t: 'error'; v: 1; code: string; message: string };

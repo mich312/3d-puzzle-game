@@ -7,6 +7,7 @@ import { evalExpr } from '../shared/expr';
 import { buildColliders, raycast, type AABB } from '../shared/collision';
 import { getMaterial, applyWorldUV } from './render/materials';
 import { PALETTE } from '../shared/palette';
+import { Interpolator } from './interp';
 
 export type IState = Record<string, number | boolean>;
 
@@ -48,6 +49,10 @@ export class World {
   private hazardMats = new Map<string, THREE.MeshStandardMaterial>();
   private placedGroup = new THREE.Group();
   private placedVis = new Map<string, THREE.Group>();
+  private bodyInterp = new Map<string, Interpolator>();
+  private bodyHeld = new Map<string, boolean>();
+  private staticMeshes: THREE.Mesh[] = [];
+  private cullAcc = 0;
   private time = 0;
 
   constructor(private scene: THREE.Scene, level: LevelDef, states: Record<string, IState> | undefined) {
@@ -96,6 +101,7 @@ export class World {
       this.group.add(mesh);
       if (g.door) this.doors.push({ mesh, baseY: g.pos[1], height: g.size[1], t: 0, open: false });
       else if (g.activeWhen) this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1 });
+      else this.staticMeshes.push(mesh);
     });
     for (const it of this.level.interactables ?? []) this.buildInteractable(it);
     for (const p of this.level.portals ?? []) this.buildPortal(p);
@@ -261,11 +267,12 @@ export class World {
   interactableAt(id: string): THREE.Object3D | undefined { return this.interVis.get(id); }
   interactableDefs(): InteractableDef[] { return this.level.interactables ?? []; }
 
-  /** update a carryable body position from server snapshot */
+  /** feed a carryable body snapshot into its interpolation buffer (smoothed per frame) */
   setBodyPos(id: string, pos: Vec3, held: boolean) {
-    const vis = this.interVis.get(id);
-    if (!vis) return;
-    vis.position.lerp(new THREE.Vector3(...pos), held ? 0.5 : 0.35);
+    let interp = this.bodyInterp.get(id);
+    if (!interp) { interp = new Interpolator(); this.bodyInterp.set(id, interp); }
+    interp.push(pos);
+    this.bodyHeld.set(id, held);
   }
 
   setPlacedPortals(placements: { owner: string; slot: 0 | 1; pos: Vec3; normal: Vec3 }[], accentOf: (owner: string) => string) {
@@ -300,9 +307,44 @@ export class World {
     return raycast(this.colliders, origin, dir, maxDist, portalSurfaceOnly ? (b) => !!b.portalSurface : undefined);
   }
 
+  /** world-space positions of active fixed portals — used for ambient motes */
+  portalPoints(): { pos: Vec3; color: string }[] {
+    const out: { pos: Vec3; color: string }[] = [];
+    for (const { def, group } of this.portalVis.values()) {
+      if (!group.userData.locked) out.push({ pos: def.pos, color: def.color ?? PALETTE.portalA });
+    }
+    return out;
+  }
+
   // ---------- per-frame animation ----------
-  update(dt: number) {
+  update(dt: number, viewer?: THREE.Vector3) {
     this.time += dt;
+    // big open worlds: cull static meshes beyond fog reach (checked ~2x/sec)
+    if (viewer && this.staticMeshes.length > 220) {
+      this.cullAcc += dt;
+      if (this.cullAcc > 0.45) {
+        this.cullAcc = 0;
+        for (const m of this.staticMeshes) {
+          m.visible = m.position.distanceTo(viewer) < 150;
+        }
+      }
+    }
+    // carryables: sample interpolators every frame + tumble with velocity
+    for (const [id, interp] of this.bodyInterp) {
+      const vis = this.interVis.get(id);
+      if (!vis) continue;
+      if (interp.sample(vis.position)) {
+        const body = vis.getObjectByName('body');
+        const speed = Math.hypot(interp.velocity.x, interp.velocity.z);
+        if (body && speed > 0.4 && !this.bodyHeld.get(id)) {
+          body.rotation.x += interp.velocity.z * dt * 1.8;
+          body.rotation.z -= interp.velocity.x * dt * 1.8;
+        } else if (body && this.bodyHeld.get(id)) {
+          body.rotation.x = THREE.MathUtils.lerp(body.rotation.x, 0, dt * 6);
+          body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, 0, dt * 6);
+        }
+      }
+    }
     // doors slide down
     for (const d of this.doors) {
       d.t = THREE.MathUtils.clamp(d.t + (d.open ? dt : -dt) * 1.6, 0, 1);

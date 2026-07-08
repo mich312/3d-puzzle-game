@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { Renderer } from './render/renderer';
 import { World } from './world';
 import { PlayerController } from './player';
-import { Peers, Enemies, Echoes } from './entities';
+import { Peers, Enemies, Echoes, Pings } from './entities';
+import { Viewmodel } from './viewmodel';
+import { Particles } from './particles';
 import { DeviceRig } from './devices';
 import { Hud } from './hud';
 import { Net } from './net';
@@ -21,6 +23,9 @@ let controller: PlayerController;
 let peers: Peers;
 let enemies: Enemies;
 let echoes: Echoes;
+let pings: Pings;
+let viewmodel: Viewmodel;
+let particles: Particles;
 let rig: DeviceRig;
 let net: Net;
 const audio = new GameAudio();
@@ -74,6 +79,11 @@ function start(name: string) {
   peers = new Peers(renderer.scene, () => playerId);
   enemies = new Enemies(renderer.scene);
   echoes = new Echoes(renderer.scene);
+  pings = new Pings(renderer.scene);
+  particles = new Particles(renderer.scene);
+  viewmodel = new Viewmodel(renderer.camera);
+  renderer.scene.add(renderer.camera);       // camera must be in-scene to carry the viewmodel
+  hud.bindChat((text) => net.send({ t: 'chat', v: 1, text }));
   rig = new DeviceRig(renderer.scene);
   audio.init();
   net = new Net();
@@ -136,6 +146,8 @@ function handleMsg(msg: ServerMsg) {
       if (levelDef.intro) hud.toast(levelDef.intro);
       audio.play('portal-traverse');
       echoPlaced = false;
+      pings.clear();
+      hud.gateBanner(null);
       break;
     }
     case 'snap': {
@@ -161,8 +173,28 @@ function handleMsg(msg: ServerMsg) {
       }
       break;
     }
-    case 'peer_joined': hud.toast(`${msg.player.name} stepped through.`); break;
+    case 'peer_joined':
+      hud.addChat('', '', `${msg.player.name} stepped through.`, true);
+      audio.play('portal');
+      break;
     case 'peer_left': peers.remove(msg.id); break;
+    case 'chat': {
+      hud.addChat(msg.name, msg.accent, msg.text, msg.system);
+      if (!msg.system && msg.from !== playerId) {
+        peers.say(msg.from, msg.text);
+        audio.play('hit');
+      }
+      break;
+    }
+    case 'ping': {
+      pings.add(msg.pos, msg.accent || PALETTE.portalA);
+      audio.play('beacon', { pos: msg.pos });
+      break;
+    }
+    case 'gate_wait':
+      hud.gateBanner(`${msg.levelName} — waiting at the threshold (${msg.waiting}/${msg.needed}). Bring a partner, or wait for one.`);
+      setTimeout(() => hud.gateBanner(null), 30000);
+      break;
     case 'state_update': {
       if (!world) break;
       const prev = { ...(world.states.get(msg.id) ?? {}) };
@@ -179,9 +211,9 @@ function handleMsg(msg: ServerMsg) {
       const at = pos ? { pos: [pos.x, pos.y, pos.z] as Vec3 } : undefined;
       if (msg.ev === 'telegraph') { enemies.telegraph(msg.id, (msg.data?.ms as number) ?? 900); audio.play('telegraph', at); }
       else if (msg.ev === 'attack') audio.play('enemy-attack', at);
-      else if (msg.ev === 'down') { audio.play('enemy-down', at); }
-      else if (msg.ev === 'shatter') audio.play('shatter', at);
-      else if (msg.ev === 'frozen') audio.play('frozen', at);
+      else if (msg.ev === 'down') { audio.play('enemy-down', at); if (pos) particles.burst(pos, PALETTE.hostile, 20, 4, 0.9); }
+      else if (msg.ev === 'shatter') { audio.play('shatter', at); if (pos) particles.burst(pos, '#bfe8ff', 30, 5.5, 1.1); }
+      else if (msg.ev === 'frozen') { audio.play('frozen', at); if (pos) particles.burst(pos, '#9fdcff', 12, 2, 0.7); }
       else if (msg.ev === 'hit') {
         audio.play('hit', at);
         if (msg.data?.blocked && performance.now() - blockedHintAt > 12000) {
@@ -229,6 +261,8 @@ function handleMsg(msg: ServerMsg) {
     }
     case 'revived': {
       if (msg.id === playerId) { selfDowned = false; controller.frozen = false; selfHp = 60; hud.setHealth(60, false); audio.play('revived'); }
+      const rp = msg.id === playerId ? controller.pos : peers.positionOf(msg.id);
+      if (rp) particles.burst([rp.x, rp.y + 1, rp.z], PALETTE.success, 18, 2.5, 1.2);
       hud.reviveProgress(null);
       break;
     }
@@ -320,6 +354,8 @@ function bindInput() {
   });
 
   document.addEventListener('keydown', (e) => {
+    if (hud.chatOpen) return;
+    if (e.code === 'Enter' && started && !hud.panelOpen) { hud.openChat(); e.preventDefault(); return; }
     if (hud.panelOpen && e.code !== 'Escape') return;
     switch (e.code) {
       case 'KeyE': onInteractDown(); break;
@@ -347,8 +383,9 @@ function bindInput() {
   });
 
   canvas.addEventListener('mousedown', (e) => {
-    if (document.pointerLockElement !== canvas || selfDowned || hud.panelOpen) return;
+    if (document.pointerLockElement !== canvas || selfDowned || hud.panelOpen || hud.chatOpen) return;
     if (e.button === 0) onPrimaryDown();
+    else if (e.button === 1) { e.preventDefault(); onPing(); }
     else if (e.button === 2) onSecondaryDown();
   });
   canvas.addEventListener('mouseup', (e) => {
@@ -432,6 +469,15 @@ function onSecondaryDown() {
   if (rig.equipped === 'portalgun') placePortal(1);
 }
 
+function onPing() {
+  const { origin, dir } = aim();
+  const hit = world?.raycastWalls(origin, dir, 60);
+  const pos: Vec3 = hit
+    ? [origin[0] + dir[0] * (hit.dist - 0.2), origin[1] + dir[1] * (hit.dist - 0.2), origin[2] + dir[2] * (hit.dist - 0.2)]
+    : [origin[0] + dir[0] * 12, origin[1] + dir[1] * 12, origin[2] + dir[2] * 12];
+  net.send({ t: 'ping', v: 1, pos });
+}
+
 function fireDevice(dev: DeviceId, charged: boolean) {
   if (!rig.canFire(dev) && dev !== 'tractor' && dev !== 'portalgun') return;
   const { origin, dir } = aim();
@@ -443,7 +489,10 @@ function fireDevice(dev: DeviceId, charged: boolean) {
       const end: Vec3 = enemy?.point ?? (wall
         ? [origin[0] + dir[0] * wall.dist, origin[1] + dir[1] * wall.dist, origin[2] + dir[2] * wall.dist]
         : [origin[0] + dir[0] * DEVICES[dev].range, origin[1] + dir[1] * DEVICES[dev].range, origin[2] + dir[2] * DEVICES[dev].range]);
-      rig.tracer([origin[0], origin[1] - 0.18, origin[2]], end, DEVICES[dev].color, dev === 'freeze' ? 0.07 : 0.045);
+      const muzzle = viewmodel.muzzle(new THREE.Vector3());
+      rig.tracer([muzzle.x, muzzle.y, muzzle.z], end, DEVICES[dev].color, dev === 'freeze' ? 0.07 : 0.045);
+      viewmodel.kick();
+      particles.burst(end, DEVICES[dev].color, dev === 'freeze' ? 10 : 8, 2.5, 0.5);
       audio.play(dev === 'freeze' ? 'fire-freeze' : 'fire-pulse');
       net.send({ t: 'fire', v: 1, device: dev, origin, dir, charged, targetId: enemy?.id });
       refreshDeviceBar();
@@ -545,7 +594,7 @@ function loop(t: number) {
   const dt = Math.min(0.05, (t - lastT) / 1000);
   lastT = t;
 
-  controller.frozen = selfDowned || hud.panelOpen || document.pointerLockElement !== renderer.canvas;
+  controller.frozen = selfDowned || hud.panelOpen || hud.chatOpen || document.pointerLockElement !== renderer.canvas;
   controller.update(dt);
 
   // camera
@@ -579,10 +628,33 @@ function loop(t: number) {
   }
 
   // world + entities
-  world?.update(dt);
+  world?.update(dt, controller.pos);
   peers.update(dt);
   enemies.update(dt);
+  pings.update(dt);
   rig.update();
+
+  // viewmodel + particles
+  viewmodel.setDevice(rig.equipped);
+  const movingNow = Math.abs(controller.vel.x) + Math.abs(controller.vel.z) > 0.5;
+  viewmodel.update(dt, movingNow, controller.onGround);
+  renderer.tick(dt);
+  if (levelDef) {
+    particles.ambient(levelDef.world, controller.pos, dt);
+    // portal motes + ember trails on aggroed enemies (cheap, rate-limited by frame)
+    if (Math.random() < dt * 14) {
+      for (const pp of world?.portalPoints() ?? []) {
+        if (Math.hypot(pp.pos[0] - controller.pos.x, pp.pos[2] - controller.pos.z) < 45)
+          particles.motes(pp.pos[0], pp.pos[1], pp.pos[2], pp.color);
+      }
+    }
+    if (Math.random() < dt * 20) {
+      for (const ep of enemies.aggroPositions())
+        particles.spawn(ep.x, ep.y, ep.z, PALETTE.hostile,
+          (Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.5, (Math.random() - 0.5) * 0.6, 0.9, { drag: 1 });
+    }
+  }
+  particles.update(dt);
 
   // device bar cooldown/charges animate
   if (t - lastDevBar > 250) { lastDevBar = t; refreshDeviceBar(); }

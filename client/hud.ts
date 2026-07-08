@@ -3,6 +3,7 @@
 import { DEVICES, type DeviceId } from '../shared/devices';
 import { SKILLS, type SkillId } from '../shared/skills';
 import type { InstanceSnapshot } from '../shared/messages';
+import { icon, DEVICE_ICON, SKILL_ICON } from './icons';
 
 export interface HudCallbacks {
   onStart(name: string): void;
@@ -83,9 +84,29 @@ const CSS = `
 #banner h2 { font-weight: 200; letter-spacing: 0.4em; font-size: 34px; color: #ffd98a; text-shadow: 0 0 24px rgba(255,217,138,0.7); }
 #banner p { opacity: 0.85; margin-top: 6px; }
 #hint { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); font-size: 13px; opacity: 0.8; padding: 6px 14px; display: none; }
+#gate { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); font-size: 14px; padding: 8px 18px; display: none; border-color: #ffd98a; }
+#gate svg { vertical-align: -3px; margin-right: 6px; color: #ffd98a; }
+#chatlog { position: absolute; left: 20px; bottom: 120px; width: 340px; max-height: 220px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; font-size: 13px; pointer-events: none; }
+#chatlog .line { padding: 4px 10px; border-radius: 8px; background: rgba(18,16,32,0.72); line-height: 1.35; transition: opacity 1s; word-wrap: break-word; }
+#chatlog .line .who { font-weight: 600; margin-right: 6px; }
+#chatlog .line.sys { color: #cfc6e8; font-style: italic; background: rgba(18,16,32,0.5); }
+#chatlog.dim .line { opacity: 0.25; }
+#chatinput { position: absolute; left: 20px; bottom: 92px; width: 340px; display: none; pointer-events: auto; }
+#chatinput input { width: 100%; box-sizing: border-box; background: rgba(18,16,32,0.95); border: 1px solid #6ec6ff; color: #e8e4f0; padding: 8px 12px; border-radius: 8px; font-size: 14px; outline: none; }
+#devices .slot svg { display: block; margin: 0 auto 2px; }
+.sk-branch { margin-bottom: 10px; }
+.sk-row { display: flex; align-items: center; gap: 0; margin: 8px 0; }
+.sk-node { width: 150px; padding: 9px 10px; border: 1px solid rgba(160,150,220,0.3); border-radius: 10px; font-size: 11px; cursor: pointer; background: rgba(30,27,50,0.6); position: relative; }
+.sk-node svg { display: block; margin-bottom: 4px; }
+.sk-node b { display: block; font-size: 12px; margin-bottom: 3px; }
+.sk-node .cost { position: absolute; top: 7px; right: 9px; font-size: 10px; opacity: 0.8; }
+.sk-node.owned { border-color: #a8f0c6; box-shadow: 0 0 8px rgba(168,240,198,0.25); }
+.sk-node.can { border-color: #ffd98a; box-shadow: 0 0 10px rgba(255,217,138,0.35); }
+.sk-node.locked { opacity: 0.42; cursor: default; }
+.sk-link { width: 34px; height: 2px; background: rgba(160,150,220,0.4); flex: 0 0 auto; }
+.sk-link.owned { background: #a8f0c6; box-shadow: 0 0 6px rgba(168,240,198,0.5); }
 `;
 
-const DEVICE_ICONS: Record<DeviceId, string> = { pulse: '◎', freeze: '❄', tractor: '☍', portalgun: '⊙' };
 
 export class Hud {
   private root: HTMLElement;
@@ -122,6 +143,9 @@ export class Hud {
       <div id="devices"></div>
       <div id="prompt" class="panel"></div>
       <div id="hint" class="panel"></div>
+      <div id="gate" class="panel"></div>
+      <div id="chatlog" class="dim"></div>
+      <div id="chatinput"><input maxlength="200" placeholder="say something… (Enter to send, Esc to cancel)"/></div>
       <div id="toasts"></div>
       <div id="beacons"></div>
       <div id="reviveBar"><i></i></div>
@@ -149,7 +173,7 @@ export class Hud {
       <input id="intro-name" maxlength="24" placeholder="your name" value="${saved.replace(/"/g, '')}" />
       <button id="intro-go">ENTER</button>
       <p class="keys">WASD move · mouse look · SPACE jump · E interact · F carry · LMB device ·
-      1-4 equip · Q beacon · L loadout · T echo · ESC menu</p>
+      1-4 equip · ENTER chat · MMB ping · Q beacon · L loadout · T echo · ESC menu</p>
     `;
     document.body.appendChild(intro);
     const go = () => {
@@ -198,11 +222,61 @@ export class Hud {
     this.owned = owned; this.equipped = equipped;
     this.$('#devices').innerHTML = owned.map((d, i) => `
       <div class="slot ${d === equipped ? 'eq' : ''}">
-        <div class="icon" style="color:${DEVICES[d].color}">${DEVICE_ICONS[d]}</div>
+        ${icon(DEVICE_ICON[d], 22, DEVICES[d].color)}
         <div>${DEVICES[d].name.split(' ')[DEVICES[d].name.split(' ').length - 1]}</div>
         <div class="ch">${chargeOf(d)} <span style="opacity:0.5">[${i + 1}]</span></div>
         <div class="cd" style="width:${cooldownPct(d) * 100}%"></div>
       </div>`).join('');
+  }
+
+  // ---------- chat ----------
+  private chatDimTimer?: ReturnType<typeof setTimeout>;
+  chatOpen = false;
+  private onChatSubmit?: (text: string) => void;
+
+  addChat(name: string, accent: string, text: string, system = false) {
+    const log = this.$('#chatlog');
+    const line = document.createElement('div');
+    line.className = `line${system ? ' sys' : ''}`;
+    line.innerHTML = system
+      ? esc(text)
+      : `<span class="who" style="color:${accent}">${esc(name)}</span>${esc(text)}`;
+    log.appendChild(line);
+    while (log.children.length > 9) log.removeChild(log.firstChild!);
+    log.classList.remove('dim');
+    clearTimeout(this.chatDimTimer);
+    this.chatDimTimer = setTimeout(() => log.classList.add('dim'), 7000);
+  }
+  bindChat(onSubmit: (text: string) => void) { this.onChatSubmit = onSubmit; }
+  openChat() {
+    if (this.chatOpen) return;
+    this.chatOpen = true;
+    const box = this.$('#chatinput');
+    const input = box.querySelector('input')!;
+    box.style.display = 'block';
+    this.$('#chatlog').classList.remove('dim');
+    input.value = '';
+    setTimeout(() => input.focus(), 0);
+    const close = () => {
+      this.chatOpen = false;
+      box.style.display = 'none';
+      input.onkeydown = null;
+      dispatchEvent(new CustomEvent('hud-closed'));
+    };
+    input.onkeydown = (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        const text = input.value.trim();
+        if (text) this.onChatSubmit?.(text);
+        close();
+      } else if (e.key === 'Escape') close();
+    };
+  }
+
+  gateBanner(text: string | null) {
+    const el = this.$('#gate');
+    el.style.display = text ? 'block' : 'none';
+    if (text) el.innerHTML = `${icon('players', 16)}${esc(text)}`;
   }
   prompt(text: string | null) {
     const el = this.$('#prompt');
@@ -250,29 +324,33 @@ export class Hud {
   showLoadout(profile: { devices: DeviceId[]; skills: SkillId[]; skillPoints: number; inventory: string[] }) {
     this.skills = profile.skills; this.skillPoints = profile.skillPoints; this.inventory = profile.inventory;
     const c = this.$('#lo-content');
-    const skillCard = (id: SkillId) => {
+    // skill tree as a graph: prerequisite chains rendered with connector lines
+    const node = (id: SkillId) => {
       const s = SKILLS[id];
       const ownedS = this.skills.includes(id);
       const can = !ownedS && this.skillPoints >= s.cost && (!s.requires || this.skills.includes(s.requires));
-      return `<div class="card ${ownedS ? 'active' : can ? '' : 'locked'}" data-skill="${id}">
-        <b>${s.name} ${ownedS ? '✓' : `· ${s.cost}pt`}</b>${s.description}
-        ${s.requires && !this.skills.includes(s.requires) ? `<div style="opacity:0.6;margin-top:4px">needs ${SKILLS[s.requires].name}</div>` : ''}
+      return `<div class="sk-node ${ownedS ? 'owned' : can ? 'can' : 'locked'}" data-skill="${id}" title="${esc(s.description)}">
+        ${icon(SKILL_ICON[id], 20, ownedS ? '#a8f0c6' : can ? '#ffd98a' : '#8f89a8')}
+        <b>${s.name}</b>${s.description}
+        <span class="cost">${ownedS ? icon('check', 12, '#a8f0c6') : `${s.cost}pt`}</span>
       </div>`;
     };
-    const trav = Object.values(SKILLS).filter((s) => s.branch === 'traversal').map((s) => skillCard(s.id)).join('');
-    const comb = Object.values(SKILLS).filter((s) => s.branch === 'combat').map((s) => skillCard(s.id)).join('');
+    const chain = (ids: SkillId[]) => `<div class="sk-row">${ids.map((id, i) =>
+      `${i > 0 ? `<div class="sk-link ${this.skills.includes(ids[i - 1]) ? 'owned' : ''}"></div>` : ''}${node(id)}`).join('')}</div>`;
+    const branch = (label: string, chains: SkillId[][]) =>
+      `<div class="sk-branch"><div style="font-size:11px;opacity:0.6;margin-bottom:2px">${label}</div>${chains.map(chain).join('')}</div>`;
     c.innerHTML = `
       <h3>DEVICES — click to equip</h3>
       <div class="grid">${this.owned.map((d) => `
         <div class="card ${d === this.equipped ? 'active' : ''}" data-dev="${d}">
-          <b style="color:${DEVICES[d].color}">${DEVICE_ICONS[d]} ${DEVICES[d].name}</b>
+          <b style="color:${DEVICES[d].color}">${icon(DEVICE_ICON[d], 16, DEVICES[d].color)} ${DEVICES[d].name}</b>
           ${DEVICES[d].puzzleUse}<br/><span style="opacity:0.7">${DEVICES[d].combatUse}</span>
         </div>`).join('')}</div>
-      <h3>SKILLS — ${this.skillPoints} point${this.skillPoints === 1 ? '' : 's'} <button id="lo-respec" style="margin-left:12px">respec (refund all)</button></h3>
-      <div style="font-size:11px;opacity:0.6;margin-bottom:6px">TRAVERSAL</div><div class="grid">${trav}</div>
-      <div style="font-size:11px;opacity:0.6;margin:8px 0 6px">COMBAT</div><div class="grid">${comb}</div>
+      <h3>SKILLS — ${this.skillPoints} point${this.skillPoints === 1 ? '' : 's'} <button id="lo-respec" style="margin-left:12px">${icon('respec', 12)} respec (refund all)</button></h3>
+      ${branch('TRAVERSAL', [['double-jump', 'phase-sight'], ['quick-carry', 'echo-core']])}
+      ${branch('COMBAT', [['charged-pulse', 'overcharge'], ['dash', 'field-medic']])}
       <h3>INVENTORY (${this.inventory.length}/6)</h3>
-      <div class="grid">${this.inventory.length ? this.inventory.map((i) => `<div class="card"><b>◈ ${esc(i)}</b>carried item — find its socket</div>`).join('') : '<div style="opacity:0.5;font-size:12px">empty — explore for hidden items</div>'}</div>
+      <div class="grid">${this.inventory.length ? this.inventory.map((i) => `<div class="card"><b>${icon('gem', 14, '#ffd98a')} ${esc(i)}</b>carried item — find its socket</div>`).join('') : '<div style="opacity:0.5;font-size:12px">empty — explore for hidden secrets</div>'}</div>
     `;
     c.querySelectorAll('[data-dev]').forEach((n) => n.addEventListener('click', () => {
       this.cb.onEquip((n as HTMLElement).dataset.dev as DeviceId);

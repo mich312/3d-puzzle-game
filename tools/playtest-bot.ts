@@ -176,9 +176,11 @@ async function testCoopAtrium02() {
   const a = new Bot('BotA');
   const b = new Bot('BotB');
   await a.open(); await b.open();
+  // co-op entry gate: both must request; the second request admits the pair
   a.send({ t: 'enter_level', v: 1, level: 'atrium-02' });
-  await a.until(() => a.levelId === 'atrium-02', 'A enters');
+  await sleep(400);
   b.send({ t: 'enter_level', v: 1, level: 'atrium-02' });
+  await a.until(() => a.levelId === 'atrium-02', 'A enters');
   await b.until(() => b.levelId === 'atrium-02', 'B enters');
   a.send({ t: 'reset_level', v: 1 });
   await sleep(800);

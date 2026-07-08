@@ -6,6 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { WORLD_PALETTES } from '../../shared/palette';
+import { makeSky } from './sky';
 
 export class Renderer {
   readonly scene = new THREE.Scene();
@@ -17,6 +18,7 @@ export class Renderer {
   private hemi: THREE.HemisphereLight;
   private key: THREE.DirectionalLight;
   private ambient: THREE.AmbientLight;
+  private sky?: THREE.Mesh;
   reduceMotion = false;
 
   constructor(container: HTMLElement) {
@@ -61,6 +63,9 @@ export class Renderer {
     const p = WORLD_PALETTES[world] ?? WORLD_PALETTES.nexus;
     this.scene.background = new THREE.Color(p.sky);
     this.scene.fog = new THREE.FogExp2(p.fog, p.fogDensity);
+    if (this.sky) this.scene.remove(this.sky);
+    this.sky = makeSky(world);
+    this.scene.add(this.sky);
     this.hemi.color.set(p.hemiSky);
     this.hemi.groundColor.set(p.hemiGround);
     this.hemi.intensity = p.ambient;
@@ -75,10 +80,15 @@ export class Renderer {
     }
   }
 
-  /** keep the shadow camera centred on the player */
+  /** keep the shadow camera + sky centred on the player */
   followShadow(target: THREE.Vector3) {
     this.key.position.set(target.x + 18, target.y + 30, target.z + 12);
     this.key.target.position.copy(target);
+    if (this.sky) this.sky.position.copy(target);
+  }
+
+  tick(dt: number) {
+    if (this.sky && !this.reduceMotion) this.sky.rotation.y += dt * 0.004;
   }
 
   render() { this.composer.render(); }
