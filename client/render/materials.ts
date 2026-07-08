@@ -4,6 +4,16 @@ import * as THREE from 'three';
 import type { MaterialRole } from '../../shared/level';
 
 const cache = new Map<string, THREE.MeshStandardMaterial>();
+
+// Tangent-space normal maps need vertex tangents to render correctly on the WebGPU
+// node-material path (WebGL fakes them from screen-space derivatives; WebGPU does
+// not). Our box/cylinder geometries carry no tangents, so on WebGPU the normal maps
+// produce black/unlit surfaces. Until tangents are generated, WebGPU drops the
+// normal map (surfaces stay correctly lit, just without the fine grain).
+let USE_NORMAL_MAPS = true;
+export function setRenderBackend(backend: 'webgl2' | 'webgpu') {
+  USE_NORMAL_MAPS = backend !== 'webgpu';
+}
 const texCache = new Map<string, { map: THREE.Texture; normal: THREE.Texture; rough: THREE.Texture }>();
 
 function makeCanvas(n = 256): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -164,7 +174,7 @@ export function getMaterial(role: MaterialRole, colorOverride?: string, emissive
   const tex = buildTextures(role);
   const mat = new THREE.MeshStandardMaterial({
     map: tex.map,
-    normalMap: tex.normal,
+    normalMap: USE_NORMAL_MAPS ? tex.normal : null,
     roughnessMap: tex.rough,
     roughness: 1,
     metalness: spec.metal,

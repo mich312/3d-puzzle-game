@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { createRenderer, type RendererPref } from './render/create';
 import { detectWebGPU } from './render/gpu';
 import type { IRenderer } from './render/api';
+import { setRenderBackend } from './render/materials';
 import { World } from './world';
 import { PlayerController } from './player';
 import { Peers, Enemies, Echoes, Pings } from './entities';
@@ -92,6 +93,7 @@ async function start(name: string) {
   const pref = (localStorage.getItem('t-renderer') ?? 'webgl2') as RendererPref;
   const { renderer: r, fallback } = await createRenderer(document.getElementById('app')!, pref);
   renderer = r;
+  setRenderBackend(renderer.backend);        // WebGPU: build materials without tangent-dependent normal maps
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
   hud.settings.renderer = renderer.backend === 'webgpu' ? 'webgpu' : 'webgl2';
   // report the active backend + whether WebGPU is available on this machine
