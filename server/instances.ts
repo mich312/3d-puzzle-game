@@ -395,10 +395,10 @@ export class LevelInstance extends Instance {
         enemy.vel = v3.add(enemy.vel, [dir[0] * kb, 1.2, dir[2] * kb]);
         this.mgr.store.telemetry(p.profile.token, 'combat_hit', { level: this.level.id, device: 'pulse', enemy: enemy.type });
       }
-      // switches
+      // switches — LOS check tolerates the switch's own housing geometry
       for (const it of this.inter.values()) {
         if (it.type !== 'switch') continue;
-        if (this.pointOnRay(it.pos, origin, dir, dev.range, 1.2) && segmentClear(this.colliders, origin, it.pos)) {
+        if (this.pointOnRay(it.pos, origin, dir, dev.range, 1.2) && this.clearToPoint(origin, it.pos, 0.9)) {
           const st = this.states.get(it.id)!;
           if (it.latched === false) {
             this.setState(it.id, { on: true });
@@ -494,6 +494,16 @@ export class LevelInstance extends Instance {
   }
 
   // ----- helpers -----
+  /** line-of-sight to a point, ignoring geometry within `slack` metres of it
+      (e.g. a switch's own decorative housing must not block the shot) */
+  clearToPoint(origin: Vec3, point: Vec3, slack: number): boolean {
+    const d = v3.sub(point, origin);
+    const len = v3.len(d);
+    if (len <= slack) return true;
+    const dir = v3.scale(d, 1 / len);
+    return raycast(this.colliders, origin, dir, len - slack) === null;
+  }
+
   pointOnRay(point: Vec3, origin: Vec3, dir: Vec3, range: number, tol: number): boolean {
     const rel = v3.sub(point, origin);
     const t = rel[0] * dir[0] + rel[1] * dir[1] + rel[2] * dir[2];
@@ -513,7 +523,7 @@ export class LevelInstance extends Instance {
       if (t < 0 || t > range) continue;
       const closest: Vec3 = [origin[0] + dir[0] * t, origin[1] + dir[1] * t, origin[2] + dir[2] * t];
       if (v3.dist(closest, centre) < e.def.radius + DEVICE_COMBAT.hitTolerance) {
-        if (t < bestT && segmentClear(this.colliders, origin, centre)) { bestT = t; best = e; }
+        if (t < bestT && this.clearToPoint(origin, centre, 0.5)) { bestT = t; best = e; }
       }
     }
     return best;
