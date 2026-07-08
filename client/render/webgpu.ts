@@ -77,6 +77,10 @@ export class WebGPURendererImpl implements IRenderer {
     r.gl.library.addLight(DirectionalLightNode, THREE.DirectionalLight);
     r.gl.library.addLight(HemisphereLightNode, THREE.HemisphereLight);
     r.gl.library.addLight(AmbientLightNode, THREE.AmbientLight);
+    // verify the registration took (and that our classic light class matches what
+    // the scene actually uses) — surfaced in the on-screen diag overlay
+    const ok = r.gl.library.getLightNodeClass(THREE.PointLight) != null;
+    diagLog(`light-node registration: PointLight ${ok ? 'OK' : 'MISSING'} · dirt/hemi/amb registered`);
     try {
       const info = (r.gl as unknown as { backend?: { adapter?: { info?: Record<string, string> } } }).backend?.adapter?.info;
       if (info) r.adapterInfo = [info.vendor, info.architecture, info.description].filter(Boolean).join(' ') || 'WebGPU';

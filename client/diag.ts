@@ -1,7 +1,7 @@
 // On-screen diagnostics. WebGPU can't be tested in the build sandbox, so when it's
 // active we surface captured errors + backend info directly in the page — the player
 // can screenshot it instead of digging in the console.
-export const BUILD = 'wgpu-lightfix-2';
+export const BUILD = 'wgpu-lightfix-3';
 
 const buffer: string[] = [];
 let overlay: HTMLElement | null = null;
