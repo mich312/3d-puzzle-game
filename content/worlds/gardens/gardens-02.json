@@ -1,0 +1,96 @@
+{
+  "v": 1,
+  "id": "gardens-02",
+  "name": "Root & Bloom",
+  "world": "gardens",
+  "coop": "co-op-required",
+  "dependency": ["sightline"],
+  "encounters": ["environmental-kill"],
+  "players": { "min": 2, "max": 4 },
+  "requiresDevice": [],
+  "grantsDevice": "portalgun",
+  "intro": "The Portal Device is yours. Alone, portal the chasm; together, one holds the near switch while the other crosses.",
+  "fog": { "color": "#6b4a3c", "density": 0.017 },
+  "spawns": { "entry": [0, 1, 18] },
+  "checkpoints": [[0, 1, 18], [0, 1, -14]],
+  "geometry": [
+    { "shape": "box", "pos": [0, -0.5, 14], "size": [26, 1, 20], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.5, 24], "size": [26, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [-13, 1.75, 14], "size": [1, 3.5, 20], "material": "stone", "portalSurface": true },
+    { "shape": "box", "pos": [13, 1.75, 14], "size": [1, 3.5, 20], "material": "stone", "portalSurface": true },
+    { "shape": "box", "pos": [0, 0.05, 14], "size": [26, 0.1, 20], "material": "wood", "collider": false, "emissive": "#ffd9a0", "emissiveIntensity": 0.12 },
+    { "shape": "box", "pos": [0, 0.6, 4.4], "size": [26, 1.2, 0.4], "material": "crystal", "emissive": "#ffb060", "emissiveIntensity": 0.9, "collider": false },
+
+    { "shape": "cylinder", "pos": [-12, 2, 22], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [12, 2, 22], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [-12, 2, 6], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [12, 2, 6], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [-9, 0.6, 10], "size": [1.1, 1.2, 1.1], "material": "stone" },
+    { "shape": "box", "pos": [-9, 1.7, 10], "size": [1.4, 0.8, 1.4], "material": "crystal", "emissive": "#a8ff9e", "emissiveIntensity": 0.8, "collider": false },
+    { "shape": "cylinder", "pos": [9, 0.6, 10], "size": [1.1, 1.2, 1.1], "material": "stone" },
+    { "shape": "box", "pos": [9, 1.7, 10], "size": [1.4, 0.8, 1.4], "material": "crystal", "emissive": "#ffb0d0", "emissiveIntensity": 0.8, "collider": false },
+
+    { "shape": "cylinder", "pos": [0, 0.6, 15], "size": [1.2, 1.2, 1.2], "material": "stone" },
+    { "shape": "cylinder", "pos": [0, 1.5, 15], "size": [0.4, 1.2, 0.4], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 1.6 },
+    { "shape": "box", "pos": [0, 2.4, 15], "size": [0.8, 0.3, 0.8], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 2.2, "collider": false },
+
+    { "shape": "box", "pos": [0, -0.5, -14], "size": [26, 1, 20], "material": "stone" },
+    { "shape": "box", "pos": [-6.75, 1.5, -24], "size": [12.5, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [6.75, 1.5, -24], "size": [12.5, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.25, -24], "size": [3, 3.5, 0.6], "material": "metal", "door": { "id": "bloomGate", "openWhen": "nearSwitch.on && farSwitch.on && s1.down" } },
+    { "shape": "box", "pos": [-13, 1.75, -14], "size": [1, 3.5, 20], "material": "stone", "portalSurface": true },
+    { "shape": "box", "pos": [13, 1.75, -14], "size": [1, 3.5, 20], "material": "stone", "portalSurface": true },
+    { "shape": "box", "pos": [0, 0.05, -14], "size": [26, 0.1, 20], "material": "wood", "collider": false, "emissive": "#ffd9a0", "emissiveIntensity": 0.12 },
+    { "shape": "box", "pos": [0, 0.6, -4.4], "size": [26, 1.2, 0.4], "material": "crystal", "emissive": "#ffb060", "emissiveIntensity": 0.9, "collider": false },
+
+    { "shape": "cylinder", "pos": [-12, 2, -22], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [12, 2, -22], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [-12, 2, -6], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [12, 2, -6], "size": [0.6, 4, 0.6], "material": "wood" },
+    { "shape": "cylinder", "pos": [-9, 0.6, -10], "size": [1.1, 1.2, 1.1], "material": "stone" },
+    { "shape": "box", "pos": [-9, 1.7, -10], "size": [1.4, 0.8, 1.4], "material": "crystal", "emissive": "#a8ff9e", "emissiveIntensity": 0.8, "collider": false },
+    { "shape": "cylinder", "pos": [9, 0.6, -18], "size": [1.1, 1.2, 1.1], "material": "stone" },
+
+    { "shape": "box", "pos": [0, -0.5, -27], "size": [6, 1, 5], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.5, -29.5], "size": [6, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [-3, 1.5, -27], "size": [1, 3, 5], "material": "stone" },
+    { "shape": "box", "pos": [3, 1.5, -27], "size": [1, 3, 5], "material": "stone" },
+    { "shape": "box", "pos": [0, 3.5, -27], "size": [4, 0.4, 4], "material": "crystal", "emissive": "#ffe6b0", "emissiveIntensity": 1.5, "collider": false },
+
+    { "shape": "cylinder", "pos": [-11, 5, 4], "size": [0.5, 6, 0.5], "material": "wood" },
+    { "shape": "cylinder", "pos": [-11, 5, -4], "size": [0.5, 6, 0.5], "material": "wood" },
+    { "shape": "box", "pos": [-11, 8.2, 0], "size": [1.4, 0.6, 9], "material": "wood", "emissive": "#ffb060", "emissiveIntensity": 0.3 },
+    { "shape": "cylinder", "pos": [11, 5, 4], "size": [0.5, 6, 0.5], "material": "wood" },
+    { "shape": "cylinder", "pos": [11, 5, -4], "size": [0.5, 6, 0.5], "material": "wood" },
+    { "shape": "box", "pos": [11, 8.2, 0], "size": [1.4, 0.6, 9], "material": "wood", "emissive": "#ffb060", "emissiveIntensity": 0.3 },
+    { "shape": "box", "pos": [-4, 1.5, 0], "size": [1, 1, 1], "material": "crystal", "emissive": "#a8ff9e", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.7 },
+    { "shape": "box", "pos": [4, 2, 0], "size": [1.1, 1.1, 1.1], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 1.0, "collider": false, "rotY": 0.4 },
+    { "shape": "box", "pos": [0, 0.5, 0], "size": [1, 1, 1], "material": "crystal", "emissive": "#ffe6b0", "emissiveIntensity": 0.8, "collider": false, "rotY": 0.9 },
+    { "shape": "box", "pos": [-6, 3, 20], "size": [0.8, 0.8, 0.8], "material": "crystal", "emissive": "#a8ff9e", "emissiveIntensity": 0.9, "collider": false, "rotY": 0.5 },
+    { "shape": "box", "pos": [6, 3.5, 20], "size": [0.7, 0.7, 0.7], "material": "crystal", "emissive": "#ffb0d0", "emissiveIntensity": 0.9, "collider": false, "rotY": 0.3 },
+    { "shape": "box", "pos": [-6, 3.2, -20], "size": [0.8, 0.8, 0.8], "material": "crystal", "emissive": "#a8ff9e", "emissiveIntensity": 0.9, "collider": false, "rotY": 0.7 },
+    { "shape": "box", "pos": [6, 3, -20], "size": [0.7, 0.7, 0.7], "material": "crystal", "emissive": "#ffe6b0", "emissiveIntensity": 0.9, "collider": false, "rotY": 0.2 },
+    { "shape": "cylinder", "pos": [-9, 0.5, -18], "size": [0.9, 1, 0.9], "material": "wood" },
+    { "shape": "box", "pos": [-9, 1.4, -18], "size": [1.2, 0.7, 1.2], "material": "crystal", "emissive": "#a8ff9e", "emissiveIntensity": 0.7, "collider": false }
+  ],
+  "interactables": [
+    { "type": "switch", "id": "nearSwitch", "pos": [-8, 1.6, 15], "latched": true },
+    { "type": "switch", "id": "farSwitch", "pos": [8, 1.6, -14], "latched": true },
+    { "type": "hazard", "id": "chasmVoid", "pos": [0, -6, 0], "size": [26, 2, 8], "kind": "void" }
+  ],
+  "enemies": [
+    { "type": "sower", "id": "s1", "spawn": [0, 1, -16], "patrol": [[-4, 1, -16], [4, 1, -16]], "weakTo": ["pulse"] },
+    { "type": "warden", "id": "w1", "spawn": [8, 1, -12], "patrol": [[6, 1, -12], [10, 1, -16]], "weakTo": ["pulse"] }
+  ],
+  "portals": [
+    { "id": "exit", "pos": [0, 1.3, -27], "linkedTo": "nexus", "label": "Threshold", "requiresSolved": true },
+    { "id": "back", "pos": [0, 1.3, 22], "linkedTo": "nexus", "label": "Back to Nexus" }
+  ],
+  "placeablePortals": { "enabled": true, "budgetPerPlayer": 2 },
+  "puzzle": {
+    "solved": "nearSwitch.on && farSwitch.on && s1.down",
+    "soloSolution": "nearSwitch.on && farSwitch.on && s1.down",
+    "shard": "gardens-02",
+    "skillPoints": 2
+  }
+}

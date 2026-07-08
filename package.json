@@ -1,0 +1,30 @@
+{
+  "name": "threshold",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "THRESHOLD — a browser-based cooperative 3D puzzle-adventure for 1-4 players",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "validate:content": "tsx tools/validate-content.ts"
+  },
+  "dependencies": {
+    "three": "^0.170.0",
+    "tsx": "^4.19.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/three": "^0.170.0",
+    "@types/ws": "^8.5.13",
+    "concurrently": "^9.1.0",
+    "playwright-core": "^1.61.1",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}

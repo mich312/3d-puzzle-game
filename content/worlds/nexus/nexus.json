@@ -1,0 +1,52 @@
+{
+  "v": 1,
+  "id": "nexus",
+  "name": "The Nexus",
+  "world": "nexus",
+  "coop": "solo",
+  "dependency": [],
+  "encounters": [],
+  "players": { "min": 1, "max": 24 },
+  "requiresDevice": [],
+  "intro": "Walk to a portal. Wave someone in, or go alone.",
+  "fog": { "color": "#4a4468", "density": 0.022 },
+  "spawns": { "entry": [0, 1, 14] },
+  "geometry": [
+    { "shape": "box", "pos": [0, -0.5, 0], "size": [46, 1, 46], "material": "tile" },
+    { "shape": "cylinder", "pos": [0, 0.25, 0], "size": [4.2, 0.5, 4.2], "material": "stone" },
+    { "shape": "cylinder", "pos": [0, 1.1, 0], "size": [0.5, 1.6, 0.5], "material": "crystal", "emissive": "#cfc4ff", "emissiveIntensity": 1.2 },
+    { "shape": "cylinder", "pos": [0, 2.2, 0], "size": [0.9, 0.35, 0.9], "material": "crystal", "emissive": "#cfc4ff", "emissiveIntensity": 2.0, "collider": false },
+
+    { "shape": "box", "pos": [0, 1.5, -23], "size": [46, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.5, 23], "size": [46, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [-23, 1.5, 0], "size": [1, 3, 46], "material": "stone" },
+    { "shape": "box", "pos": [23, 1.5, 0], "size": [1, 3, 46], "material": "stone" },
+
+    { "shape": "cylinder", "pos": [-14, 3, -14], "size": [0.7, 6, 0.7], "material": "stone" },
+    { "shape": "cylinder", "pos": [14, 3, -14], "size": [0.7, 6, 0.7], "material": "stone" },
+    { "shape": "cylinder", "pos": [-14, 3, 14], "size": [0.7, 6, 0.7], "material": "stone" },
+    { "shape": "cylinder", "pos": [14, 3, 14], "size": [0.7, 6, 0.7], "material": "stone" },
+    { "shape": "box", "pos": [-14, 6.2, -14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#6ec6ff", "emissiveIntensity": 1.0, "collider": false },
+    { "shape": "box", "pos": [14, 6.2, -14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#6ec6ff", "emissiveIntensity": 1.0, "collider": false },
+    { "shape": "box", "pos": [-14, 6.2, 14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 1.0, "collider": false },
+    { "shape": "box", "pos": [14, 6.2, 14], "size": [1.6, 0.4, 1.6], "material": "crystal", "emissive": "#ff9ecb", "emissiveIntensity": 1.0, "collider": false },
+
+    { "shape": "box", "pos": [0, 0.15, -19], "size": [20, 0.3, 5], "material": "stone" },
+    { "shape": "box", "pos": [19, 0.15, 0], "size": [5, 0.3, 20], "material": "stone" },
+    { "shape": "box", "pos": [0, 0.15, 19], "size": [20, 0.3, 5], "material": "stone" },
+    { "shape": "box", "pos": [-19, 0.15, 0], "size": [5, 0.3, 14], "material": "stone" }
+  ],
+  "portals": [
+    { "id": "to-atrium-01", "pos": [-6, 1.3, -19], "linkedTo": "atrium-01", "label": "First Light", "color": "#6ec6ff" },
+    { "id": "to-atrium-02", "pos": [0, 1.3, -19], "linkedTo": "atrium-02", "label": "Two Bells", "color": "#6ec6ff", "requiresShards": 1 },
+    { "id": "to-atrium-03", "pos": [6, 1.3, -19], "linkedTo": "atrium-03", "label": "The Choir", "color": "#6ec6ff", "requiresShards": 2 },
+    { "id": "to-vaults-01", "pos": [19, 1.3, -6], "linkedTo": "vaults-01", "label": "Cold Store", "color": "#8f86d8", "requiresShards": 3 },
+    { "id": "to-vaults-02", "pos": [19, 1.3, 0], "linkedTo": "vaults-02", "label": "The Undercroft", "color": "#8f86d8", "requiresShards": 4 },
+    { "id": "to-vaults-03", "pos": [19, 1.3, 6], "linkedTo": "vaults-03", "label": "Shatterhall", "color": "#8f86d8", "requiresShards": 5 },
+    { "id": "to-gardens-01", "pos": [-6, 1.3, 19], "linkedTo": "gardens-01", "label": "The Terraces", "color": "#ffd9a0", "requiresShards": 6 },
+    { "id": "to-gardens-02", "pos": [0, 1.3, 19], "linkedTo": "gardens-02", "label": "Root & Bloom", "color": "#ffd9a0", "requiresShards": 7 },
+    { "id": "to-gardens-03", "pos": [6, 1.3, 19], "linkedTo": "gardens-03", "label": "The Long Stair", "color": "#ffd9a0", "requiresShards": 8 },
+    { "id": "to-observatory-01", "pos": [-19, 1.3, -3], "linkedTo": "observatory-01", "label": "Meridian", "color": "#b8a8ff", "requiresShards": 9 },
+    { "id": "to-observatory-02", "pos": [-19, 1.3, 3], "linkedTo": "observatory-02", "label": "The Final Threshold", "color": "#b8a8ff", "requiresShards": 10 }
+  ]
+}

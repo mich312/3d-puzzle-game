@@ -1,0 +1,62 @@
+{
+  "v": 1,
+  "id": "atrium-01",
+  "name": "First Light",
+  "world": "atrium",
+  "coop": "solo",
+  "dependency": [],
+  "encounters": ["environmental-kill"],
+  "players": { "min": 1, "max": 4 },
+  "requiresDevice": [],
+  "intro": "The lever wakes the gate. The Pulse wakes everything else.",
+  "fog": { "color": "#44507a", "density": 0.02 },
+  "spawns": { "entry": [0, 1, 4] },
+  "checkpoints": [[0, 1, 4], [0, 1, -18]],
+  "geometry": [
+    { "shape": "box", "pos": [0, -0.5, 0], "size": [14, 1, 14], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.5, 7], "size": [14, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [-7, 1.5, 0], "size": [1, 3, 14], "material": "stone" },
+    { "shape": "box", "pos": [7, 1.5, 0], "size": [1, 3, 14], "material": "stone" },
+    { "shape": "box", "pos": [-4.25, 2, -7], "size": [5.5, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [4.25, 2, -7], "size": [5.5, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [0, 4.25, -7], "size": [14, 0.5, 1], "material": "stone", "collider": false },
+    { "shape": "box", "pos": [0, 1.75, -7], "size": [3, 3.5, 0.6], "material": "metal", "door": { "id": "gate1", "openWhen": "lever1.state==1" } },
+
+    { "shape": "box", "pos": [0, -0.5, -9.25], "size": [14, 1, 4.5], "material": "stone" },
+    { "shape": "box", "pos": [0, -0.5, -18.75], "size": [14, 1, 4.5], "material": "stone" },
+    { "shape": "box", "pos": [-7, 1.5, -14], "size": [1, 3, 14], "material": "stone", "portalSurface": true },
+    { "shape": "box", "pos": [7, 1.5, -14], "size": [1, 3, 14], "material": "stone", "portalSurface": true },
+    { "shape": "box", "pos": [0, -0.25, -14], "size": [3, 0.5, 5.2], "material": "crystal", "emissive": "#6ec6ff", "emissiveIntensity": 0.6, "activeWhen": "bridgeSwitch.on" },
+
+    { "shape": "box", "pos": [-4.25, 2, -21], "size": [5.5, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [4.25, 2, -21], "size": [5.5, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.75, -21], "size": [3, 3.5, 0.6], "material": "metal", "door": { "id": "gate2", "openWhen": "bridgeSwitch.on" } },
+
+    { "shape": "box", "pos": [0, -0.5, -30], "size": [18, 1, 17], "material": "stone" },
+    { "shape": "box", "pos": [0, 1.5, -38.5], "size": [18, 3, 1], "material": "stone" },
+    { "shape": "box", "pos": [-9, 1.5, -30], "size": [1, 3, 17], "material": "stone" },
+    { "shape": "box", "pos": [9, 1.5, -30], "size": [1, 3, 17], "material": "stone" },
+    { "shape": "cylinder", "pos": [-6, 2, -26], "size": [0.6, 4, 0.6], "material": "stone" },
+    { "shape": "cylinder", "pos": [6, 2, -26], "size": [0.6, 4, 0.6], "material": "stone" },
+    { "shape": "cylinder", "pos": [-6, 2, -34], "size": [0.6, 4, 0.6], "material": "stone" },
+    { "shape": "cylinder", "pos": [6, 2, -34], "size": [0.6, 4, 0.6], "material": "stone" },
+    { "shape": "box", "pos": [0, 3.5, -30], "size": [2.5, 0.4, 2.5], "material": "crystal", "emissive": "#bcd4ff", "emissiveIntensity": 1.4, "collider": false }
+  ],
+  "interactables": [
+    { "type": "lever", "id": "lever1", "pos": [2.2, 0.8, -5.8] },
+    { "type": "switch", "id": "bridgeSwitch", "pos": [0, 2.2, -20.4], "latched": true }
+  ],
+  "enemies": [
+    { "type": "drifter", "id": "d1", "spawn": [0, 1, -30], "patrol": [[-4, 1, -30], [4, 1, -30]], "weakTo": ["pulse"] }
+  ],
+  "portals": [
+    { "id": "exit", "pos": [0, 1.3, -36.5], "linkedTo": "nexus", "label": "Threshold", "requiresSolved": true },
+    { "id": "back", "pos": [0, 1.3, 5.6], "linkedTo": "nexus", "label": "Back to Nexus" }
+  ],
+  "placeablePortals": { "enabled": false },
+  "puzzle": {
+    "solved": "bridgeSwitch.on && d1.down",
+    "shard": "atrium-01",
+    "skillPoints": 1
+  }
+}

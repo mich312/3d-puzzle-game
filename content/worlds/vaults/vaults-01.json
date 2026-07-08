@@ -1,0 +1,82 @@
+{
+  "v": 1,
+  "id": "vaults-01",
+  "name": "Cold Store",
+  "world": "vaults",
+  "coop": "solo",
+  "dependency": ["asymmetric-ability"],
+  "encounters": ["environmental-kill"],
+  "players": { "min": 1, "max": 4 },
+  "requiresDevice": [],
+  "grantsDevice": "freeze",
+  "intro": "The Ray is yours at the pedestal. Freeze the breath of the vault — then freeze what breathes.",
+  "fog": { "color": "#2c2848", "density": 0.034 },
+  "spawns": { "entry": [0, 1, 7] },
+  "checkpoints": [[0, 1, 7], [0, 1, -12], [0, 1, -24], [0, 1, -32]],
+  "geometry": [
+    { "shape": "box", "pos": [0, -0.5, 4], "size": [10, 1, 12], "material": "stone" },
+    { "shape": "box", "pos": [0, 2, 10], "size": [10, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [-5, 2, 4], "size": [1, 4, 12], "material": "stone" },
+    { "shape": "box", "pos": [5, 2, 4], "size": [1, 4, 12], "material": "stone" },
+    { "shape": "box", "pos": [-3.5, 2, -2], "size": [3, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [3.5, 2, -2], "size": [3, 4, 1], "material": "stone" },
+    { "shape": "cylinder", "pos": [0, 0.25, 4], "size": [1, 0.5, 1], "material": "metal" },
+    { "shape": "cylinder", "pos": [0, 1.1, 4], "size": [0.5, 1.6, 0.5], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 1.4 },
+    { "shape": "box", "pos": [0, 2.1, 4], "size": [0.9, 0.35, 0.9], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 2.0, "collider": false },
+
+    { "shape": "box", "pos": [0, -0.5, -8], "size": [4, 1, 12], "material": "metal" },
+    { "shape": "box", "pos": [-2, 2, -8], "size": [1, 4, 12], "material": "metal" },
+    { "shape": "box", "pos": [2, 2, -8], "size": [1, 4, 12], "material": "metal" },
+    { "shape": "box", "pos": [0, 4.4, -8], "size": [4, 0.2, 12], "material": "metal", "emissive": "#8f86d8", "emissiveIntensity": 0.4, "collider": false },
+
+    { "shape": "box", "pos": [0, -0.5, -20], "size": [12, 1, 12], "material": "stone" },
+    { "shape": "box", "pos": [-4, 2, -14], "size": [4, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [4, 2, -14], "size": [4, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [-6, 2, -20], "size": [1, 4, 12], "material": "stone" },
+    { "shape": "box", "pos": [6, 2, -20], "size": [1, 4, 12], "material": "stone" },
+    { "shape": "box", "pos": [-4, 2, -26], "size": [4, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [4, 2, -26], "size": [4, 4, 1], "material": "stone" },
+    { "shape": "cylinder", "pos": [-4.5, 2, -17], "size": [0.5, 4, 0.5], "material": "metal" },
+    { "shape": "cylinder", "pos": [4.5, 2, -17], "size": [0.5, 4, 0.5], "material": "metal" },
+    { "shape": "cylinder", "pos": [-4.5, 2, -23], "size": [0.5, 4, 0.5], "material": "metal" },
+    { "shape": "cylinder", "pos": [4.5, 2, -23], "size": [0.5, 4, 0.5], "material": "metal" },
+
+    { "shape": "box", "pos": [0, -0.5, -32], "size": [10, 1, 12], "material": "stone" },
+    { "shape": "box", "pos": [-3.5, 2, -26], "size": [3, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [3.5, 2, -26], "size": [3, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [-5, 2, -32], "size": [1, 4, 12], "material": "stone" },
+    { "shape": "box", "pos": [5, 2, -32], "size": [1, 4, 12], "material": "stone" },
+    { "shape": "box", "pos": [-3.25, 2, -38], "size": [3.5, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [3.25, 2, -38], "size": [3.5, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [0, 4.25, -38], "size": [10, 0.5, 1], "material": "stone", "collider": false },
+    { "shape": "box", "pos": [0, 2, -38], "size": [3, 4, 0.6], "material": "metal", "door": { "id": "exitGate", "openWhen": "d1.down && exitSwitch.on" } },
+    { "shape": "box", "pos": [3.6, 1.6, -33.4], "size": [0.8, 1.2, 0.6], "material": "metal", "emissive": "#8f86d8", "emissiveIntensity": 0.6 },
+
+    { "shape": "box", "pos": [0, -0.5, -41], "size": [6, 1, 6], "material": "stone" },
+    { "shape": "box", "pos": [-3, 2, -41], "size": [1, 4, 6], "material": "stone" },
+    { "shape": "box", "pos": [3, 2, -41], "size": [1, 4, 6], "material": "stone" },
+    { "shape": "box", "pos": [0, 2, -44], "size": [6, 4, 1], "material": "stone" },
+    { "shape": "box", "pos": [0, 3.5, -42.5], "size": [2.2, 0.4, 2.2], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 1.4, "collider": false },
+
+    { "shape": "box", "pos": [-4.9, 3.4, -20], "size": [0.15, 0.3, 12], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 0.6, "collider": false },
+    { "shape": "box", "pos": [4.9, 3.4, -20], "size": [0.15, 0.3, 12], "material": "crystal", "emissive": "#8f86d8", "emissiveIntensity": 0.6, "collider": false }
+  ],
+  "interactables": [
+    { "type": "hazard", "id": "steamA", "pos": [0, 1.5, -5], "size": [4, 3, 1.5], "kind": "steam", "freezable": true, "dps": 20 },
+    { "type": "hazard", "id": "steamB", "pos": [0, 1.5, -11], "size": [4, 3, 1.5], "kind": "steam", "freezable": true, "dps": 20 },
+    { "type": "switch", "id": "exitSwitch", "pos": [3.6, 1.8, -33.4], "latched": true }
+  ],
+  "enemies": [
+    { "type": "drifter", "id": "d1", "spawn": [0, 1, -20], "patrol": [[-3, 1, -20], [3, 1, -20]], "weakTo": ["freeze-shatter"] }
+  ],
+  "portals": [
+    { "id": "exit", "pos": [0, 1.3, -42.5], "linkedTo": "nexus", "label": "Threshold", "requiresSolved": true },
+    { "id": "back", "pos": [0, 1.3, 8.6], "linkedTo": "nexus", "label": "Back to Nexus" }
+  ],
+  "placeablePortals": { "enabled": false },
+  "puzzle": {
+    "solved": "d1.down && exitSwitch.on",
+    "shard": "vaults-01",
+    "skillPoints": 1
+  }
+}
