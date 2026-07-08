@@ -352,15 +352,21 @@ async function testPortalsGardens02() {
   await a.until(() => a.pos[2] < 0, 'traversal', 8000);
   check(a.pos[2] < 0, `traversed the chasm via portals (z ${before.toFixed(0)} → ${a.pos[2].toFixed(0)})`);
 
-  // clear the sower (stops the adds) then the warden + stragglers
-  for (let i = 0; i < 50; i++) {
+  // clear the sower (stops the adds) then the warden + stragglers.
+  // Both bots fight, and strafe between volleys so sower bolts miss.
+  await b.walkTo([-11.6, 1.6, 14]);      // B follows through the portal pair
+  await b.until(() => b.pos[2] < 0, 'B traversal', 8000);
+  for (let i = 0; i < 90; i++) {
     const alive = (a.snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
     if (!alive.length) break;
     const target = alive.find((e) => e.id === 's1') ?? alive[0];
-    const dx = a.pos[0] - target.p[0], dz = a.pos[2] - target.p[2];
-    const dist = Math.hypot(dx, dz) || 1;
-    if (dist > 12) await a.walkTo([target.p[0] + (dx / dist) * 9, target.p[1], target.p[2] + (dz / dist) * 9]);
-    await fireAt(a, 'pulse', [target.p[0], target.p[1] + 0.9, target.p[2]], target.id);
+    for (const bot of [a, b]) {
+      const dx = bot.pos[0] - target.p[0], dz = bot.pos[2] - target.p[2];
+      const dist = Math.hypot(dx, dz) || 1;
+      if (dist > 12) await bot.walkTo([target.p[0] + (dx / dist) * 9, target.p[1], target.p[2] + (dz / dist) * 9]);
+      await fireAt(bot, 'pulse', [target.p[0], target.p[1] + 0.9, target.p[2]], target.id);
+      bot.pos = [bot.pos[0] + (Math.random() - 0.5) * 4, bot.pos[1], bot.pos[2] + (Math.random() - 0.5) * 4];
+    }
     await sleep(700);
   }
   check((a.snapshot?.enemies ?? []).every((e) => e.state === 'down'), 'sower + warden cleared');
