@@ -43,11 +43,22 @@ npx tsx tools/playtest-bot.ts  # headless protocol bots: solo solve, co-op solve
 | F | grab / set down carryables (heavy ones need two players… or the right skill) |
 | LMB / RMB | fire equipped device (Portal Device: LMB = cyan, RMB = rose) |
 | 1–4 / wheel | switch device |
+| Enter | chat (instance-scoped; log + speech bubbles) |
+| MMB | ping — drop a "look here" marker for your team |
 | Q | raise a help beacon (visible to everyone in the Nexus) |
 | L | loadout: equip devices, spend skill points, check inventory |
 | T | place/recall your Echo (Echo Core skill) |
 | V | Phase Sight (skill) — reveal hidden items |
 | Esc | menu: settings, invite link, reset level, return to Nexus |
+
+**1.1 — "The Open Nexus":** the lobby is now a floating-island archipelago with
+bridges, vista islets, and hidden stargems; every level except the First Light
+tutorial is **co-op** — walk into a portal alone and you wait at the threshold
+(visible as a beacon to everyone) until a partner joins you. Puzzles were reworked
+to be genuinely multi-step: expect to ferry, sequence, aim, freeze, and coordinate,
+not just shoot a switch. Boxes have real physics now (collision, restitution,
+stacking, docking into sockets), everything replicated is interpolated smoothly,
+and each world got a starfield sky, weather particles, and a visible held device.
 
 **The loop:** clear a level → everyone present earns a **shard** (+skill points) → shards
 unseal deeper portals in the Nexus. Progress, devices, skills, and best times persist in
