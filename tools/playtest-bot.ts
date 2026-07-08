@@ -73,6 +73,9 @@ class Bot {
     this.send({ t: 'hello', v: 1, name: this.name });
     await this.until(() => !!this.id, 'welcome');
     await this.until(() => !!this.snapshot, 'joined lobby');
+    // Story difficulty (40% incoming damage) — the audit verifies puzzle LOGIC,
+    // so combat attrition on a dumb noclip-shooter bot shouldn't mask solvability.
+    this.send({ t: 'set_opts', v: 1, difficulty: 'story' });
   }
   /** teleport-free walk: move in small legal steps (server rejects >12m jumps).
       Aborts if a portal/transfer changes the level mid-walk — the target
@@ -215,11 +218,11 @@ async function testCoopAtrium02() {
   await b.attempt(() => b.send({ t: 'interact', v: 1, target: 'tuner' }),
     () => b.st('tuner')?.state === 2, 'tuner to state 2', 12000);
   check(true, 'B set the tuner (west bridge + exit gate open)');
-  // 3. B drops the cube on mass-2 bellB and stands with it
-  await b.walkTo([11, 1, -9]);
-  b.send({ t: 'release', v: 1 });
-  await b.until(() => b.st('bellB')?.pressed === true, 'bellB pressed (player+cube mass 2)', 10000);
-  check(true, 'B + cube satisfy the mass-2 bell');
+  // 3. B drops the cube on mass-2 bellB and stands with it (cube + player = mass 2);
+  //    ferryTo re-drops if the cube slips off the plate before B settles on it.
+  const belled = await ferryTo(b, 'cube', [], [11, 1, -8.4],
+    () => b.st('bellB')?.pressed === true, { after: [11, 1, -9] });
+  check(belled, 'B + cube satisfy the mass-2 bell');
   await a.until(() => a.solved, 'multi-step co-op solve', 12000);
   check(true, 'both bells held + tuner set → solved');
   check(a.shards.includes('atrium-02') , 'A got shard');
@@ -233,6 +236,8 @@ async function testDownRevive() {
   const a = new Bot('BotDown');
   const b = new Bot('BotMedic');
   await a.open(); await b.open();
+  // this test is ABOUT getting downed, so A takes full (normal) damage again
+  a.send({ t: 'set_opts', v: 1, difficulty: 'normal' });
   a.send({ t: 'enter_level', v: 1, level: 'atrium-01' });
   await a.until(() => a.levelId === 'atrium-01', 'A in');
   b.send({ t: 'enter_level', v: 1, level: 'atrium-01' });
@@ -297,19 +302,14 @@ async function testFreezeVaults01() {
   }
   check((a.snapshot?.enemies ?? []).every((e) => e.state === 'down'), 'pack cleared');
 
-  // B ferries the coolant cell to its mount (kills the exit steam curtain)
-  // route through real doorways: held cargo collides with walls even though bots noclip
+  // B ferries the coolant cell to its mount (kills the exit steam curtain).
+  // Route through real doorways: held cargo collides with walls even though bots
+  // noclip, so ferryTo re-grabs and retries if the cell snags on the doorway frame.
   await b.walkTo([-8.5, 1, -16]);
-  await b.walkTo([-8.5, 1, -19]);
-  await b.attempt(() => b.send({ t: 'grab', v: 1, target: 'coolant' }),
-    () => (b.snapshot?.bodies ?? []).some((bd) => bd.id === 'coolant' && bd.heldBy === b.id), 'grab coolant');
-  await b.walkTo([-8.5, 1, -16]);   // back out of the alcove
-  await b.walkTo([0, 1, -20]);      // hall centre
-  await b.walkTo([0, 1, -24.5]);    // through the doorway
-  await b.walkTo([3, 1, -26.6]);    // face the mount
-  await b.attempt(() => b.send({ t: 'release', v: 1 }),
-    () => b.st('coolantMount')?.filled === true, 'dock coolant', 15000);
-  check(true, 'coolant cell docked in its mount — curtain drops, blast door open');
+  const docked = await ferryTo(b, 'coolant',
+    [[-8.5, 1, -19], [-8.5, 1, -16], [0, 1, -20], [0, 1, -24.5]],   // alcove → hall → doorway
+    [3, 1, -26.6], () => b.st('coolantMount')?.filled === true);     // face the mount
+  check(docked, 'coolant cell docked in its mount — curtain drops, blast door open');
 
   // A holds the lift plate while B flash-freezes the exit vent
   await a.walkTo([-3, 1, -31]);
@@ -426,9 +426,14 @@ async function pairEnter(a: Bot, b: Bot, level: string) {
 
 /** cycle a lever/rotator to a target state by repeated interact */
 async function setState(bot: Bot, id: string, pos: Vec3, target: number) {
-  await bot.walkTo([pos[0], 1, pos[2] + 1.4]);
-  await bot.attempt(() => bot.send({ t: 'interact', v: 1, target: id }),
-    () => bot.st(id)?.state === target, `${id}=${target}`, 14000);
+  await bot.walkTo([pos[0], pos[1] + 0.6, pos[2] + 1.2]);
+  try {
+    await bot.attempt(() => bot.send({ t: 'interact', v: 1, target: id }),
+      () => bot.st(id)?.state === target, `${id}=${target}`, 14000);
+  } catch {
+    const me = bot.snapshot?.players?.find((p) => p.id === bot.id);
+    throw new Error(`${id} stuck at ${JSON.stringify(bot.st(id))} (bot ${bot.pos.map((n) => n.toFixed(1)).join(',')} hp=${bot.hp} state=${me?.state ?? bot.state})`);
+  }
 }
 
 /** pulse every alive enemy until all down; tractor-expose a colossus while firing */
@@ -440,7 +445,9 @@ async function clearEnemies(bots: Bot[]): Promise<boolean> {
       const shooter = bots[0];
       const dx = shooter.pos[0] - e.p[0], dz = shooter.pos[2] - e.p[2];
       const d = Math.hypot(dx, dz) || 1;
-      if (d > 14) await shooter.walkTo([e.p[0] + (dx / d) * 10, 1, e.p[2] + (dz / d) * 10]);
+      // approach at the enemy's height (bots noclip) so an elevated foe is in view
+      if (d > 12 || Math.abs(shooter.pos[1] - e.p[1]) > 2)
+        await shooter.walkTo([e.p[0] + (dx / d) * 8, e.p[1] + 0.2, e.p[2] + (dz / d) * 8]);
       if (e.type === 'colossus' && bots[1]) {
         bots[1].send({ t: 'tractor', v: 1, active: true, targetId: e.id, aim: [e.p[0], e.p[1], e.p[2] - 2] });
         await sleep(150);
@@ -453,9 +460,19 @@ async function clearEnemies(bots: Bot[]): Promise<boolean> {
 }
 
 async function grabBody(bot: Bot, bodyId: string, pos: Vec3) {
-  await bot.walkTo([pos[0], 1, pos[2]]);
-  await bot.attempt(() => bot.send({ t: 'grab', v: 1, target: bodyId }),
-    () => (bot.snapshot?.bodies ?? []).some((b) => b.id === bodyId && b.heldBy === bot.id), `grab ${bodyId}`, 9000);
+  // Walk to the body's LIVE position — a pulse during combat can knock an unheld
+  // carryable off its start spot, so a hardcoded hint would leave the bot out of reach.
+  const live = () => bot.snapshot?.bodies?.find((b) => b.id === bodyId)?.p as Vec3 | undefined;
+  const carrying = () => bot.snapshot?.players?.find((p) => p.id === bot.id)?.carrying === bodyId;
+  await bot.walkTo(live() ?? [pos[0], pos[1], pos[2]]);
+  // a heavy body's snapshot heldBy only shows holders[0], so verify via the
+  // grabber's own player.carrying instead (set for every holder)
+  try {
+    await bot.attempt(() => bot.send({ t: 'grab', v: 1, target: bodyId }), carrying, `grab ${bodyId}`, 6000);
+  } catch {
+    await bot.walkTo(live() ?? [pos[0], pos[1], pos[2]]);   // it may have drifted; re-approach once
+    await bot.attempt(() => bot.send({ t: 'grab', v: 1, target: bodyId }), carrying, `grab ${bodyId}`, 6000);
+  }
 }
 
 /** carry a held body so it drops centred on a target x,z (holder south of it, facing -z) */
@@ -467,6 +484,31 @@ async function dropAt(holders: Bot[], target: Vec3) {
 }
 
 async function standOn(bot: Bot, plate: Vec3) { await bot.walkTo([plate[0], plate[1] + 0.9, plate[2]]); }
+
+/** Carry a body to a drop point and release; if it doesn't land on target (held
+    cargo collides with walls even though bots noclip, so it can snag on a doorway),
+    re-grab from wherever it ended up and retry the routed approach. `after` lets the
+    holder step onto a plate with the body (mass puzzles). Returns whether `done` held. */
+async function ferryTo(bot: Bot, bodyId: string, approach: Vec3[], drop: Vec3,
+  done: () => boolean, opts: { tries?: number; after?: Vec3 } = {}): Promise<boolean> {
+  const { tries = 4, after } = opts;
+  const carrying = () => bot.snapshot?.players?.find((p) => p.id === bot.id)?.carrying === bodyId;
+  for (let i = 0; i < tries && !done(); i++) {
+    if (!carrying()) {
+      const bp = bot.snapshot?.bodies?.find((b) => b.id === bodyId)?.p;
+      if (bp) await bot.walkTo([bp[0], 1, bp[2]]);
+      try { await bot.attempt(() => bot.send({ t: 'grab', v: 1, target: bodyId }), carrying, `grab ${bodyId}`, 6000); } catch { /* retry */ }
+    }
+    for (const wp of approach) await bot.walkTo(wp);
+    bot.yaw = 0;
+    await bot.walkTo(drop);
+    await sleep(400);
+    bot.send({ t: 'release', v: 1 });
+    if (after) await bot.walkTo(after);
+    await sleep(900);
+  }
+  return done();
+}
 
 /** enter a device-granting level (co-op gate) so the pair keeps the device */
 async function provision(a: Bot, b: Bot, level: string, device: string) {
@@ -520,10 +562,11 @@ async function auditAll() {
     check(await clearEnemies([a, b]), 'vaults-03: enemies cleared');
     await a.walkTo([7, 1, 15]);
     await a.attempt(() => a.send({ t: 'pickup', v: 1, itemId: 'prism' }), () => a.st('prism')?.collected === true, 'take prism');
-    await a.walkTo([0, 1, 3]);
+    await a.walkTo([0, 1, -1]);                        // prismMount now sits where the beam crosses x=0
     await a.attempt(() => a.send({ t: 'use_item', v: 1, item: 'prism', socketId: 'prismMount' }),
       () => a.st('prismMount')?.filled === true, 'socket prism');
-    await setState(a, 'emitterMount', [-7, 0.9, 14], 1);
+    await a.walkTo([-8, 1, 3]);                            // skirt north of the steam column (still hot)
+    await setState(a, 'emitterMount', [-8, 0.9, -1], 1);   // state 1 retracts the aperture rib
     await standOn(b, [3, 0.15, -13]);                 // hold shutterPlate
     await a.until(() => b.st('shutterPlate')?.pressed === true, 'shutter held');
     // freeze the column last (7s window) and expect the beam to light r1

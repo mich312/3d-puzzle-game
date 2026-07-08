@@ -18,7 +18,7 @@
     "max": 4
   },
   "requiresDevice": [],
-  "designNotes": "Clear the wardens, then route the beam: fetch the one prism and socket it, freeze the steam column to drop the beam-blocking rib for the second pass, one player rotates the emitter mount to aim (state 1) while the other holds the receiver-side shutter plate to open the beam shutter; the beam lights r1, opening the exit door.",
+  "designNotes": "Clear the wardens, then route the beam across the middle chamber (emitter fires +x at z=-1): one player rotates the emitter mount to state 1 to retract the aperture rib, freeze the steam column to drop the second beam-blocking rib, and socket the fetched prism where the beam crosses x=0 — the prism relays the beam -z down the corridor; the other player holds the receiver-side shutter plate to open the beam shutter so the relayed beam reaches r1, lighting it and opening the exit door.",
   "intro": "One prism, two gates of light. Freeze the column to bend the beam \u2014 and hold the shutter while the mount comes round.",
   "fog": {
     "color": "#2c2848",
@@ -296,6 +296,24 @@
       "emissive": "#8f86d8",
       "emissiveIntensity": 0.4,
       "activeWhen": "!column.frozen"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -6,
+        1.6,
+        -1
+      ],
+      "size": [
+        0.5,
+        2.0,
+        1.6
+      ],
+      "material": "metal",
+      "color": "#4a4470",
+      "emissive": "#8f86d8",
+      "emissiveIntensity": 0.35,
+      "activeWhen": "emitterMount.state!=1"
     },
     {
       "shape": "cylinder",
@@ -1036,23 +1054,23 @@
       "type": "emitter",
       "id": "e1",
       "pos": [
-        -7,
-        2.2,
-        14
+        -8,
+        1.6,
+        -1
       ],
       "dir": [
+        1,
         0,
-        0,
-        -1
+        0
       ]
     },
     {
       "type": "rotator",
       "id": "emitterMount",
       "pos": [
-        -7,
+        -8,
         0.9,
-        14
+        -1
       ],
       "states": 3
     },
@@ -1087,8 +1105,8 @@
       "id": "prismMount",
       "pos": [
         0,
-        0.9,
-        3
+        1.6,
+        -1
       ],
       "accepts": "prism"
     },
@@ -1131,7 +1149,7 @@
       "pos": [
         0,
         1.6,
-        -24
+        -16
       ]
     }
   ],
