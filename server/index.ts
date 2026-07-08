@@ -8,7 +8,7 @@ import { openStore } from './persistence';
 import { GameServer, type ClientLink } from './instances';
 import type { ClientMsg, ServerMsg } from '../shared/messages';
 
-const PORT = Number(process.env.PORT ?? 8080);
+const PORT = Number(process.env.PORT ?? 80);
 const CLIENT_DIR = join(import.meta.dirname, '..', 'dist', 'client');
 const MIME: Record<string, string> = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
