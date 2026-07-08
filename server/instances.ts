@@ -52,6 +52,7 @@ export class PlayerSession {
   portalCooldownUntil = 0;
   ignoreMovesUntil = 0;
   lastToastAt = 0;
+  connected = true;
   disconnectedAt?: number;
 
   constructor(id: string, link: ClientLink, profile: Profile) {
@@ -81,7 +82,14 @@ export abstract class Instance {
   constructor(id: string) { this.id = id; }
   abstract kind(): 'lobby' | 'level';
   broadcast(msg: ServerMsg, except?: string) {
-    for (const p of this.players.values()) if (p.id !== except) p.link.send(msg);
+    for (const p of this.players.values()) {
+      if (p.id === except || !p.connected) continue;
+      try { p.link.send(msg); } catch { /* dead link — reaped by slot-hold timeout */ }
+    }
+  }
+  /** connected players only — ghosts in the 90s slot-hold window don't count */
+  present(): PlayerSession[] {
+    return [...this.players.values()].filter((p) => p.connected);
   }
   abstract snapshot(): InstanceSnapshot;
   removePlayer(p: PlayerSession) {
@@ -167,7 +175,7 @@ export class LevelInstance extends Instance {
 
   seed() {
     this.states.clear(); this.inter.clear(); this.bodies.clear(); this.enemies.clear();
-    this.placements = []; this.socketFilledBy.clear();
+    this.placements = []; this.socketFilledBy.clear(); this.entityPortalCd.clear();
     this.solved = false; this.startedAt = Date.now();
     for (const it of this.level.interactables ?? []) {
       this.inter.set(it.id, it);
@@ -195,7 +203,7 @@ export class LevelInstance extends Instance {
       for (const e of this.enemies.values()) if (e.state !== 'down') return false;
       return true;
     }
-    if (path === 'playersPresent') return this.players.size;
+    if (path === 'playersPresent') return this.present().length;
     const [root, prop] = path.split('.');
     const enemy = this.enemies.get(root);
     if (enemy) return prop === 'down' ? enemy.state === 'down' : undefined;
@@ -226,6 +234,8 @@ export class LevelInstance extends Instance {
     Object.assign(st, patch);
     this.states.set(id, st);
     this.broadcast({ t: 'state_update', v: 1, id, state: st });
+    // any state change may gate activeWhen/door colliders — keep them coherent
+    this.applyExprGeometry();
   }
 
   // ----- join/leave -----
@@ -249,6 +259,9 @@ export class LevelInstance extends Instance {
     }
     p.link.send({ t: 'joined', v: 1, snapshot: this.joinSnapshot(), spawn: pos, spawnYaw: 0 });
     this.broadcast({ t: 'peer_joined', v: 1, player: p.snap() }, p.id);
+    if (this.solved && this.level.puzzle && !p.profile.shards.includes(this.level.puzzle.shard)) {
+      p.toast('This place is already solved — Reset it from the menu (Esc) to earn your own shard.', 'info');
+    }
     this.updateBeacon();
     this.mgr.store.telemetry(p.profile.token, 'level_enter', { level: this.level.id, present: this.players.size });
   }
@@ -470,8 +483,9 @@ export class LevelInstance extends Instance {
     this.seed();
     for (const id of keptCollected) { const st = this.states.get(id); if (st) st.collected = true; }
     for (const p of this.players.values()) {
-      p.pos = [...this.level.spawns['entry']] as Vec3;
+      p.pos = jitter(this.level.spawns['entry']);
       p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined;
+      p.tractor = undefined; p.reviveTargetId = undefined; p.armedPortals.clear();
       p.lastCheckpoint = -1; p.ignoreMovesUntil = Date.now() + 500; p.portalCooldownUntil = Date.now() + 1500;
       p.link.send({ t: 'joined', v: 1, snapshot: this.joinSnapshot(), spawn: p.pos, spawnYaw: 0 });
     }
@@ -510,7 +524,7 @@ export class LevelInstance extends Instance {
       now: Date.now(), dt,
       colliders: this.colliders,
       killY: this.killY,
-      alivePlayers: () => [...this.players.values()].filter((p) => p.state === 'alive').map((p) => ({ id: p.id, pos: p.pos })),
+      alivePlayers: () => this.present().filter((p) => p.state === 'alive').map((p) => ({ id: p.id, pos: p.pos })),
       damagePlayer: (id, dmg, source) => this.damagePlayer(id, dmg, source),
       event: (id, ev, data) => this.broadcast({ t: 'enemy_event', v: 1, id, ev, data }),
       addEnemy: (e) => this.enemies.set(e.id, e),
@@ -619,7 +633,7 @@ export class LevelInstance extends Instance {
         Math.abs(pos[2] - it.pos[2]) < size[2] / 2 + 0.35 &&
         Math.abs(pos[1] - it.pos[1]) < 1.4;
       let mass = 0;
-      for (const p of this.players.values()) {
+      for (const p of this.present()) {
         if (p.state === 'alive' && onPlate(p.pos)) mass += 1;
         if (p.echo && onPlate(p.echo)) mass += 1;
       }
@@ -668,7 +682,7 @@ export class LevelInstance extends Instance {
         if (Math.floor(p.hp) % 5 === 0) this.broadcast({ t: 'hp', v: 1, id: p.id, hp: Math.round(p.hp) });
       }
       if (p.state === 'downed') {
-        const anyAlive = [...this.players.values()].some((o) => o.id !== p.id && o.state === 'alive');
+        const anyAlive = this.present().some((o) => o.id !== p.id && o.state === 'alive');
         const limit = anyAlive ? DOWNED_BLEEDOUT_MS : 4000;
         if (now - p.downedAt > limit) this.respawn(p);
       }
@@ -859,12 +873,19 @@ export class GameServer {
   tickLevels() {
     const now = Date.now();
     for (const [id, inst] of this.levels) {
-      if (inst.players.size > 0) inst.tick();
-      else if (now - inst.emptySince > REAP_AFTER_MS) this.levels.delete(id);
+      try {
+        if (inst.players.size > 0) inst.tick();
+        else if (now - inst.emptySince > REAP_AFTER_MS) this.levels.delete(id);
+      } catch (e) {
+        // one instance must never take down the tick loop for everyone
+        console.error(`[tick] instance ${id} crashed:`, (e as Error).stack);
+      }
     }
   }
   tickLobbies() {
-    for (const l of this.lobbies) l.tick();
+    for (const l of this.lobbies) {
+      try { l.tick(); } catch (e) { console.error('[tick] lobby crashed:', (e as Error).stack); }
+    }
   }
 
   connect(link: ClientLink, token?: string, name?: string): PlayerSession {
@@ -874,6 +895,7 @@ export class GameServer {
     if (existing && existing.disconnectedAt && Date.now() - existing.disconnectedAt < SLOT_HOLD_MS) {
       existing.link = link;
       existing.disconnectedAt = undefined;
+      existing.connected = true;
       if (name) { existing.profile.name = name.slice(0, 24); this.store.saveProfile(existing.profile); }
       return existing;
     }
@@ -975,6 +997,12 @@ export class GameServer {
 
   disconnect(p: PlayerSession, immediate = false) {
     p.disconnectedAt = Date.now();
+    p.connected = false;
+    // a ghost must stop acting on the world: drop carried/tractored objects,
+    // cancel revives — but keep the slot so a 90s reconnect resumes in place
+    p.tractor = undefined;
+    p.reviveTargetId = undefined;
+    if (p.instance instanceof LevelInstance) p.instance.release(p);
     if (immediate) {
       p.instance?.removePlayer(p);
       this.sessions.delete(p.id);

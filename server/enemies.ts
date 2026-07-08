@@ -109,10 +109,11 @@ export function stepEnemy(e: EnemyState, ctx: CombatCtx): void {
   const { now, dt } = ctx;
   const d = e.def;
 
-  // knockback / falling integration
+  // knockback integration — horizontal only; vertical is owned by the ground logic below
   const speed2 = Math.hypot(e.vel[0], e.vel[2]);
-  if (speed2 > 0.01 || e.vel[1] !== 0) {
-    e.pos = v3.add(e.pos, v3.scale(e.vel, dt));
+  if (speed2 > 0.01) {
+    e.pos[0] += e.vel[0] * dt;
+    e.pos[2] += e.vel[2] * dt;
     e.vel[0] *= Math.max(0, 1 - 6 * dt);
     e.vel[2] *= Math.max(0, 1 - 6 * dt);
   }

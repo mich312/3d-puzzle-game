@@ -63,7 +63,13 @@ class Bot {
   }
   send(m: ClientMsg) { this.ws.send(JSON.stringify(m)); }
   async open() {
-    await new Promise<void>((res) => this.ws.on('open', () => res()));
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      await new Promise<void>((res, rej) => {
+        this.ws.once('open', res);
+        this.ws.once('error', rej);
+        setTimeout(() => rej(new Error(`${this.name}: ws open timeout`)), 8000);
+      });
+    }
     this.send({ t: 'hello', v: 1, name: this.name });
     await this.until(() => !!this.id, 'welcome');
     await this.until(() => !!this.snapshot, 'joined lobby');
