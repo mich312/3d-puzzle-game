@@ -580,13 +580,17 @@ async function auditAll() {
   });
 }
 
+async function guarded(name: string, fn: () => Promise<void>) {
+  try { await fn(); } catch (e) { check(false, `${name}: aborted — ${(e as Error).message}`); }
+}
+
 try {
-  await testChatAndPing();
-  await testSoloAtrium01();
-  await testCoopAtrium02();
-  await testDownRevive();
-  await testFreezeVaults01();
-  await testPortalsGardens02();
+  await guarded('chat/ping', testChatAndPing);
+  await guarded('atrium-01', testSoloAtrium01);
+  await guarded('atrium-02', testCoopAtrium02);
+  await guarded('down/revive', testDownRevive);
+  await guarded('vaults-01', testFreezeVaults01);
+  await guarded('gardens-02', testPortalsGardens02);
   await auditAll();
   console.log(failures ? `\n${failures} FAILURES` : '\nALL PLAYTESTS PASSED');
   process.exit(failures ? 1 : 0);
