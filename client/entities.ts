@@ -5,6 +5,7 @@ import type { EnemySnap, PlayerSnap } from '../shared/messages';
 import { PALETTE } from '../shared/palette';
 import { textSprite } from './world';
 import { Interpolator } from './interp';
+import type { DynamicLights, LightHandle } from './render/lights';
 
 // ---------- peers ----------
 class PeerAvatar {
@@ -15,11 +16,11 @@ class PeerAvatar {
   private bubbleUntil = 0;
   hpBar: THREE.Sprite;
   body: THREE.Mesh;
-  downedLight: THREE.PointLight;
+  private dl: LightHandle;
   echoGhost?: THREE.Mesh;
   accent: string;
 
-  constructor(snap: PlayerSnap) {
+  constructor(snap: PlayerSnap, private lights: DynamicLights) {
     this.accent = snap.accent || PALETTE.portalA;
     const mat = new THREE.MeshStandardMaterial({ color: '#d8d3e0', roughness: 0.6, emissive: this.accent, emissiveIntensity: 0.25 });
     this.body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.9, 4, 12), mat);
@@ -35,19 +36,20 @@ class PeerAvatar {
     name.position.y = 2.15;
     this.hpBar = makeBar(this.accent);
     this.hpBar.position.y = 1.95;
-    this.downedLight = new THREE.PointLight(PALETTE.hostile, 0, 8);
-    this.downedLight.position.y = 1;
-    this.group.add(this.body, head, visor, name, this.hpBar, this.downedLight);
+    this.dl = lights.register(PALETTE.hostile, { intensity: 0, range: 8, priority: 2 });
+    this.group.add(this.body, head, visor, name, this.hpBar);
     this.group.position.set(...snap.p);
     this.interp.push(snap.p, snap.yaw);
   }
+
+  dispose() { this.lights.unregister(this.dl); }
 
   apply(snap: PlayerSnap) {
     this.interp.push(snap.p, snap.yaw);
     setBar(this.hpBar, snap.hp / 100);
     const downed = snap.state === 'downed';
     this.downed = downed;
-    this.downedLight.intensity = downed ? 3 : 0;
+    this.dl.intensity = downed ? 3 : 0;
     (this.body.material as THREE.MeshStandardMaterial).emissive.set(downed ? PALETTE.hostile : this.accent);
     this.body.rotation.x = downed ? Math.PI / 2 : 0;
     this.body.position.y = downed ? 0.4 : 0.85;
@@ -64,6 +66,7 @@ class PeerAvatar {
   update(dt: number) {
     const s = this.interp.sample(this.group.position);
     if (s) this.group.rotation.y = s.yaw;
+    if (this.downed) this.dl.pos.copy(this.group.position).setY(this.group.position.y + 1);
     if (this.bubble && performance.now() > this.bubbleUntil) {
       this.group.remove(this.bubble);
       this.bubble = undefined;
@@ -122,7 +125,7 @@ function setBar(sp: THREE.Sprite, pct: number) {
 
 export class Peers {
   private map = new Map<string, PeerAvatar>();
-  constructor(private scene: THREE.Scene, private selfId: () => string) {}
+  constructor(private scene: THREE.Scene, private selfId: () => string, private lights: DynamicLights) {}
 
   sync(snaps: PlayerSnap[]) {
     const seen = new Set<string>();
@@ -130,16 +133,16 @@ export class Peers {
       if (s.id === this.selfId()) continue;
       seen.add(s.id);
       let a = this.map.get(s.id);
-      if (!a) { a = new PeerAvatar(s); this.map.set(s.id, a); this.scene.add(a.group); }
+      if (!a) { a = new PeerAvatar(s, this.lights); this.map.set(s.id, a); this.scene.add(a.group); }
       a.apply(s);
     }
     for (const [id, a] of this.map) {
-      if (!seen.has(id)) { this.scene.remove(a.group); this.map.delete(id); }
+      if (!seen.has(id)) { a.dispose(); this.scene.remove(a.group); this.map.delete(id); }
     }
   }
   remove(id: string) {
     const a = this.map.get(id);
-    if (a) { this.scene.remove(a.group); this.map.delete(id); }
+    if (a) { a.dispose(); this.scene.remove(a.group); this.map.delete(id); }
   }
   update(dt: number) { for (const a of this.map.values()) a.update(dt); }
   say(id: string, text: string) { this.map.get(id)?.say(text); }
@@ -223,13 +226,14 @@ class EnemyVis {
   core: THREE.Mesh;
   extra: THREE.Mesh[] = [];
   hpBar: THREE.Sprite;
-  light: THREE.PointLight;
+  private lh: LightHandle;
   telegraphT = 0;
   dead = false;
+  frozen = false;
   fade = 1;
   height: number;
 
-  constructor(snap: EnemySnap) {
+  constructor(snap: EnemySnap, private lights: DynamicLights) {
     const mat = new THREE.MeshStandardMaterial({ color: '#4a4560', roughness: 0.5, emissive: HOSTILE, emissiveIntensity: 0.6 });
     this.height = 1.6;
     switch (snap.type) {
@@ -273,12 +277,13 @@ class EnemyVis {
     this.core.castShadow = true;
     this.hpBar = makeBar(PALETTE.hostile);
     this.hpBar.position.y = this.height + 0.5;
-    this.light = new THREE.PointLight(PALETTE.hostile, 0.8, 7);
-    this.light.position.y = 1.2;
-    this.group.add(this.core, this.hpBar, this.light, ...this.extra);
+    this.lh = lights.register(PALETTE.hostile, { intensity: 0.8, range: 7, priority: 2 });
+    this.group.add(this.core, this.hpBar, ...this.extra);
     this.group.position.set(...snap.p);
     this.interp.push(snap.p, snap.yaw);
   }
+
+  dispose() { this.lights.unregister(this.lh); }
 
   apply(snap: EnemySnap) {
     this.interp.push(snap.p, snap.yaw);
@@ -286,6 +291,7 @@ class EnemyVis {
     setBar(this.hpBar, snap.hp / snap.maxHp);
     const mat = this.core.material as THREE.MeshStandardMaterial;
     this.dead = snap.state === 'down';
+    this.frozen = snap.state === 'frozen';
     if (snap.state === 'frozen') { mat.emissive.copy(ICE); mat.emissiveIntensity = 1.2; mat.color.set('#9fc8e0'); }
     else if (snap.state === 'staggered') { mat.emissive.set('#ffffff'); mat.emissiveIntensity = 1.0; }
     else { mat.emissive.copy(HOSTILE); mat.color.set('#4a4560'); mat.emissiveIntensity = this.dead ? 0 : 0.6; }
@@ -296,18 +302,21 @@ class EnemyVis {
   update(dt: number, time: number) {
     const s = this.interp.sample(this.group.position);
     if (s) this.group.rotation.y = s.yaw;
+    this.lh.pos.copy(this.group.position).setY(this.group.position.y + this.height * 0.55);
     if (this.telegraphT > 0) {
       this.telegraphT = Math.max(0, this.telegraphT - dt);
       const flash = 0.5 + Math.sin(time * 24) * 0.5;
-      this.light.intensity = 0.8 + flash * 4;
+      this.lh.intensity = 0.8 + flash * 4;
+      this.lh.color.set(PALETTE.hostile);
       (this.core.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.6 + flash * 2;
     } else if (!this.dead) {
-      this.light.intensity = 0.8;
+      this.lh.intensity = 0.8;
+      this.lh.color.set(this.frozen ? '#9fdcff' : PALETTE.hostile);
     }
     if (this.dead && this.fade > 0) {
       this.fade = Math.max(0, this.fade - dt * 0.8);
       this.group.scale.setScalar(0.2 + this.fade * 0.8);
-      this.light.intensity = 0;
+      this.lh.intensity = 0;
       this.hpBar.visible = false;
       this.group.visible = this.fade > 0.05;
     } else if (!this.dead) {
@@ -323,18 +332,18 @@ class EnemyVis {
 export class Enemies {
   private map = new Map<string, EnemyVis>();
   private time = 0;
-  constructor(private scene: THREE.Scene) {}
+  constructor(private scene: THREE.Scene, private lights: DynamicLights) {}
 
   sync(snaps: EnemySnap[]) {
     const seen = new Set<string>();
     for (const s of snaps) {
       seen.add(s.id);
       let v = this.map.get(s.id);
-      if (!v) { v = new EnemyVis(s); this.map.set(s.id, v); this.scene.add(v.group); }
+      if (!v) { v = new EnemyVis(s, this.lights); this.map.set(s.id, v); this.scene.add(v.group); }
       v.apply(s);
     }
     for (const [id, v] of this.map) {
-      if (!seen.has(id)) { this.scene.remove(v.group); this.map.delete(id); }
+      if (!seen.has(id)) { v.dispose(); this.scene.remove(v.group); this.map.delete(id); }
     }
   }
   telegraph(id: string, ms: number) {
@@ -368,6 +377,6 @@ export class Enemies {
     for (const v of this.map.values()) v.update(dt, this.time);
   }
   clear() {
-    for (const [id, v] of this.map) { this.scene.remove(v.group); this.map.delete(id); }
+    for (const [id, v] of this.map) { v.dispose(); this.scene.remove(v.group); this.map.delete(id); }
   }
 }

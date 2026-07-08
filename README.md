@@ -51,6 +51,15 @@ npx tsx tools/playtest-bot.ts  # headless protocol bots: solo solve, co-op solve
 | V | Phase Sight (skill) — reveal hidden items |
 | Esc | menu: settings, invite link, reset level, return to Nexus |
 
+**Graphics (auto-scaling Low/Medium/High, set in Esc → menu):** traveling device
+projectiles that fly, cast a dynamic light as they pass, and flash on impact; a
+budgeted dynamic-light pool (portals, receivers, enemies, projectiles all cast real
+light within a fixed budget instead of an unbounded pile); planar **mirror floors**
+on the Nexus plaza and Observatory (a true reflection render — the "fake ray
+tracing"); a first-person device viewmodel; per-world starfield/aurora skies and
+weather particles. The tier auto-detects from your GPU and can be overridden; heavy
+effects (reflections, projectile lights, weather) turn off on Low to hold 60fps.
+
 **1.1 — "The Open Nexus":** the lobby is now a floating-island archipelago with
 bridges, vista islets, and hidden stargems; every level except the First Light
 tutorial is **co-op** — walk into a portal alone and you wait at the threshold

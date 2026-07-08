@@ -14,7 +14,13 @@ export interface HudCallbacks {
   onReset(): void;
   onLeaveLevel(): void;
   onBeacon(): void;
-  onSettings(s: { sensitivity: number; master: number; music: number; sfx: number; difficulty: 'normal' | 'story'; reduceMotion: boolean }): void;
+  onSettings(s: HudSettings): void;
+}
+
+export interface HudSettings {
+  sensitivity: number; master: number; music: number; sfx: number;
+  difficulty: 'normal' | 'story'; reduceMotion: boolean;
+  quality: 'low' | 'medium' | 'high';
 }
 
 const CSS = `
@@ -117,13 +123,14 @@ export class Hud {
   private skillPoints = 0;
   private inventory: string[] = [];
   private shardCount = 0;
-  settings = {
+  settings: HudSettings = {
     sensitivity: Number(localStorage.getItem('t-sens') ?? 1),
     master: Number(localStorage.getItem('t-master') ?? 0.8),
     music: Number(localStorage.getItem('t-music') ?? 0.7),
     sfx: Number(localStorage.getItem('t-sfx') ?? 0.9),
     difficulty: (localStorage.getItem('t-diff') ?? 'normal') as 'normal' | 'story',
     reduceMotion: localStorage.getItem('t-motion') === '1',
+    quality: (localStorage.getItem('t-quality') ?? 'medium') as 'low' | 'medium' | 'high',
   };
 
   constructor(cb: HudCallbacks) {
@@ -377,6 +384,12 @@ export class Hud {
           <option value="normal" ${s.difficulty === 'normal' ? 'selected' : ''}>Normal</option>
           <option value="story" ${s.difficulty === 'story' ? 'selected' : ''}>Story (60% less damage)</option>
         </select></label>
+      <label>Graphics quality
+        <select id="st-quality" style="background:#221f38;color:#e8e4f0;border:1px solid #555;padding:4px 8px;border-radius:6px">
+          <option value="low" ${s.quality === 'low' ? 'selected' : ''}>Low — fastest</option>
+          <option value="medium" ${s.quality === 'medium' ? 'selected' : ''}>Medium — reflections, lights</option>
+          <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High — full effects</option>
+        </select></label>
       <label>Reduce motion <input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''}/></label>
       <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
         <button id="mn-resume">Resume</button>
@@ -391,6 +404,7 @@ export class Hud {
       s.music = Number((c.querySelector('#st-music') as HTMLInputElement).value);
       s.sfx = Number((c.querySelector('#st-sfx') as HTMLInputElement).value);
       s.difficulty = (c.querySelector('#st-diff') as HTMLSelectElement).value as 'normal' | 'story';
+      s.quality = (c.querySelector('#st-quality') as HTMLSelectElement).value as 'low' | 'medium' | 'high';
       s.reduceMotion = (c.querySelector('#st-motion') as HTMLInputElement).checked;
       localStorage.setItem('t-sens', String(s.sensitivity));
       localStorage.setItem('t-master', String(s.master));

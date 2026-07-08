@@ -8,6 +8,8 @@ import { buildColliders, raycast, type AABB } from '../shared/collision';
 import { getMaterial, applyWorldUV } from './render/materials';
 import { PALETTE } from '../shared/palette';
 import { Interpolator } from './interp';
+import type { DynamicLights, LightHandle } from './render/lights';
+import type { HeroFloor } from './render/renderer';
 
 export type IState = Record<string, number | boolean>;
 
@@ -44,18 +46,20 @@ export class World {
   private doors: DoorVis[] = [];
   private actives: ActiveVis[] = [];
   private interVis = new Map<string, THREE.Object3D>();
-  private portalVis = new Map<string, { group: THREE.Group; ring: THREE.Mesh; disc: THREE.Mesh; light: THREE.PointLight; def: NonNullable<LevelDef['portals']>[number] }>();
+  private portalVis = new Map<string, { group: THREE.Group; ring: THREE.Mesh; disc: THREE.Mesh; lh: LightHandle; def: NonNullable<LevelDef['portals']>[number] }>();
+  private interLights = new Map<string, LightHandle>();
   private beamGroup = new THREE.Group();
   private hazardMats = new Map<string, THREE.MeshStandardMaterial>();
   private placedGroup = new THREE.Group();
   private placedVis = new Map<string, THREE.Group>();
+  private placedLights = new Map<string, LightHandle>();
   private bodyInterp = new Map<string, Interpolator>();
   private bodyHeld = new Map<string, boolean>();
   private staticMeshes: THREE.Mesh[] = [];
   private cullAcc = 0;
   private time = 0;
 
-  constructor(private scene: THREE.Scene, level: LevelDef, states: Record<string, IState> | undefined) {
+  constructor(private scene: THREE.Scene, level: LevelDef, states: Record<string, IState> | undefined, private lights: DynamicLights) {
     this.level = level;
     this.colliders = buildColliders(level);
     if (states) for (const [id, st] of Object.entries(states)) this.states.set(id, { ...st });
@@ -66,7 +70,13 @@ export class World {
     scene.add(this.group);
   }
 
-  dispose() { this.scene.remove(this.group); }
+  dispose() {
+    this.scene.remove(this.group);
+    for (const { lh } of this.portalVis.values()) this.lights.unregister(lh);
+    for (const lh of this.interLights.values()) this.lights.unregister(lh);
+    for (const lh of this.placedLights.values()) this.lights.unregister(lh);
+    this.portalVis.clear(); this.interLights.clear(); this.placedLights.clear();
+  }
 
   // ---------- expression lookup (mirrors server) ----------
   lookup = (path: string): number | boolean | undefined => {
@@ -161,8 +171,10 @@ export class World {
         const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.32),
           new THREE.MeshStandardMaterial({ color: PALETTE.interactable, emissive: PALETTE.interactable, emissiveIntensity: 1.4 }));
         gem.name = 'gem';
-        const light = new THREE.PointLight(PALETTE.interactable, 1.2, 6);
-        g.add(gem, light);
+        g.add(gem);
+        const lh = this.lights.register(PALETTE.interactable, { intensity: 1.2, range: 6, priority: 1 });
+        lh.pos.set(it.pos[0], it.pos[1] + 0.4, it.pos[2]);
+        this.interLights.set(it.id, lh);
         break;
       }
       case 'socket': {
@@ -187,6 +199,9 @@ export class World {
           new THREE.MeshStandardMaterial({ color: '#666a88', emissive: '#222436', emissiveIntensity: 1 }));
         orb.name = 'orb';
         g.add(orb);
+        const lh = this.lights.register(PALETTE.portalA, { intensity: 0, range: 7, priority: 2 });
+        lh.pos.set(it.pos[0], it.pos[1], it.pos[2]);
+        this.interLights.set(it.id, lh);
         break;
       }
       case 'hazard': {
@@ -216,16 +231,21 @@ export class World {
       new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6 }));
     const disc = new THREE.Mesh(new THREE.CircleGeometry(1.0, 32),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
-    const light = new THREE.PointLight(color, 2.2, 10);
-    light.position.y = 0.2;
-    g.add(ring, disc, light);
+    g.add(ring, disc);
+    // volumetric-ish light cone rising from the portal (fake god-ray)
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(1.05, 3.2, 20, 1, true),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    cone.position.y = 1.6; cone.name = 'cone';
+    g.add(cone);
     if (def.label) {
       const label = textSprite(def.label, '#ffffff', 0.55);
       label.position.y = 1.9;
       g.add(label);
     }
     this.group.add(g);
-    this.portalVis.set(def.id, { group: g, ring, disc, light, def });
+    const lh = this.lights.register(color, { intensity: 2.2, range: 11, priority: 3 });
+    lh.pos.set(def.pos[0], def.pos[1] + 0.4, def.pos[2]);
+    this.portalVis.set(def.id, { group: g, ring, disc, lh, def });
   }
 
   // ---------- state sync ----------
@@ -254,14 +274,24 @@ export class World {
 
   /** portal lock display: shards owned + solved state */
   updatePortalLocks(shardCount: number) {
-    for (const { ring, disc, light, def, group } of this.portalVis.values()) {
+    for (const { ring, disc, lh, def, group } of this.portalVis.values()) {
       const locked = (def.requiresShards ?? 0) > shardCount || (def.requiresSolved === true && !this.solved);
       const mat = ring.material as THREE.MeshStandardMaterial;
       mat.emissiveIntensity = locked ? 0.15 : 1.6;
       (disc.material as THREE.MeshBasicMaterial).opacity = locked ? 0.06 : 0.35;
-      light.intensity = locked ? 0.2 : 2.2;
+      const cone = group.getObjectByName('cone') as THREE.Mesh | undefined;
+      if (cone) (cone.material as THREE.MeshBasicMaterial).opacity = locked ? 0.01 : 0.07;
+      lh.intensity = locked ? 0.25 : 2.2;
       group.userData.locked = locked;
     }
+  }
+
+  /** hero floor for planar reflections — only the grand social/finale spaces */
+  heroFloor(): HeroFloor | undefined {
+    if (this.level.world === 'nexus') return { y: 0, size: 30, tint: '#6a6490', shape: 'circle' };
+    if (this.level.id === 'observatory-02') return { y: 0, size: 34, tint: '#544e86', shape: 'circle' };
+    if (this.level.world === 'observatory') return { y: 0, size: 30, tint: '#4a4478', shape: 'plane' };
+    return undefined;
   }
 
   interactableAt(id: string): THREE.Object3D | undefined { return this.interVis.get(id); }
@@ -278,12 +308,18 @@ export class World {
   setPlacedPortals(placements: { owner: string; slot: 0 | 1; pos: Vec3; normal: Vec3 }[], accentOf: (owner: string) => string) {
     const want = new Set(placements.map((p) => `${p.owner}:${p.slot}`));
     for (const [key, vis] of this.placedVis) {
-      if (!want.has(key)) { this.placedGroup.remove(vis); this.placedVis.delete(key); }
+      if (!want.has(key)) {
+        this.placedGroup.remove(vis);
+        this.placedVis.delete(key);
+        const lh = this.placedLights.get(key);
+        if (lh) { this.lights.unregister(lh); this.placedLights.delete(key); }
+      }
     }
     for (const p of placements) {
       const key = `${p.owner}:${p.slot}`;
       if (this.placedVis.has(key)) {
         this.placedVis.get(key)!.position.set(...p.pos);
+        this.placedLights.get(key)?.pos.set(...p.pos);
         continue;
       }
       const color = p.slot === 0 ? PALETTE.portalA : PALETTE.portalB;
@@ -292,8 +328,10 @@ export class World {
         new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2 }));
       const disc = new THREE.Mesh(new THREE.CircleGeometry(0.75, 28),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
-      const light = new THREE.PointLight(color, 1.6, 8);
-      g.add(ring, disc, light);
+      g.add(ring, disc);
+      const lh = this.lights.register(color, { intensity: 1.8, range: 8, priority: 2 });
+      lh.pos.set(...p.pos);
+      this.placedLights.set(key, lh);
       g.position.set(...p.pos);
       const n = new THREE.Vector3(...p.normal);
       g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
@@ -398,9 +436,9 @@ export class World {
             const dim = it.hidden && !this.phaseSight;
             gem.scale.setScalar(dim ? 0.45 : 1);
             (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = dim ? 0.35 : 1.4;
-            const light = vis.children.find((c) => c instanceof THREE.PointLight) as THREE.PointLight | undefined;
-            if (light) light.intensity = dim ? 0.15 : 1.2;
           }
+          const clh = this.interLights.get(it.id);
+          if (clh) clh.intensity = collected ? 0 : (it.hidden && !this.phaseSight) ? 0.15 : 1.2;
           break;
         }
         case 'socket': {
@@ -415,6 +453,8 @@ export class World {
             m.emissive.set(st.lit ? PALETTE.portalA : '#222436');
             m.emissiveIntensity = st.lit ? 2.4 : 1;
           }
+          const rlh = this.interLights.get(it.id);
+          if (rlh) rlh.intensity = st.lit ? 2.2 : 0;
           break;
         }
         case 'hazard': {

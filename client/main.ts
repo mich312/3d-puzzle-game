@@ -6,6 +6,7 @@ import { PlayerController } from './player';
 import { Peers, Enemies, Echoes, Pings } from './entities';
 import { Viewmodel } from './viewmodel';
 import { Particles } from './particles';
+import { Projectiles } from './projectiles';
 import { DeviceRig } from './devices';
 import { Hud } from './hud';
 import { Net } from './net';
@@ -26,6 +27,7 @@ let echoes: Echoes;
 let pings: Pings;
 let viewmodel: Viewmodel;
 let particles: Particles;
+let projectiles: Projectiles;
 let rig: DeviceRig;
 let net: Net;
 const audio = new GameAudio();
@@ -67,20 +69,29 @@ function applySettings() {
   audio.setMasterVolume(s.master);
   audio.setMusicVolume(s.music);
   audio.setSfxVolume(s.sfx);
-  if (renderer) renderer.reduceMotion = s.reduceMotion;
+  if (renderer) {
+    renderer.reduceMotion = s.reduceMotion;
+    if (s.quality !== renderer.quality) {
+      renderer.setQuality(s.quality);
+      projectiles?.setQuality(renderer.q.projectileLights);
+    }
+  }
   net?.send({ t: 'set_opts', v: 1, difficulty: s.difficulty });
 }
 
 function start(name: string) {
   started = true;
   renderer = new Renderer(document.getElementById('app')!);
+  hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
   controller = new PlayerController(() => world?.colliders ?? []);
   controller.attach(renderer.canvas);
-  peers = new Peers(renderer.scene, () => playerId);
-  enemies = new Enemies(renderer.scene);
+  peers = new Peers(renderer.scene, () => playerId, renderer.lights);
+  enemies = new Enemies(renderer.scene, renderer.lights);
   echoes = new Echoes(renderer.scene);
   pings = new Pings(renderer.scene);
   particles = new Particles(renderer.scene);
+  projectiles = new Projectiles(renderer.scene, particles, renderer.lights);
+  projectiles.setQuality(renderer.q.projectileLights);
   viewmodel = new Viewmodel(renderer.camera);
   renderer.scene.add(renderer.camera);       // camera must be in-scene to carry the viewmodel
   hud.bindChat((text) => net.send({ t: 'chat', v: 1, text }));
@@ -121,12 +132,13 @@ function handleMsg(msg: ServerMsg) {
       enemies.clear();
       peers.clear();
       echoes.clear();
+      projectiles.clear();
       levelDef = s.level ?? null;
       if (!levelDef) break;
-      world = new World(renderer.scene, levelDef, s.states);
+      world = new World(renderer.scene, levelDef, s.states, renderer.lights);
       world.playersPresent = s.players.length;
       world.solved = !!s.solved;
-      renderer.setWorld(levelDef.world);
+      renderer.setWorld(levelDef.world, world.heroFloor());
       if (levelDef.fog) renderer.setFog(levelDef.fog.color, levelDef.fog.density);
       audio.setWorld(levelDef.world);
       controller.teleport(msg.spawn, msg.spawnYaw);
@@ -226,14 +238,15 @@ function handleMsg(msg: ServerMsg) {
     }
     case 'device_effect': {
       const from = peers.positionOf(msg.player);
-      if (from) {
-        const origin: Vec3 = [from.x, from.y + 1.4, from.z];
-        const end: Vec3 = [
-          msg.origin[0] + msg.dir[0] * DEVICES[msg.device].range,
-          msg.origin[1] + msg.dir[1] * DEVICES[msg.device].range,
-          msg.origin[2] + msg.dir[2] * DEVICES[msg.device].range];
-        rig.tracer(origin, end, DEVICES[msg.device].color);
-      }
+      const muzzle: Vec3 = from ? [from.x, from.y + 1.4, from.z] : msg.origin;
+      const end: Vec3 = msg.hit ?? [
+        msg.origin[0] + msg.dir[0] * DEVICES[msg.device].range,
+        msg.origin[1] + msg.dir[1] * DEVICES[msg.device].range,
+        msg.origin[2] + msg.dir[2] * DEVICES[msg.device].range];
+      if (msg.device === 'pulse' || msg.device === 'freeze')
+        projectiles.fire(muzzle, end, DEVICES[msg.device].color, { speed: msg.device === 'freeze' ? 52 : 72 });
+      else
+        rig.tracer(muzzle, end, DEVICES[msg.device].color);
       audio.play(msg.device === 'freeze' ? 'fire-freeze' : 'fire-pulse', { pos: msg.origin });
       break;
     }
@@ -490,9 +503,12 @@ function fireDevice(dev: DeviceId, charged: boolean) {
         ? [origin[0] + dir[0] * wall.dist, origin[1] + dir[1] * wall.dist, origin[2] + dir[2] * wall.dist]
         : [origin[0] + dir[0] * DEVICES[dev].range, origin[1] + dir[1] * DEVICES[dev].range, origin[2] + dir[2] * DEVICES[dev].range]);
       const muzzle = viewmodel.muzzle(new THREE.Vector3());
-      rig.tracer([muzzle.x, muzzle.y, muzzle.z], end, DEVICES[dev].color, dev === 'freeze' ? 0.07 : 0.045);
+      // traveling projectile (carries its own light + impact flash + burst)
+      projectiles.fire(muzzle, end, DEVICES[dev].color, {
+        speed: dev === 'freeze' ? 52 : 72,
+        scale: dev === 'freeze' ? 1.3 : 1,
+      });
       viewmodel.kick();
-      particles.burst(end, DEVICES[dev].color, dev === 'freeze' ? 10 : 8, 2.5, 0.5);
       audio.play(dev === 'freeze' ? 'fire-freeze' : 'fire-pulse');
       net.send({ t: 'fire', v: 1, device: dev, origin, dir, charged, targetId: enemy?.id });
       refreshDeviceBar();
@@ -632,14 +648,15 @@ function loop(t: number) {
   peers.update(dt);
   enemies.update(dt);
   pings.update(dt);
+  projectiles.update(dt);
   rig.update();
 
   // viewmodel + particles
   viewmodel.setDevice(rig.equipped);
   const movingNow = Math.abs(controller.vel.x) + Math.abs(controller.vel.z) > 0.5;
   viewmodel.update(dt, movingNow, controller.onGround);
-  renderer.tick(dt);
-  if (levelDef) {
+  renderer.tick(dt, renderer.camera.position);
+  if (levelDef && renderer.q.ambientParticles) {
     particles.ambient(levelDef.world, controller.pos, dt);
     // portal motes + ember trails on aggroed enemies (cheap, rate-limited by frame)
     if (Math.random() < dt * 14) {
