@@ -54,11 +54,14 @@ shipped levels and combat polish.
   **Charged Pulse**, **Field Medic**, **Overcharge** shipped. 8 nodes, 2 branches,
   free respec — within the spec's 10–14 target range at the small end.
 
-## 7. Difficulty: two settings (Normal / Story)
-Story mode = 60% damage reduction, set per-player in the menu and applied
-server-side. Telegraph windows are already generous (0.9–1.5 s + audio + visual flash).
-The spec's separate telegraph-window/aggression sliders can be layered on the same
-message.
+## 7. Accessibility baseline: partially shipped
+Shipped: per-player combat difficulty (Story = 60% damage reduction, applied
+server-side), reduce-motion toggle, mouse sensitivity, master/music/SFX sliders,
+every audio cue paired with a visual twin (telegraphs flash + ring; portals differ by
+colour *and* label; enemies read by silhouette + hostile accent + HP bar), high-contrast
+DOM HUD. Telegraph windows are generous by default (0.9–1.5 s).
+Deferred: key rebinding, aim-assist, toggle-vs-hold options — all straightforward
+client-side additions on the existing settings panel.
 
 ## 8. Content: 12 levels (Nexus + 11), worlds shipped at 2–3 levels each
 Spec asked 16–20. The 11 shipped levels cover every mechanic, every device teaching

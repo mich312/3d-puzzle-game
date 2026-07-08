@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Renderer } from './render/renderer';
 import { World } from './world';
 import { PlayerController } from './player';
-import { Peers, Enemies } from './entities';
+import { Peers, Enemies, Echoes } from './entities';
 import { DeviceRig } from './devices';
 import { Hud } from './hud';
 import { Net } from './net';
@@ -20,6 +20,7 @@ let world: World | null = null;
 let controller: PlayerController;
 let peers: Peers;
 let enemies: Enemies;
+let echoes: Echoes;
 let rig: DeviceRig;
 let net: Net;
 const audio = new GameAudio();
@@ -38,6 +39,8 @@ let echoPlaced = false;
 let lastMoveSent = 0;
 let lastTractorSent = 0;
 let revivingId: string | null = null;
+let blockedHintAt = 0;
+let lastDevBar = 0;
 let reviveHideTimer: ReturnType<typeof setTimeout> | undefined;
 let started = false;
 
@@ -70,6 +73,7 @@ function start(name: string) {
   controller.attach(renderer.canvas);
   peers = new Peers(renderer.scene, () => playerId);
   enemies = new Enemies(renderer.scene);
+  echoes = new Echoes(renderer.scene);
   rig = new DeviceRig(renderer.scene);
   audio.init();
   net = new Net();
@@ -106,6 +110,7 @@ function handleMsg(msg: ServerMsg) {
       world?.dispose();
       enemies.clear();
       peers.clear();
+      echoes.clear();
       levelDef = s.level ?? null;
       if (!levelDef) break;
       world = new World(renderer.scene, levelDef, s.states);
@@ -136,6 +141,7 @@ function handleMsg(msg: ServerMsg) {
     case 'snap': {
       const s = msg.s;
       peers.sync(s.players);
+      echoes.sync(s.players);
       if (world) {
         world.playersPresent = s.players.length;
         if (s.enemies) { enemies.sync(s.enemies); syncEnemyState(s.enemies); }
@@ -171,7 +177,13 @@ function handleMsg(msg: ServerMsg) {
       else if (msg.ev === 'down') { audio.play('enemy-down', at); }
       else if (msg.ev === 'shatter') audio.play('shatter', at);
       else if (msg.ev === 'frozen') audio.play('frozen', at);
-      else if (msg.ev === 'hit') audio.play('hit', at);
+      else if (msg.ev === 'hit') {
+        audio.play('hit', at);
+        if (msg.data?.blocked && performance.now() - blockedHintAt > 12000) {
+          blockedHintAt = performance.now();
+          hud.toast('Its shield holds — stagger it with a Pulse, or find another way.', 'warn');
+        }
+      }
       else if (msg.ev === 'stagger') audio.play('hit', at);
       break;
     }
@@ -566,6 +578,9 @@ function loop(t: number) {
   peers.update(dt);
   enemies.update(dt);
   rig.update();
+
+  // device bar cooldown/charges animate
+  if (t - lastDevBar > 250) { lastDevBar = t; refreshDeviceBar(); }
 
   // prompts
   focus = scanFocus();

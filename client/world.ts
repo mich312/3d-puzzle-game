@@ -237,9 +237,6 @@ export class World {
       if (g.door) active = !this.evalSafe(g.door.openWhen);
       c.active = active;
     }
-    for (const d of this.doors) {
-      const g = this.level.geometry.find((gg) => gg.door && this.group.children.includes(d.mesh) && gg.door);
-    }
     // doors: open state from expressions
     this.level.geometry.forEach((g) => {
       if (!g.door) return;

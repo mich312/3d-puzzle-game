@@ -53,6 +53,7 @@ class Bot {
       if (m.t === 'downed' && m.id === this.id) this.state = 'downed';
       if (m.t === 'revived' && m.id === this.id) this.state = 'alive';
       if (m.t === 'respawn' && m.id === this.id) { this.state = 'alive'; this.pos = [...m.p] as Vec3; }
+      if (m.t === 'portal_traverse' && m.player === this.id) this.pos = [...m.to] as Vec3;
       if (m.t === 'shards') this.shards = m.shards;
     });
     this.mover = setInterval(() => {
@@ -73,7 +74,7 @@ class Bot {
       const dx = p[0] - this.pos[0], dy = p[1] - this.pos[1], dz = p[2] - this.pos[2];
       const d = Math.hypot(dx, dy, dz);
       if (d < 0.4) return;
-      const step = Math.min(4, d);
+      const step = Math.min(3, d);
       this.pos = [this.pos[0] + (dx / d) * step, this.pos[1] + (dy / d) * step, this.pos[2] + (dz / d) * step];
       await sleep(90);
     }
@@ -181,12 +182,16 @@ async function testCoopAtrium02() {
   const bellB = def?.interactables?.find((i) => i.id === 'bellB') as { pos: Vec3 } | undefined;
   if (!bellA || !bellB) throw new Error('bells not found in level def');
 
-  // kill the drifters first (they'd interrupt)
-  for (let i = 0; i < 25; i++) {
+  // kill the drifters first (they'd interrupt) — fight from range; they chase
+  for (let i = 0; i < 40; i++) {
     const alive = (a.snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
     if (!alive.length) break;
     const e = alive[0];
-    await a.walkTo([e.p[0] - 3, e.p[1], e.p[2]]);
+    const dx = a.pos[0] - e.p[0], dz = a.pos[2] - e.p[2];
+    const dist = Math.hypot(dx, dz) || 1;
+    if (dist > 12) {   // close to firing range but stay off hazards
+      await a.walkTo([e.p[0] + (dx / dist) * 10, e.p[1], e.p[2] + (dz / dist) * 10]);
+    }
     await fireAt(a, 'pulse', [e.p[0], e.p[1] + 0.8, e.p[2]], e.id);
     await sleep(700);
   }
@@ -287,11 +292,38 @@ async function testFreezeVaults01() {
   a.close();
 }
 
+async function testPortalsGardens02() {
+  console.log('\n— TEST 5: Portal Device placement + traversal in gardens-02 —');
+  const a = new Bot('BotPortal');
+  await a.open();
+  a.send({ t: 'enter_level', v: 1, level: 'gardens-02' });
+  await a.until(() => a.levelId === 'gardens-02', 'enter gardens-02');
+  a.send({ t: 'reset_level', v: 1 });
+  await sleep(800);
+  const gotGun = a.msgs.some((m) => m.t === 'devices' && m.devices.includes('portalgun'));
+  check(gotGun, 'Portal Device granted on entry');
+
+  // place both portals on the flanking portalSurface walls (near side / far side)
+  await a.walkTo([0, 1, 14]);
+  a.send({ t: 'place_portal', v: 1, slot: 0, pos: [-12.4, 1.6, 14], normal: [1, 0, 0] });
+  a.send({ t: 'place_portal', v: 1, slot: 1, pos: [-12.4, 1.6, -14], normal: [1, 0, 0] });
+  await a.until(() => (a.snapshot?.portalsPlaced?.length ?? 0) >= 2, 'both portals placed', 6000);
+  check(true, 'two portals placed on legal surfaces');
+
+  // walk into portal A → server should teleport us across the chasm
+  const before = a.pos[2];
+  await a.walkTo([-11.6, 1.6, 14]);
+  await a.until(() => a.pos[2] < 0, 'traversal (respawn/portal_traverse moves us)', 8000);
+  check(a.pos[2] < 0, `traversed the chasm via portals (z ${before.toFixed(0)} → ${a.pos[2].toFixed(0)})`);
+  a.close();
+}
+
 try {
   await testSoloAtrium01();
   await testCoopAtrium02();
   await testDownRevive();
   await testFreezeVaults01();
+  await testPortalsGardens02();
   console.log(failures ? `\n${failures} FAILURES` : '\nALL PLAYTESTS PASSED');
   process.exit(failures ? 1 : 0);
 } catch (e) {

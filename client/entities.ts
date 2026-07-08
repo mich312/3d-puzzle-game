@@ -108,6 +108,34 @@ export class Peers {
   entries() { return this.map.entries(); }
 }
 
+// ---------- echo ghosts (Echo Core skill) ----------
+export class Echoes {
+  private map = new Map<string, THREE.Mesh>();
+  constructor(private scene: THREE.Scene) {}
+  sync(snaps: PlayerSnap[]) {
+    const seen = new Set<string>();
+    for (const s of snaps) {
+      if (!s.echo) continue;
+      seen.add(s.id);
+      let m = this.map.get(s.id);
+      if (!m) {
+        m = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.9, 4, 12),
+          new THREE.MeshStandardMaterial({
+            color: s.accent || PALETTE.portalA, emissive: s.accent || PALETTE.portalA,
+            emissiveIntensity: 0.8, transparent: true, opacity: 0.35, depthWrite: false,
+          }));
+        this.map.set(s.id, m);
+        this.scene.add(m);
+      }
+      m.position.set(s.echo[0], s.echo[1] + 0.85, s.echo[2]);
+    }
+    for (const [id, m] of this.map) {
+      if (!seen.has(id)) { this.scene.remove(m); this.map.delete(id); }
+    }
+  }
+  clear() { for (const [id, m] of this.map) { this.scene.remove(m); this.map.delete(id); } }
+}
+
 // ---------- enemies ----------
 const HOSTILE = new THREE.Color(PALETTE.hostile);
 const ICE = new THREE.Color('#bfe8ff');

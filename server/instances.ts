@@ -998,7 +998,12 @@ export class GameServer {
       case 'move': {
         if (Date.now() < p.ignoreMovesUntil) break;
         const d = v3.dist(p.pos, msg.p);
-        if (d > 12) break;                       // teleport sanity
+        if (d > 12) {
+          // teleport sanity: reject AND correct, so a desynced client snaps back
+          // instead of being silently stuck reporting unreachable positions
+          p.link.send({ t: 'respawn', v: 1, id: p.id, p: p.pos });
+          break;
+        }
         p.pos = msg.p; p.yaw = msg.yaw; p.pitch = msg.pitch; p.anim = msg.anim ?? 0;
         break;
       }
