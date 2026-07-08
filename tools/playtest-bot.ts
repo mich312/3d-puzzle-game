@@ -409,6 +409,177 @@ async function testChatAndPing() {
   a.close(); b.close();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SOLVABILITY AUDIT — the 7 co-op levels not covered by the scenario tests above.
+// Bots noclip, so these verify PUZZLE LOGIC (can `solved` be reached by triggering
+// the interactables the intended way) — not physical navigability.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function pairEnter(a: Bot, b: Bot, level: string) {
+  a.send({ t: 'enter_level', v: 1, level });
+  await sleep(400);
+  b.send({ t: 'enter_level', v: 1, level });
+  await a.until(() => a.levelId === level, `A→${level}`, 14000);
+  await b.until(() => b.levelId === level, `B→${level}`, 14000);
+  await sleep(500);
+}
+
+/** cycle a lever/rotator to a target state by repeated interact */
+async function setState(bot: Bot, id: string, pos: Vec3, target: number) {
+  await bot.walkTo([pos[0], 1, pos[2] + 1.4]);
+  await bot.attempt(() => bot.send({ t: 'interact', v: 1, target: id }),
+    () => bot.st(id)?.state === target, `${id}=${target}`, 14000);
+}
+
+/** pulse every alive enemy until all down; tractor-expose a colossus while firing */
+async function clearEnemies(bots: Bot[]): Promise<boolean> {
+  for (let i = 0; i < 70; i++) {
+    const alive = (bots[0].snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
+    if (!alive.length) return true;
+    for (const e of alive) {
+      const shooter = bots[0];
+      const dx = shooter.pos[0] - e.p[0], dz = shooter.pos[2] - e.p[2];
+      const d = Math.hypot(dx, dz) || 1;
+      if (d > 14) await shooter.walkTo([e.p[0] + (dx / d) * 10, 1, e.p[2] + (dz / d) * 10]);
+      if (e.type === 'colossus' && bots[1]) {
+        bots[1].send({ t: 'tractor', v: 1, active: true, targetId: e.id, aim: [e.p[0], e.p[1], e.p[2] - 2] });
+        await sleep(150);
+      }
+      for (const s of bots) await fireAt(s, 'pulse', [e.p[0], e.p[1] + 0.8, e.p[2]], e.id);
+    }
+    await sleep(650);
+  }
+  return (bots[0].snapshot?.enemies ?? []).every((e) => e.state === 'down');
+}
+
+async function grabBody(bot: Bot, bodyId: string, pos: Vec3) {
+  await bot.walkTo([pos[0], 1, pos[2]]);
+  await bot.attempt(() => bot.send({ t: 'grab', v: 1, target: bodyId }),
+    () => (bot.snapshot?.bodies ?? []).some((b) => b.id === bodyId && b.heldBy === bot.id), `grab ${bodyId}`, 9000);
+}
+
+/** carry a held body so it drops centred on a target x,z (holder south of it, facing -z) */
+async function dropAt(holders: Bot[], target: Vec3) {
+  for (const h of holders) { h.yaw = 0; await h.walkTo([target[0], 1, target[2] + 1.2]); }
+  await sleep(400);
+  for (const h of holders) h.send({ t: 'release', v: 1 });
+  await sleep(900);
+}
+
+async function standOn(bot: Bot, plate: Vec3) { await bot.walkTo([plate[0], plate[1] + 0.9, plate[2]]); }
+
+/** enter a device-granting level (co-op gate) so the pair keeps the device */
+async function provision(a: Bot, b: Bot, level: string, device: string) {
+  await pairEnter(a, b, level);
+  await a.until(() => a.msgs.some((m) => m.t === 'devices' && m.devices.includes(device as never)), `A gets ${device}`, 9000);
+  await b.until(() => b.msgs.some((m) => m.t === 'devices' && m.devices.includes(device as never)), `B gets ${device}`, 9000);
+}
+
+async function audit(name: string, fn: (a: Bot, b: Bot) => Promise<void>) {
+  console.log(`\n— ${name} —`);
+  const a = new Bot(`${name}-A`), b = new Bot(`${name}-B`);
+  try {
+    await a.open(); await b.open();
+    await fn(a, b);
+    await a.until(() => a.solved, `${name} solved`, 8000);
+    check(true, `${name}: solved by the intended path`);
+    check(a.shards.includes(name), `${name}: shard granted`);
+  } catch (e) {
+    check(false, `${name}: ${(e as Error).message}`);
+  } finally { a.close(); b.close(); }
+}
+
+async function auditAll() {
+  // atrium-03 — three levers to a posture combo + a mass-2 choir plate (no combat)
+  await audit('atrium-03', async (a, b) => {
+    await pairEnter(a, b, 'atrium-03');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await setState(a, 'choirA', [-2, 0.8, -5.4], 2);
+    await setState(a, 'choirC', [2, 0.8, -5.4], 1);   // choirB stays 0
+    await standOn(a, [0, 0.15, 4]); await standOn(b, [0.6, 0.15, 4]);   // mass 2
+  });
+
+  // vaults-02 — clear, pre-set both rotators, then 2-carry the heavy keystone to its plate
+  await audit('vaults-02', async (a, b) => {
+    await pairEnter(a, b, 'vaults-02');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    check(await clearEnemies([a, b]), 'vaults-02: enemies cleared');
+    await setState(a, 'rotator1', [-6, 0.9, -3], 2);
+    await setState(a, 'rotator2', [6, 0.9, -3], 1);
+    await grabBody(a, 'keystone', [0, 1.1, 14]);
+    await grabBody(b, 'keystone', [0, 1.1, 14]);
+    await dropAt([a, b], [0, 0.15, -16]);             // keystonePlate (mass 3)
+  });
+
+  // vaults-03 — needs Freeze (from vaults-01): prism→socket, aim emitter, hold shutter, freeze column
+  await audit('vaults-03', async (a, b) => {
+    await provision(a, b, 'vaults-01', 'freeze');
+    a.send({ t: 'equip', v: 1, device: 'freeze' }); b.send({ t: 'equip', v: 1, device: 'freeze' });
+    await pairEnter(a, b, 'vaults-03');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    check(await clearEnemies([a, b]), 'vaults-03: enemies cleared');
+    await a.walkTo([7, 1, 15]);
+    await a.attempt(() => a.send({ t: 'pickup', v: 1, itemId: 'prism' }), () => a.st('prism')?.collected === true, 'take prism');
+    await a.walkTo([0, 1, 3]);
+    await a.attempt(() => a.send({ t: 'use_item', v: 1, item: 'prism', socketId: 'prismMount' }),
+      () => a.st('prismMount')?.filled === true, 'socket prism');
+    await setState(a, 'emitterMount', [-7, 0.9, 14], 1);
+    await standOn(b, [3, 0.15, -13]);                 // hold shutterPlate
+    await a.until(() => b.st('shutterPlate')?.pressed === true, 'shutter held');
+    // freeze the column last (7s window) and expect the beam to light r1
+    await a.walkTo([-3, 1, 2]);
+    await a.attempt(() => { a.yaw = 0; a.send({ t: 'equip', v: 1, device: 'freeze' }); fireAt(a, 'freeze', [-3, 1.5, -1], undefined); },
+      () => a.st('column')?.frozen === true && a.st('r1')?.lit === true, 'freeze column → beam lights r1', 14000);
+  });
+
+  // gardens-01 — grants Tractor: seed-stones onto rising plate-islands + rotate the aim ring
+  await audit('gardens-01', async (a, b) => {
+    await pairEnter(a, b, 'gardens-01');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    check(await clearEnemies([a, b]), 'gardens-01: enemies cleared');
+    await setState(a, 'aimRing', [-12.5, 0.8, 6], 1);
+    await grabBody(a, 'seedA', [-3, 0.9, 12.6]); await dropAt([a], [-3, 0.15, 3]);   // plateA
+    await grabBody(a, 'seedB', [0, 0.9, 12.6]); await dropAt([a], [3, 0.15, 3]);     // plateB
+    await a.until(() => a.st('plateA')?.pressed === true && a.st('plateB')?.pressed === true, 'A+B pressed (cage opens)');
+    await grabBody(a, 'seedC', [3, 0.9, 12.6]); await dropAt([a], [0, 0.15, -6]);    // plateC (needs 2)
+    await grabBody(a, 'seedD', [-6, 0.9, -15.8]); await dropAt([a], [0, 0.15, -6]);
+  });
+
+  // gardens-03 — set the bridge wheel, drop the shutter for the beam, hold the summit plate
+  await audit('gardens-03', async (a, b) => {
+    await pairEnter(a, b, 'gardens-03');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    check(await clearEnemies([a, b]), 'gardens-03: enemies cleared');
+    await setState(a, 'wheel', [6, 1, 6], 2);
+    await standOn(a, [5, 6, -4]);                     // shutterPlate → drops shutter for em1→rec1
+    await standOn(b, [0, 6, -7]);                     // summitPlate
+  });
+
+  // observatory-01 — orrery alignment threads the beam, then a two-plate sync
+  await audit('observatory-01', async (a, b) => {
+    await pairEnter(a, b, 'observatory-01');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await setState(a, 'ringX', [-6, 0.8, 2], 3);
+    await setState(a, 'ringY', [0, 0.8, 2], 1);
+    await setState(a, 'ringZ', [6, 0.8, 2], 2);
+    await a.until(() => a.st('rec1')?.lit === true, 'beam threads all rings → rec1 lit', 6000);
+    check(await clearEnemies([a, b]), 'observatory-01: enemies cleared');
+    await standOn(a, [-5.5, 0, -10]); await standOn(b, [5.5, 0, -10]);   // syncA + syncB
+  });
+
+  // observatory-02 — finale: wake (prisms→sockets), colossus (tractor), reach the final plate
+  await audit('observatory-02', async (a, b) => {
+    await provision(a, b, 'gardens-01', 'tractor');   // colossus needs the Tractor
+    await pairEnter(a, b, 'observatory-02');
+    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    check(await clearEnemies([a, b]), 'observatory-02: colossus + wardens down');
+    await grabBody(a, 'prismL', [-15, 1.4, 6]); await dropAt([a], [-13, 1, 2]);   // socketL
+    await grabBody(b, 'prismR', [15, 1.4, 6]); await dropAt([b], [13, 1, 2]);     // socketR
+    await a.until(() => a.st('recL')?.lit === true && a.st('recR')?.lit === true, 'both receivers lit');
+    await standOn(a, [0, 8.5, -48]);                  // finalPlate
+  });
+}
+
 try {
   await testChatAndPing();
   await testSoloAtrium01();
@@ -416,6 +587,7 @@ try {
   await testDownRevive();
   await testFreezeVaults01();
   await testPortalsGardens02();
+  await auditAll();
   console.log(failures ? `\n${failures} FAILURES` : '\nALL PLAYTESTS PASSED');
   process.exit(failures ? 1 : 0);
 } catch (e) {
