@@ -8,7 +8,7 @@ import { DOWNED_BLEEDOUT_MS, HP_REGEN_DELAY_MS, HP_REGEN_PER_S, PLAYER_MAX_HP, R
 import { PLAYER_ACCENTS } from '../shared/palette';
 import type { InteractableDef, LevelDef, PortalDef, Vec3 } from '../shared/level';
 import type { ClientMsg, InstanceSnapshot, PlayerSnap, ServerMsg } from '../shared/messages';
-import { buildColliders, groundHeight, pointNearBox, raycast, segmentClear, v3, type AABB } from './physics';
+import { buildColliders, footprintHits, groundHeight, pointNearBox, raycast, roundHalfExtent, segmentClear, v3, type AABB } from './physics';
 import { damageEnemy, freezeEnemy, makeEnemy, stepEnemy, type CombatCtx, type EnemyState } from './enemies';
 import { getLevel } from './content';
 import type { Profile, Store } from './persistence';
@@ -512,22 +512,28 @@ export class LevelInstance extends Instance {
     if (delta === 0 && axis !== 1) return false;
     const p = [...b.pos] as Vec3;
     p[axis] += delta;
-    const overlapsBox = (min: Vec3, max: Vec3) =>
+    const overlapsBox = (min: Vec3, max: Vec3, c?: AABB) =>
       p[0] - b.half < max[0] && p[0] + b.half > min[0] &&
       p[1] - b.half < max[1] && p[1] + b.half > min[1] &&
-      p[2] - b.half < max[2] && p[2] + b.half > min[2];
+      p[2] - b.half < max[2] && p[2] + b.half > min[2] &&
+      (!c || footprintHits(c, p[0] - b.half, p[0] + b.half, p[2] - b.half, p[2] + b.half));
     let grounded = false;
-    const resolve = (min: Vec3, max: Vec3) => {
-      if (!overlapsBox(min, max)) return;
-      if (delta > 0) p[axis] = min[axis] - b.half - 0.001;
-      else p[axis] = max[axis] + b.half + 0.001;
+    const resolve = (min: Vec3, max: Vec3, c?: AABB) => {
+      if (!overlapsBox(min, max, c)) return;
+      // round colliders clamp to the chord the body footprint meets, not the square
+      const cross = axis === 0 ? 2 : 0;
+      const half = axis !== 1 && c ? roundHalfExtent(c, axis, p[cross] - b.half, p[cross] + b.half) : null;
+      const faceMin = half !== null ? (axis === 0 ? c!.round!.x : c!.round!.z) - half : min[axis];
+      const faceMax = half !== null ? (axis === 0 ? c!.round!.x : c!.round!.z) + half : max[axis];
+      if (delta > 0) p[axis] = faceMin - b.half - 0.001;
+      else p[axis] = faceMax + b.half + 0.001;
       if (axis === 1 && delta <= 0) { grounded = true; b.vel[1] = 0; }
       else if (axis === 1) b.vel[1] = 0;
       else b.vel[axis] *= -0.35;   // restitution off walls
     };
     for (const c of this.colliders) {
       if (!c.active) continue;
-      resolve(c.min, c.max);
+      resolve(c.min, c.max, c);
     }
     for (const o of this.bodies.values()) {
       if (o.id === b.id) continue;

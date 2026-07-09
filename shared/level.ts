@@ -55,6 +55,8 @@ export interface PortalDef {
   linkedTo: string;
   label?: string;
   color?: string;
+  /** facing (radians). Omitted = auto-face toward the entry spawn. */
+  rotY?: number;
   requiresShards?: number;    // gate in the Nexus
   requiresSolved?: boolean;   // exit Threshold: activates once the level is solved
 }

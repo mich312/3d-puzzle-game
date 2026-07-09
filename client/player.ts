@@ -2,7 +2,7 @@
 // auto-step, AABB collision against the shared collider set. Client-reported
 // movement (spec §6) — the server sanity-checks and owns everything else.
 import * as THREE from 'three';
-import type { AABB } from '../shared/collision';
+import { footprintHits, roundHalfExtent, type AABB } from '../shared/collision';
 import type { Vec3 } from '../shared/level';
 
 const PLAYER_HEIGHT = 1.7;
@@ -12,12 +12,14 @@ const WALK = 6;
 const JUMP_V = 7.2;
 const GRAVITY = 20;
 const STEP = 0.55;
+const COYOTE_MS = 120;       // grace window: jump still fires just after leaving a ledge
 
 export class PlayerController {
   pos = new THREE.Vector3(0, 1, 0);      // feet
   vel = new THREE.Vector3();
   yaw = 0; pitch = 0;
   onGround = false;
+  lastGroundedAt = 0;
   jumpsUsed = 0;
   canDoubleJump = false;
   canDash = false;
@@ -95,9 +97,10 @@ export class PlayerController {
     this.vel.x = wx * speed;
     this.vel.z = wz * speed;
 
-    // jumping
+    // jumping (with coyote time — stepping off a ledge shouldn't eat the input)
     if (this.jumpQueued) {
-      if (this.onGround) { this.vel.y = JUMP_V; this.jumpsUsed = 1; }
+      const coyote = !this.onGround && this.jumpsUsed === 0 && now - this.lastGroundedAt < COYOTE_MS;
+      if (this.onGround || coyote) { this.vel.y = JUMP_V; this.jumpsUsed = 1; }
       else if (this.canDoubleJump && this.jumpsUsed < 2) { this.vel.y = JUMP_V * 0.92; this.jumpsUsed = 2; }
       this.jumpQueued = false;
     }
@@ -110,7 +113,7 @@ export class PlayerController {
     this.moveAxis(colliders, 2, this.vel.z * dt);
     this.onGround = false;
     this.moveAxisY(colliders, this.vel.y * dt);
-    if (this.onGround) this.jumpsUsed = 0;
+    if (this.onGround) { this.jumpsUsed = 0; this.lastGroundedAt = now; }
   }
 
   private box(): { min: Vec3; max: Vec3 } {
@@ -124,7 +127,8 @@ export class PlayerController {
     return b.active &&
       min[0] < b.max[0] && max[0] > b.min[0] &&
       min[1] < b.max[1] && max[1] > b.min[1] &&
-      min[2] < b.max[2] && max[2] > b.min[2];
+      min[2] < b.max[2] && max[2] > b.min[2] &&
+      footprintHits(b, min[0], max[0], min[2], max[2]);   // round rims collide as circles
   }
 
   private moveAxis(colliders: AABB[], axis: 0 | 2, delta: number) {
@@ -143,11 +147,16 @@ export class PlayerController {
         const blockedAbove = colliders.some((o) => this.overlaps(o, min2, max2));
         if (!blockedAbove) { this.pos.y = stepTop; continue; }
       }
-      // slide: clamp against the face
-      if (delta > 0) p[axis] = b.min[axis] - PLAYER_RADIUS - 0.001;
-      else p[axis] = b.max[axis] + PLAYER_RADIUS + 0.001;
-      min[axis === 0 ? 0 : 2] = p[axis] - PLAYER_RADIUS;
-      max[axis === 0 ? 0 : 2] = p[axis] + PLAYER_RADIUS;
+      // slide: clamp against the face (round colliders clamp to the chord the
+      // player's footprint actually meets, so you skim around pillars)
+      const cross0 = axis === 0 ? 2 : 0;
+      const half = roundHalfExtent(b, axis, min[cross0], max[cross0]);
+      const faceMin = half !== null ? (axis === 0 ? b.round!.x : b.round!.z) - half : b.min[axis];
+      const faceMax = half !== null ? (axis === 0 ? b.round!.x : b.round!.z) + half : b.max[axis];
+      if (delta > 0) p[axis] = faceMin - PLAYER_RADIUS - 0.001;
+      else p[axis] = faceMax + PLAYER_RADIUS + 0.001;
+      min[axis] = p[axis] - PLAYER_RADIUS;
+      max[axis] = p[axis] + PLAYER_RADIUS;
     }
     if (axis === 0) this.pos.x = p[0]; else this.pos.z = p[2];
   }

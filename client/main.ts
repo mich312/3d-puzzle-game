@@ -83,7 +83,7 @@ function start(name: string) {
   started = true;
   renderer = new Renderer(document.getElementById('app')!);
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
-  controller = new PlayerController(() => world?.colliders ?? []);
+  controller = new PlayerController(() => world?.playerColliders() ?? []);
   controller.attach(renderer.canvas);
   peers = new Peers(renderer.scene, () => playerId, renderer.lights);
   enemies = new Enemies(renderer.scene, renderer.lights);
@@ -120,6 +120,11 @@ function handleMsg(msg: ServerMsg) {
     case 'welcome': {
       playerId = msg.playerId;
       Object.assign(profile, msg.profile);
+      // restore skill-driven movement abilities on (re)connect — previously these
+      // only applied after a fresh 'skills' message, so double jump / dash were
+      // silently dead after every reload until the skill tree was touched again
+      controller.canDoubleJump = profile.skills.includes('double-jump');
+      controller.canDash = profile.skills.includes('dash');
       rig.setOwned(profile.devices);
       hud.setShards(profile.shards.length, TOTAL_SHARDS);
       refreshDeviceBar();
