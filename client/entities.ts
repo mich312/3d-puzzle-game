@@ -442,6 +442,28 @@ function buildEnemy(
     return { core, parts, height: 2.2 };
   }
 
+  if (type === 'mimic') {
+    // disguised as a light crate: crystal cube + gold edge frame. When it wakes,
+    // the lid tips open over a glowing maw and stubby legs unfold.
+    const body = bodyMat(), glow = glowMat();
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.5, 0.66), body);
+    core.position.y = 0.35;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.16, 0.68), body);
+    lid.position.set(0, 0.66, 0.02); lid.name = 'lid'; parts.push(lid);
+    const maw = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 6, 14), glow);
+    maw.position.y = 0.62; maw.rotation.x = Math.PI / 2; maw.name = 'maw'; parts.push(maw);
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.7, 0.72, 0.7)),
+      new THREE.LineBasicMaterial({ color: PALETTE.interactable, transparent: true, opacity: 0.8 }));
+    edges.position.y = 0.36; edges.name = 'disguiseEdges'; parts.push(edges);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const leg = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.28, 5), body);
+      leg.position.set(sx * 0.26, 0.1, sz * 0.26); leg.rotation.x = Math.PI;
+      leg.name = 'leg'; parts.push(leg);
+    }
+    return { core, parts, height: 1.1 };
+  }
+
   if (type === 'sower') {
     const body = bodyMat(), glow = glowMat();
     const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), body);
@@ -506,8 +528,11 @@ class EnemyVis {
   frozen = false;
   fade = 1;
   height: number;
+  private type: string;
+  private disguised = false;
 
   constructor(snap: EnemySnap, private lights: DynamicLights) {
+    this.type = snap.type;
     const b = buildEnemy(snap.type, this.bodyMats, this.glowMats, this.spinners);
     this.core = b.core;
     this.height = b.height;
@@ -528,6 +553,21 @@ class EnemyVis {
     setBar(this.hpBar, snap.hp / snap.maxHp);
     this.dead = snap.state === 'down';
     this.frozen = snap.state === 'frozen';
+    // mimic disguise: a full-hp idle mimic passes for an ordinary crate
+    if (this.type === 'mimic') {
+      this.disguised = snap.state === 'idle' && !snap.target && snap.hp >= snap.maxHp;
+      const maw = this.group.getObjectByName('maw');
+      const lid = this.group.getObjectByName('lid');
+      this.group.traverse((o) => { if (o.name === 'leg') o.visible = !this.disguised; });
+      if (maw) maw.visible = !this.disguised;
+      if (lid) lid.rotation.x = this.disguised ? 0 : -0.85;
+      this.hpBar.visible = !this.disguised && !this.dead;
+      this.lh.intensity = this.disguised ? 0 : 0.8;
+      if (this.disguised) {
+        for (const m of this.bodyMats) { m.color.set('#b8b2c8'); m.emissive.set(PALETTE.interactable); m.emissiveIntensity = 0.3; }
+        return;
+      }
+    }
     for (const m of this.bodyMats) {
       if (snap.state === 'frozen') { m.emissive.copy(ICE); m.emissiveIntensity = 1.0; m.color.set('#9fc8e0'); }
       else if (snap.state === 'staggered') { m.emissive.set('#ffffff'); m.emissiveIntensity = 0.9; m.color.set('#6a6480'); }
@@ -553,7 +593,7 @@ class EnemyVis {
       this.lh.color.set(PALETTE.hostile);
       for (const m of this.bodyMats) m.emissiveIntensity = 0.55 + flash * 1.8;
     } else if (!this.dead) {
-      this.lh.intensity = 0.8;
+      this.lh.intensity = this.disguised ? 0 : 0.8;
       this.lh.color.set(this.frozen ? '#9fdcff' : PALETTE.hostile);
     }
     if (this.dead && this.fade > 0) {
@@ -566,7 +606,7 @@ class EnemyVis {
       this.group.visible = true;
       this.group.scale.setScalar(1);
       this.fade = 1;
-      this.hpBar.visible = true;
+      this.hpBar.visible = !this.disguised;
       this.core.position.y += Math.sin(time * 2 + this.group.position.x) * 0.002;
     }
   }

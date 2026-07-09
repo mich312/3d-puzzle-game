@@ -1,0 +1,791 @@
+{
+  "v": 1,
+  "id": "proving-01",
+  "name": "The Proving Ground",
+  "world": "atrium",
+  "coop": "solo",
+  "dependency": [
+    "mechanism",
+    "mass",
+    "beam-item"
+  ],
+  "encounters": [
+    "mimic-ambush"
+  ],
+  "players": {
+    "min": 1,
+    "max": 4
+  },
+  "requiresDevice": [],
+  "intro": "A gymnasium of new devices. Sound the chimes in rising order; weigh the scale; bend the light.",
+  "fog": {
+    "color": "#4a4468",
+    "density": 0.02
+  },
+  "geometry": [
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        -0.5,
+        -2
+      ],
+      "size": [
+        26,
+        1,
+        60
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        0.041,
+        -2
+      ],
+      "size": [
+        24,
+        0.08,
+        58
+      ],
+      "material": "tile",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 0.16
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -13,
+        2.5,
+        -2
+      ],
+      "size": [
+        1,
+        5,
+        60
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        13,
+        2.5,
+        -2
+      ],
+      "size": [
+        1,
+        5,
+        60
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.5,
+        -32
+      ],
+      "size": [
+        27,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.5,
+        28
+      ],
+      "size": [
+        27,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.25,
+        2.5,
+        8
+      ],
+      "size": [
+        9.5,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.25,
+        2.5,
+        8
+      ],
+      "size": [
+        9.5,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.5,
+        8
+      ],
+      "size": [
+        7,
+        5,
+        1
+      ],
+      "material": "stone",
+      "door": {
+        "id": "doorA",
+        "openWhen": "chime3.lit"
+      }
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.25,
+        2.5,
+        -12
+      ],
+      "size": [
+        9.5,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.25,
+        2.5,
+        -12
+      ],
+      "size": [
+        9.5,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.5,
+        -12
+      ],
+      "size": [
+        7,
+        5,
+        1
+      ],
+      "material": "stone",
+      "door": {
+        "id": "doorB",
+        "openWhen": "pgscale.left >= 2"
+      }
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8.25,
+        2.5,
+        -26
+      ],
+      "size": [
+        9.5,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        8.25,
+        2.5,
+        -26
+      ],
+      "size": [
+        9.5,
+        5,
+        1
+      ],
+      "material": "stone"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        2.5,
+        -26
+      ],
+      "size": [
+        7,
+        5,
+        1
+      ],
+      "material": "stone",
+      "door": {
+        "id": "doorC",
+        "openWhen": "recv1.lit"
+      }
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        -6,
+        0.05,
+        14
+      ],
+      "size": [
+        0.9,
+        0.06,
+        0.9
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.05,
+        12
+      ],
+      "size": [
+        0.9,
+        0.06,
+        0.9
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        6,
+        0.05,
+        14
+      ],
+      "size": [
+        0.9,
+        0.06,
+        0.9
+      ],
+      "material": "accent",
+      "collider": false,
+      "emissive": "#ffd98a",
+      "emissiveIntensity": 0.5
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        3.2,
+        7.4
+      ],
+      "size": [
+        5,
+        0.6,
+        0.2
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#a8f0c6",
+      "emissiveIntensity": 1.2
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -8,
+        0.9,
+        -9.5
+      ],
+      "size": [
+        0.6,
+        1.8,
+        5
+      ],
+      "material": "stone",
+      "color": "#4a4470"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -10.75,
+        0.9,
+        -7
+      ],
+      "size": [
+        4.9,
+        1.8,
+        0.6
+      ],
+      "material": "stone",
+      "color": "#4a4470",
+      "door": {
+        "id": "doorD",
+        "openWhen": "quick1.on"
+      }
+    },
+    {
+      "shape": "box",
+      "pos": [
+        4,
+        0.5,
+        -16
+      ],
+      "size": [
+        1.2,
+        1,
+        1.2
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        9,
+        0.6,
+        -24
+      ],
+      "size": [
+        0.3,
+        1.2,
+        0.3
+      ],
+      "material": "metal"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        0,
+        0.4,
+        -29.5
+      ],
+      "size": [
+        0.9,
+        0.8,
+        0.9
+      ],
+      "material": "stone",
+      "color": "#524c6b"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        0,
+        1.2,
+        -29.5
+      ],
+      "size": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#a8f0c6",
+      "emissiveIntensity": 2.0,
+      "rotY": 0.6,
+      "spin": 0.6
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.3,
+        3.6,
+        20
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.3,
+        3.6,
+        4
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.3,
+        3.6,
+        -8
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        -12.3,
+        3.6,
+        -20
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.3,
+        3.6,
+        20
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.3,
+        3.6,
+        4
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.3,
+        3.6,
+        -8
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    },
+    {
+      "shape": "box",
+      "pos": [
+        12.3,
+        3.6,
+        -20
+      ],
+      "size": [
+        0.3,
+        0.7,
+        0.3
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#bcd4ff",
+      "emissiveIntensity": 1.3
+    }
+  ],
+  "spawns": {
+    "entry": [
+      0,
+      1,
+      24
+    ]
+  },
+  "checkpoints": [
+    [
+      0,
+      1,
+      5
+    ],
+    [
+      0,
+      1,
+      -13.5
+    ]
+  ],
+  "portals": [
+    {
+      "id": "back",
+      "pos": [
+        0,
+        1.3,
+        25.5
+      ],
+      "linkedTo": "nexus",
+      "label": "Back to Nexus"
+    },
+    {
+      "id": "exit",
+      "pos": [
+        0,
+        1.3,
+        -29
+      ],
+      "linkedTo": "nexus",
+      "label": "Threshold",
+      "requiresSolved": true
+    }
+  ],
+  "placeablePortals": {
+    "enabled": false
+  },
+  "interactables": [
+    {
+      "type": "resonator",
+      "id": "chime1",
+      "pos": [
+        -6,
+        0,
+        14
+      ],
+      "group": "chime",
+      "order": 0
+    },
+    {
+      "type": "resonator",
+      "id": "chime2",
+      "pos": [
+        0,
+        0,
+        12
+      ],
+      "group": "chime",
+      "order": 1
+    },
+    {
+      "type": "resonator",
+      "id": "chime3",
+      "pos": [
+        6,
+        0,
+        14
+      ],
+      "group": "chime",
+      "order": 2
+    },
+    {
+      "type": "scale",
+      "id": "pgscale",
+      "pos": [
+        -4,
+        0,
+        -2
+      ],
+      "span": 3
+    },
+    {
+      "type": "carryable",
+      "id": "c1",
+      "pos": [
+        3,
+        0.3,
+        1
+      ],
+      "mass": "light"
+    },
+    {
+      "type": "carryable",
+      "id": "c2",
+      "pos": [
+        5,
+        0.3,
+        -1
+      ],
+      "mass": "light"
+    },
+    {
+      "type": "carryable",
+      "id": "c3",
+      "pos": [
+        -10.5,
+        0.3,
+        -9.5
+      ],
+      "mass": "light"
+    },
+    {
+      "type": "switch",
+      "id": "quick1",
+      "pos": [
+        -9,
+        2,
+        3
+      ],
+      "latched": false,
+      "holdMs": 6000
+    },
+    {
+      "type": "hazard",
+      "id": "belt1",
+      "pos": [
+        0,
+        1,
+        -9
+      ],
+      "size": [
+        26,
+        2,
+        5
+      ],
+      "kind": "conveyor",
+      "dir": [
+        3.5,
+        0,
+        0
+      ]
+    },
+    {
+      "type": "hazard",
+      "id": "zap1",
+      "pos": [
+        11.5,
+        1,
+        -9
+      ],
+      "size": [
+        3,
+        2,
+        5
+      ],
+      "kind": "spark",
+      "dps": 8
+    },
+    {
+      "type": "emitter",
+      "id": "emit1",
+      "pos": [
+        -12.3,
+        1.5,
+        -16
+      ],
+      "dir": [
+        1,
+        0,
+        0
+      ],
+      "color": "#8fd0ff"
+    },
+    {
+      "type": "carryable",
+      "id": "prism1",
+      "pos": [
+        -4,
+        0.3,
+        -22
+      ],
+      "mass": "light",
+      "kind": "prism"
+    },
+    {
+      "type": "socket",
+      "id": "mount1",
+      "pos": [
+        4,
+        1.05,
+        -16
+      ],
+      "accepts": "prism1"
+    },
+    {
+      "type": "receiver",
+      "id": "recv1",
+      "pos": [
+        9,
+        1.7,
+        -24
+      ],
+      "accepts": "#8fd0ff"
+    },
+    {
+      "type": "carryable",
+      "id": "c4",
+      "pos": [
+        -6,
+        0.3,
+        -23
+      ],
+      "mass": "light"
+    }
+  ],
+  "enemies": [
+    {
+      "type": "mimic",
+      "id": "mim1",
+      "spawn": [
+        -3.4,
+        0,
+        -20.6
+      ]
+    }
+  ],
+  "puzzle": {
+    "solved": "chime3.lit && pgscale.left >= 2 && recv1.lit",
+    "shard": "shard-proving",
+    "skillPoints": 1
+  }
+}

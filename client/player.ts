@@ -27,6 +27,8 @@ export class PlayerController {
   dashCooldownUntil = 0;
   frozen = false;                          // downed / menus
   sensitivity = 1;
+  /** external horizontal push (conveyors etc.) — set each frame by the caller */
+  external = new THREE.Vector3();
 
   private keys = new Set<string>();
   private jumpQueued = false;
@@ -94,8 +96,8 @@ export class PlayerController {
     this.dashQueued = false;
     if (this.dashing) speed = WALK * 3.2;
 
-    this.vel.x = wx * speed;
-    this.vel.z = wz * speed;
+    this.vel.x = wx * speed + this.external.x;
+    this.vel.z = wz * speed + this.external.z;
 
     // jumping (with coyote time — stepping off a ledge shouldn't eat the input)
     if (this.jumpQueued) {

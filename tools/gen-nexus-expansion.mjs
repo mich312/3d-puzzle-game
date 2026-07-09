@@ -101,6 +101,93 @@ DIAG.forEach(([dx, dz], i) => {
   glow(ix - dz * 2.6, top + 0.9, iz + dx * 2.6, 1.4, GLOW_VIOLET, 0.3);
 });
 
+// ---- nature: bioluminescent spirit trees + glow bushes ----
+// Only box/cylinder primitives exist, so trees are a wood trunk under stacked
+// foliage discs; night-garden palette (deep leaf colours, soft emissive rims).
+const LEAF = [
+  { color: '#26413a', emissive: '#3f7a5c' },   // moss teal (muted, night-lit)
+  { color: '#332e4c', emissive: '#7a68ab' },   // dusk violet
+  { color: '#3f3527', emissive: '#9c7d54' },   // ember amber
+];
+let natureIdx = 0;
+const vary = () => {                          // deterministic per-placement variation
+  natureIdx++;
+  return 0.85 + ((natureIdx * 37) % 30) / 100; // 0.85 .. 1.14
+};
+const tree = (x, baseY, z, leafIdx = 0) => {
+  const s = vary();
+  const leaf = LEAF[leafIdx % LEAF.length];
+  const trunkH = 2.7 * s;
+  cyl(x, baseY + trunkH, z, 0.18 * s, trunkH, { material: 'wood', color: '#8a6a50', emissive: '#6a4a34', emissiveIntensity: 0.12 });
+  const tiers = [[0.95, 0.55], [0.7, 0.5], [0.42, 0.45]];
+  tiers.forEach(([r, h], i) => {
+    add({
+      shape: 'cylinder', pos: [R(x), R(baseY + trunkH + 0.1 + i * 0.52 * s), R(z)],
+      size: [R(r * s), R(h * s), R(r * s)], material: 'stone', collider: false,
+      color: leaf.color, emissive: leaf.emissive, emissiveIntensity: 0.07,
+    });
+  });
+  // a couple of glow-fruit motes hanging in the canopy
+  crystal(x + 0.9 * s, baseY + trunkH + 0.4, z + 0.3, 0.16, leaf.emissive, 1.1, R(s));
+  crystal(x - 0.5, baseY + trunkH + 0.9 * s, z - 0.8 * s, 0.13, leaf.emissive, 1.0, R(s * 2));
+};
+const bush = (x, baseY, z, leafIdx = 0) => {
+  const s = vary();
+  const leaf = LEAF[leafIdx % LEAF.length];
+  add({
+    shape: 'cylinder', pos: [R(x), R(baseY + 0.28 * s), R(z)], size: [R(0.62 * s), R(0.56 * s), R(0.62 * s)],
+    material: 'stone', collider: false, color: leaf.color, emissive: leaf.emissive, emissiveIntensity: 0.12,
+  });
+  add({
+    shape: 'cylinder', pos: [R(x + 0.4 * s), R(baseY + 0.18), R(z - 0.3 * s)], size: [R(0.38 * s), R(0.36), R(0.38 * s)],
+    material: 'stone', collider: false, color: leaf.color, emissive: leaf.emissive, emissiveIntensity: 0.12,
+  });
+  crystal(x - 0.2, baseY + 0.55 * s, z + 0.25, 0.1, leaf.emissive, 0.9, R(s * 3));
+};
+
+// centre island rim: a broken ring of trees + undergrowth (clear of bridges,
+// benches, and the diagonal sky steps)
+for (const deg of [33, 57, 123, 147, 213, 237, 303, 327]) {
+  const a = (deg * Math.PI) / 180;
+  const x = Math.cos(a) * 13.6, z = Math.sin(a) * 13.6;
+  tree(x, 0, z, deg % 3);
+  bush(x + Math.cos(a + 1.9) * 1.7, 0, z + Math.sin(a + 1.9) * 1.7, (deg + 1) % 3);
+}
+// gardens island grove (amber)
+for (const [x, z] of [[-7.5, 44.5], [7.5, 44.5], [-7.5, 55.5], [7.5, 55.5]]) {
+  tree(x, 2.05, z, 2);
+  bush(x + 1.9, 2.05, z + 0.7, 2);
+}
+// atrium + observatory get a violet pair each; vaults stays barren ice
+tree(-8, 4.0, -45, 1); tree(8, 4.0, -45, 1);
+tree(-45, 6.05, -7, 1); tree(-45, 6.05, 7, 1);
+// outer leisure islands: one tree + undergrowth on the inward side
+DIAG.forEach(([dx, dz], i) => {
+  const top = i % 2 === 0 ? 1.6 : 2.4;
+  const tx = dx * 30 - dx * 3.1, tz = dz * 30 - dz * 3.1;
+  tree(tx, top, tz, i % 3);
+  bush(tx + dz * 1.8, top, tz - dx * 1.8, (i + 1) % 3);
+  bush(tx - dz * 1.6, top, tz + dx * 1.6, (i + 2) % 3);
+});
+// mid-tier platforms: a bush beside each crystal
+for (const [dx, dz] of DIAG) bush(dx * 8.6 - dz * 1.9, 3.6, dz * 8.6 + dx * 1.9, 0);
+
+// slow-spinning decor: nest + plaza crystals get a spin rate
+for (const g of out) {
+  if (g.material === 'crystal' && g.collider === false && g.size[0] >= 0.3 && g.size[0] <= 0.6) g.spin = 0.5;
+}
+
 level.geometry.push(...out);
+
+// ---- portal to The Proving Ground on the NE leisure island ----
+level.portals = (level.portals ?? []).filter((p) => p.id !== 'to-proving-01');
+level.portals.push({
+  id: 'to-proving-01',
+  pos: [23.3, 2.9, 23.3],
+  linkedTo: 'proving-01',
+  label: 'The Proving Ground',
+  color: '#a8f0c6',
+});
+
 fs.writeFileSync(FILE, JSON.stringify(level, null, 2) + '\n');
 console.log(`appended ${out.length} geometry entries; total ${level.geometry.length}`);

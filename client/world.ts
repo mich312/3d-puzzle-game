@@ -76,6 +76,8 @@ export class World {
   private bodyColliders = new Map<string, AABB>();
   private staticMeshes: THREE.Mesh[] = [];
   private checkpointRings: THREE.Mesh[] = [];
+  private spinners: { mesh: THREE.Mesh; rate: number }[] = [];
+  private trophyGroup?: THREE.Group;
   private cullAcc = 0;
   private time = 0;
 
@@ -129,6 +131,7 @@ export class World {
       mesh.castShadow = g.size[1] > 0.2;
       mesh.receiveShadow = true;
       this.group.add(mesh);
+      if (g.spin && g.collider === false) this.spinners.push({ mesh, rate: g.spin });
       if (g.door) this.doors.push({ mesh, baseY: g.pos[1], height: g.size[1], t: 0, open: false });
       else if (g.activeWhen) this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1 });
       else this.staticMeshes.push(mesh);
@@ -245,17 +248,70 @@ export class World {
         break;
       }
       case 'hazard': {
+        const conveyor = it.kind === 'conveyor';
         const mat = new THREE.MeshStandardMaterial({
-          color: it.kind === 'void' ? '#2a1020' : '#cfe8ff',
-          emissive: it.kind === 'void' ? PALETTE.hostile : '#9fdcff',
+          color: it.kind === 'void' ? '#2a1020' : conveyor ? '#8fb4ff' : '#cfe8ff',
+          emissive: it.kind === 'void' ? PALETTE.hostile : conveyor ? '#7ea8ff' : '#9fdcff',
           emissiveIntensity: it.kind === 'void' ? 0.5 : 0.35,
-          transparent: true, opacity: it.kind === 'void' ? 0.55 : 0.35,
+          transparent: true, opacity: it.kind === 'void' ? 0.55 : conveyor ? 0.25 : 0.35,
           depthWrite: false,
         });
         this.hazardMats.set(it.id, mat);
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(...it.size), mat);
         mesh.name = 'field';
         g.add(mesh);
+        // conveyors show chevrons drifting along the flow
+        if (conveyor && it.dir) {
+          const d = new THREE.Vector3(it.dir[0], 0, it.dir[2]).normalize();
+          for (let i = 0; i < 4; i++) {
+            const chev = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 4),
+              new THREE.MeshStandardMaterial({ color: '#dce8ff', emissive: '#9fc2ff', emissiveIntensity: 1.2 }));
+            chev.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+            chev.name = `chev${i}`;
+            g.add(chev);
+          }
+        }
+        break;
+      }
+      case 'scale': {
+        // balance beam: fulcrum post, tilting beam, a pan hanging off each end
+        const span = it.span ?? 3.0;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.2, 10), getMaterial('metal', '#cfcce0'));
+        post.position.y = 0.6;
+        const arm = new THREE.Group(); arm.name = 'arm'; arm.position.y = 1.25;
+        if (it.rotY) arm.rotation.y = it.rotY;
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(span + 0.6, 0.12, 0.24), getMaterial('metal', '#cfcce0'));
+        const pivot = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), accent);
+        arm.add(beam, pivot);
+        for (const side of [-1, 1] as const) {
+          const pan = new THREE.Group(); pan.name = side < 0 ? 'panL' : 'panR';
+          pan.position.x = side * span / 2;
+          const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 6), getMaterial('metal'));
+          chain.position.y = -0.5;
+          const dish = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.0, 0.14, 18), accent);
+          dish.position.y = -1.05;
+          pan.add(chain, dish);
+          arm.add(pan);
+        }
+        g.add(post, arm);
+        break;
+      }
+      case 'resonator': {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 1.7, 8), getMaterial('stone'));
+        pillar.position.y = 0.85; pillar.castShadow = true;
+        // the chime crystal: dark until sounded, numbered by stacked notches
+        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.3),
+          new THREE.MeshStandardMaterial({ color: '#6a648a', emissive: '#2a2740', emissiveIntensity: 1 }));
+        gem.position.y = 2.0; gem.name = 'gem';
+        for (let i = 0; i <= it.order; i++) {
+          const notch = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.1), accent);
+          notch.position.set(0, 0.35 + i * 0.18, -0.34);
+          g.add(notch);
+        }
+        g.add(pillar, gem);
+        const lh = this.lights.register(PALETTE.interactable, { intensity: 0, range: 6, priority: 1 });
+        lh.pos.set(it.pos[0], it.pos[1] + 2.0, it.pos[2]);
+        this.interLights.set(it.id, lh);
         break;
       }
     }
@@ -371,6 +427,35 @@ export class World {
   /** colliders for LOCAL player movement: level geometry + solid loose crates */
   playerColliders(): AABB[] {
     return [...this.colliders, ...this.bodyColliders.values()];
+  }
+
+  /** conveyor flow at a position (players own their movement, so the push is client-side) */
+  conveyorPush(pos: THREE.Vector3): Vec3 | null {
+    for (const it of this.level.interactables ?? []) {
+      if (it.type !== 'hazard' || it.kind !== 'conveyor' || !it.dir) continue;
+      if (this.states.get(it.id)?.frozen) continue;
+      if (Math.abs(pos.x - it.pos[0]) < it.size[0] / 2 &&
+          pos.y + 0.9 > it.pos[1] - it.size[1] / 2 && pos.y < it.pos[1] + it.size[1] / 2 &&
+          Math.abs(pos.z - it.pos[2]) < it.size[2] / 2) return it.dir;
+    }
+    return null;
+  }
+
+  /** shard trophies ringing the Nexus pedestal — one gold crystal per shard earned */
+  setTrophies(count: number) {
+    if (this.level.world !== 'nexus') return;
+    if (this.trophyGroup) this.group.remove(this.trophyGroup);
+    this.trophyGroup = new THREE.Group();
+    const n = Math.min(count, 12);
+    for (let i = 0; i < n; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+        new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffd98a', emissiveIntensity: 1.6 }));
+      gem.position.set(Math.cos(a) * 2.55, 1.32, Math.sin(a) * 2.55);
+      gem.rotation.y = a;
+      this.trophyGroup.add(gem);
+    }
+    this.group.add(this.trophyGroup);
   }
 
   /** feed a carryable body snapshot into its interpolation buffer (smoothed per frame) */
@@ -547,7 +632,7 @@ export class World {
           const orb = vis.getObjectByName('orb') as THREE.Mesh | undefined;
           if (orb) {
             const m = orb.material as THREE.MeshStandardMaterial;
-            m.emissive.set(st.lit ? PALETTE.portalA : '#222436');
+            m.emissive.set(st.lit ? (it.accepts ?? PALETTE.portalA) : '#222436');
             m.emissiveIntensity = st.lit ? 2.4 : 1;
           }
           const rlh = this.interLights.get(it.id);
@@ -559,12 +644,54 @@ export class World {
           if (mat) {
             if (st.frozen) { mat.emissive.set('#bfe8ff'); mat.opacity = 0.85; mat.emissiveIntensity = 0.5; }
             else if (it.kind === 'void') { mat.emissive.set(PALETTE.hostile); mat.opacity = 0.5 + Math.sin(this.time * 3) * 0.08; }
+            else if (it.kind === 'conveyor') { mat.emissive.set('#7ea8ff'); mat.opacity = 0.22 + Math.sin(this.time * 4) * 0.05; }
             else { mat.emissive.set('#9fdcff'); mat.opacity = 0.3 + Math.sin(this.time * 5 + it.pos[0]) * 0.08; mat.emissiveIntensity = 0.35; }
           }
+          // conveyor chevrons drift with the flow (freeze pins them mid-run)
+          if (it.kind === 'conveyor' && it.dir) {
+            const d = new THREE.Vector3(it.dir[0], 0, it.dir[2]);
+            const speed = d.length() || 1;
+            const along = Math.max(Math.abs(it.dir[0]) > Math.abs(it.dir[2]) ? it.size[0] : it.size[2], 1);
+            const dn = d.clone().normalize();
+            for (let i = 0; i < 4; i++) {
+              const chev = vis.getObjectByName(`chev${i}`);
+              if (!chev) break;
+              const phase = st.frozen ? (i / 4) * along : ((this.time * speed + (i / 4) * along) % along);
+              chev.position.copy(dn.clone().multiplyScalar(phase - along / 2));
+              chev.position.y = -it.size[1] / 2 + 0.3;
+            }
+          }
+          break;
+        }
+        case 'scale': {
+          const arm = vis.getObjectByName('arm');
+          if (arm) {
+            const target = ((st.tilt as number) ?? 0) * 0.16;
+            arm.rotation.z = THREE.MathUtils.lerp(arm.rotation.z, -target, dt * 4);
+            // pans stay level: counter-rotate against the beam
+            const panL = arm.getObjectByName('panL'), panR = arm.getObjectByName('panR');
+            if (panL && panR) { panL.rotation.z = -arm.rotation.z; panR.rotation.z = -arm.rotation.z; }
+          }
+          break;
+        }
+        case 'resonator': {
+          const gem = vis.getObjectByName('gem') as THREE.Mesh | undefined;
+          if (gem) {
+            const m = gem.material as THREE.MeshStandardMaterial;
+            m.emissive.set(st.lit ? PALETTE.interactable : '#2a2740');
+            m.emissiveIntensity = st.lit ? 2.2 : 1;
+            gem.rotation.y += dt * (st.lit ? 2.4 : 0.4);
+          }
+          const rlh = this.interLights.get(it.id);
+          if (rlh) rlh.intensity = st.lit ? 1.6 : 0;
           break;
         }
       }
     }
+    // decor spinners (windmill crystals etc.)
+    for (const s of this.spinners) s.mesh.rotation.y += dt * s.rate;
+    // trophy shards glint
+    if (this.trophyGroup) this.trophyGroup.children.forEach((c, i) => { c.rotation.y += dt * 0.8; c.position.y = 1.32 + Math.sin(this.time * 2 + i) * 0.05; });
     // checkpoint rings breathe gently
     for (let i = 0; i < this.checkpointRings.length; i++) {
       const r = this.checkpointRings[i];
@@ -597,11 +724,10 @@ export class World {
 
   private updateBeams() {
     this.beamGroup.clear();
-    const emitters = (this.level.interactables ?? []).filter((i) => i.type === 'emitter');
+    const emitters = (this.level.interactables ?? []).filter((i): i is Extract<InteractableDef, { type: 'emitter' }> => i.type === 'emitter');
     if (!emitters.length) return;
-    const receivers = (this.level.interactables ?? []).filter((i) => i.type === 'receiver');
-    const mat = new THREE.MeshBasicMaterial({ color: PALETTE.portalA, transparent: true, opacity: 0.7 });
-    const addSegment = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const receivers = (this.level.interactables ?? []).filter((i): i is Extract<InteractableDef, { type: 'receiver' }> => i.type === 'receiver');
+    const addSegment = (a: THREE.Vector3, b: THREE.Vector3, mat: THREE.Material) => {
       const len = a.distanceTo(b);
       if (len < 0.05) return;
       const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, len, 6), mat);
@@ -610,20 +736,32 @@ export class World {
       this.beamGroup.add(cyl);
     };
     for (const em of emitters) {
-      if (em.type !== 'emitter') continue;
+      const color = em.color ?? PALETTE.portalA;
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+      const matches = (r: { accepts?: string }) => !r.accepts || !em.color || em.color === r.accepts;
       const o = new THREE.Vector3(...em.pos);
       const d = new THREE.Vector3(...em.dir).normalize();
       const hit = raycast(this.colliders, em.pos, [d.x, d.y, d.z], 80);
       const end = o.clone().add(d.clone().multiplyScalar(hit?.dist ?? 80));
-      addSegment(o, end);
+      addSegment(o, end, mat);
+      // relay points: filled prism sockets + prisms carried into the beam
+      const relays: THREE.Vector3[] = [];
       for (const s of this.level.interactables ?? []) {
-        if (s.type !== 'socket') continue;
-        const st = this.states.get(s.id);
-        if (!st?.filled) continue;
-        const sp = new THREE.Vector3(...s.pos);
-        const t = sp.clone().sub(o).dot(d);
-        if (t > 0 && t < (hit?.dist ?? 80) + 0.6 && sp.distanceTo(o.clone().add(d.clone().multiplyScalar(t))) < 0.9) {
-          for (const r of receivers) addSegment(sp, new THREE.Vector3(...(r as { pos: Vec3 }).pos));
+        if (s.type === 'socket') {
+          if (!this.states.get(s.id)?.filled) continue;
+          relays.push(new THREE.Vector3(...s.pos));
+        } else if (s.type === 'carryable' && s.kind === 'prism') {
+          if (!this.bodyHeld.get(s.id)) continue;
+          const vis = this.interVis.get(s.id);
+          if (vis) relays.push(vis.position.clone());
+        }
+      }
+      for (const rp of relays) {
+        const t = rp.clone().sub(o).dot(d);
+        if (t > 0 && t < (hit?.dist ?? 80) + 0.6 && rp.distanceTo(o.clone().add(d.clone().multiplyScalar(t))) < 1.0) {
+          for (const r of receivers) {
+            if (matches(r)) addSegment(rp, new THREE.Vector3(...r.pos), mat);
+          }
         }
       }
     }

@@ -26,19 +26,32 @@ export interface GeometryDef {
   door?: { id: string; openWhen: string };
   /** legal surface for placeable portals */
   portalSurface?: boolean;
+  /** visual spin (rad/s) — decor only; ignored unless collider is false */
+  spin?: number;
 }
 
 export type InteractableDef =
   | { type: 'plate'; id: string; pos: Vec3; size?: Vec3; reads?: 'any' | 'mass'; threshold?: number }
   | { type: 'lever'; id: string; pos: Vec3; states?: number }
   | { type: 'rotator'; id: string; pos: Vec3; states: number }
-  | { type: 'switch'; id: string; pos: Vec3; latched?: boolean }   // pulse-activated
+  /** pulse-activated; latched=false auto-releases after holdMs (default 3000) */
+  | { type: 'switch'; id: string; pos: Vec3; latched?: boolean; holdMs?: number }
+  /** kind 'prism' relays beams while carried (a player becomes a living mirror mount) */
   | { type: 'carryable'; id: string; pos: Vec3; mass?: 'light' | 'heavy'; kind?: string }
   | { type: 'collectible'; id: string; pos: Vec3; grants: string; hidden?: boolean }
   | { type: 'socket'; id: string; pos: Vec3; accepts: string }
-  | { type: 'emitter'; id: string; pos: Vec3; dir: Vec3 }          // light beam source
-  | { type: 'receiver'; id: string; pos: Vec3 }                    // condition: <id>.lit
-  | { type: 'hazard'; id: string; pos: Vec3; size: Vec3; kind: 'steam' | 'void' | 'spark'; freezable?: boolean; dps?: number };
+  /** light beam source; color-tinted beams only light matching receivers */
+  | { type: 'emitter'; id: string; pos: Vec3; dir: Vec3; color?: string }
+  /** condition: <id>.lit — accepts limits to a matching emitter color */
+  | { type: 'receiver'; id: string; pos: Vec3; accepts?: string }
+  /** kind 'conveyor' pushes players/crates along dir (m/s); freezable, no damage */
+  | { type: 'hazard'; id: string; pos: Vec3; size: Vec3; kind: 'steam' | 'void' | 'spark' | 'conveyor'; dir?: Vec3; freezable?: boolean; dps?: number }
+  /** balance beam: two pans span metres apart on X (rotY quarter-turns swap to Z).
+      Conditions: <id>.left / <id>.right (mass), <id>.balanced, <id>.tilt (-1|0|1) */
+  | { type: 'scale'; id: string; pos: Vec3; span?: number; rotY?: number }
+  /** pulse the pillars of a group in `order`; wrong order resets the group.
+      Condition: <id>.lit (chain the last one, or all, in puzzle expressions) */
+  | { type: 'resonator'; id: string; pos: Vec3; group: string; order: number };
 
 export interface EnemySpawnDef {
   type: EnemyType;
@@ -46,6 +59,8 @@ export interface EnemySpawnDef {
   spawn: Vec3;
   patrol?: Vec3[];
   weakTo?: string[];          // documentation for the HUD / editor
+  /** wardens: partner enemy id sharing one shield — both must be staggered at once */
+  linkedTo?: string;
 }
 
 export interface PortalDef {

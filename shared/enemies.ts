@@ -1,5 +1,5 @@
 // PvE bestiary (spec §15) — small, archetype-driven, each tied to a device.
-export type EnemyType = 'drifter' | 'warden' | 'sower' | 'colossus';
+export type EnemyType = 'drifter' | 'warden' | 'sower' | 'colossus' | 'mimic';
 
 export interface EnemyDef {
   type: EnemyType;
@@ -41,6 +41,12 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
     type: 'colossus', name: 'Colossus', hp: 300, speed: 1.0, aggroRange: 22, attackRange: 3.5,
     telegraphMs: 1500, attackDamage: 40, attackCooldownMs: 3600, radius: 1.4, height: 3.4,
     twoRole: true, freezable: false,
+  },
+  // disguised as a carryable crate; wakes when a player comes close (or shoots it)
+  mimic: {
+    type: 'mimic', name: 'Mimic', hp: 40, speed: 3.4, aggroRange: 2.8, attackRange: 1.8,
+    telegraphMs: 600, attackDamage: 12, attackCooldownMs: 1600, radius: 0.55, height: 1.1,
+    freezable: true,
   },
 };
 

@@ -13,6 +13,8 @@ import { validateLevel, type LevelDef } from '../shared/level';
 import { exprIdents } from '../shared/expr';
 
 const TUTORIAL = 'atrium-01';
+// explicit solo exceptions: the tutorial, plus the Proving Ground mechanics gym
+const SOLO_LEVELS = new Set([TUTORIAL, 'proving-01']);
 const root = join(import.meta.dirname, '..', 'content', 'worlds');
 const levels = new Map<string, LevelDef>();
 let failed = false;
@@ -46,9 +48,10 @@ function familyOf(lv: LevelDef, rootId: string): Family {
     switch (it.type) {
       case 'plate': case 'carryable': return 'mass';
       case 'emitter': case 'receiver': case 'socket': case 'collectible': return 'beam-item';
-      case 'rotator': case 'lever': return 'mechanism';
+      case 'rotator': case 'lever': case 'resonator': return 'mechanism';
       case 'switch': return 'switch';
       case 'hazard': return 'freeze';
+      case 'scale': return 'mass';
     }
   }
   return 'unknown';
@@ -81,7 +84,7 @@ function shardGate(levelId: string): number {
 for (const lv of levels.values()) {
   const errs: string[] = [];
   if (lv.world === 'nexus') continue;
-  const isTutorial = lv.id === TUTORIAL;
+  const isTutorial = SOLO_LEVELS.has(lv.id);
 
   // 1.1 co-op gating
   if (!isTutorial) {

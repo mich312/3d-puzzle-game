@@ -29,6 +29,8 @@ export interface EnemyState {
   addCount: number;
   isAdd?: boolean;
   fellOut?: boolean;
+  linkedTo?: string;        // warden pairs: partner sharing one shield
+  woken?: boolean;          // mimic: sprung its ambush (full aggro from then on)
 }
 
 export interface CombatCtx {
@@ -41,6 +43,7 @@ export interface CombatCtx {
   event(id: string, ev: 'telegraph' | 'attack' | 'hit' | 'frozen' | 'shatter' | 'stagger' | 'down' | 'spawn', data?: Record<string, unknown>): void;
   addEnemy(e: EnemyState): void;
   isTractored(enemyId: string): boolean;
+  getEnemy(id: string): EnemyState | undefined;
 }
 
 export function makeEnemy(def: EnemySpawnDef): EnemyState {
@@ -52,6 +55,7 @@ export function makeEnemy(def: EnemySpawnDef): EnemyState {
     home: [...def.spawn] as Vec3, patrol: def.patrol, patrolIdx: 0,
     frozenUntil: 0, staggeredUntil: 0, telegraphUntil: 0,
     nextAttackAt: 0, cooldownUntil: 0, nextSpawnAt: 0, addCount: 0,
+    linkedTo: def.linkedTo,
   };
 }
 
@@ -68,10 +72,15 @@ export function damageEnemy(e: EnemyState, dmg: number, kind: string, ctx: Comba
     ctx.event(e.id, 'down', { via: 'shatter' });
     return 9999;
   }
-  // Warden shield: immune until pulse-staggered; the staggering hit itself deals no damage
+  // Mimic: any hit springs the ambush
+  if (e.type === 'mimic') e.woken = true;
+  // Warden shield: immune until pulse-staggered; the staggering hit itself deals no
+  // damage. Linked pairs share one shield — BOTH must be staggered at the same time.
   if (e.def.shielded) {
-    const vulnerable = now < e.staggeredUntil;
-    if (kind === 'pulse' && !vulnerable) {
+    const partner = e.linkedTo ? ctx.getEnemy(e.linkedTo) : undefined;
+    const partnerOpen = !partner || partner.state === 'down' || now < partner.staggeredUntil;
+    const vulnerable = now < e.staggeredUntil && partnerOpen;
+    if (kind === 'pulse' && now >= e.staggeredUntil) {
       e.staggeredUntil = now + (e.def.staggerWindowMs ?? 3000);
       if (e.state !== 'frozen') e.state = 'staggered';
       ctx.event(e.id, 'stagger');
@@ -148,7 +157,9 @@ export function stepEnemy(e: EnemyState, ctx: CombatCtx): void {
     if (dist < bestD) { bestD = dist; target = p; }
   }
   const engaged = e.targetId !== undefined;
-  const range = engaged ? d.aggroRange * 1.6 : d.aggroRange;
+  // a woken mimic hunts at full range; a dormant one only feels footsteps beside it
+  const baseRange = e.type === 'mimic' && e.woken ? 16 : d.aggroRange;
+  const range = engaged ? baseRange * 1.6 : baseRange;
   if (!target || bestD > range) {
     e.targetId = undefined;
     // patrol / idle drift
@@ -159,6 +170,11 @@ export function stepEnemy(e: EnemyState, ctx: CombatCtx): void {
       e.state = 'idle';
     }
     return;
+  }
+  // mimic springing: fire the reveal event once
+  if (e.type === 'mimic' && !e.woken) {
+    e.woken = true;
+    ctx.event(e.id, 'spawn', { ambush: true });
   }
   e.targetId = target.id;
 
