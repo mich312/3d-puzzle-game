@@ -28,9 +28,9 @@ export type ClientMsg =
   | { t: 'reset_level'; v: 1 }
   | { t: 'chat'; v: 1; text: string }                 // instance-scoped chat (rate-limited, sanitized)
   | { t: 'ping'; v: 1; pos: Vec3 }                    // "look here" world marker
-  | { t: 'echo'; v: 1; place: boolean }               // Echo Core skill: leave/recall a stationary echo
+  | { t: 'echo'; v: 1; place: boolean; path?: Vec3[] } // Echo Core: place a stationary echo, or replay a recorded path (10 Hz samples, <=84)
   | { t: 'set_opts'; v: 1; difficulty?: 'story' | 'normal' }
-  | { t: 'set_name'; v: 1; name: string }
+  | { t: 'set_name'; v: 1; name: string; accent?: string }   // accent must be one of PLAYER_ACCENTS
   | { t: 'telemetry'; v: 1; name: string; payload?: Record<string, unknown> };
 
 // ---- server → client ----
@@ -84,7 +84,7 @@ export type ServerMsg =
   | { t: 'inventory'; v: 1; inventory: string[] }
   | { t: 'devices'; v: 1; devices: DeviceId[]; note?: string }
   | { t: 'skills'; v: 1; skills: SkillId[]; skillPoints: number }
-  | { t: 'solved'; v: 1; levelId: string; via: 'coop' | 'solo'; timeMs: number; shard: string; skillPoints: number }
+  | { t: 'solved'; v: 1; levelId: string; via: 'coop' | 'solo'; timeMs: number; shard: string; skillPoints: number; style?: string[] }
   | { t: 'shards'; v: 1; shards: string[]; unlockedWorlds: string[] }
   | { t: 'beacons'; v: 1; beacons: InstanceSnapshot['beacons'] }
   | { t: 'reset_done'; v: 1 }

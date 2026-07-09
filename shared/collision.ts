@@ -11,6 +11,10 @@ export interface AABB {
   activeWhen?: string;
   portalSurface?: boolean;
   active: boolean;           // toggled by door/activeWhen evaluation
+  /** circular XZ footprint (cylinders) — min/max stay the broad-phase box,
+      but overlap/ground/slide tests respect the round rim so collision
+      matches the visual instead of the circumscribing square */
+  round?: { x: number; z: number; r: number };
 }
 
 export function aabbFromGeometry(g: GeometryDef, index: number): AABB | null {
@@ -29,7 +33,29 @@ export function aabbFromGeometry(g: GeometryDef, index: number): AABB | null {
     activeWhen: g.activeWhen,
     portalSurface: g.portalSurface,
     active: true,
+    round: g.shape === 'cylinder' ? { x, z, r: g.size[0] } : undefined,
   };
+}
+
+/** Narrow-phase for round colliders: does the XZ rect actually touch the circle?
+    (Callers first pass the cheap AABB test; boxes trivially return true.) */
+export function footprintHits(b: AABB, minX: number, maxX: number, minZ: number, maxZ: number): boolean {
+  if (!b.round) return true;
+  const { x, z, r } = b.round;
+  const dx = Math.max(minX - x, 0, x - maxX);
+  const dz = Math.max(minZ - z, 0, z - maxZ);
+  return dx * dx + dz * dz < r * r;
+}
+
+/** Half-width of a round collider along `axis` (0=x, 2=z) at the mover's
+    cross-axis interval — the chord the mover can actually hit. null = clear. */
+export function roundHalfExtent(b: AABB, axis: 0 | 2, crossMin: number, crossMax: number): number | null {
+  if (!b.round) return null;
+  const { x, z, r } = b.round;
+  const c = axis === 0 ? z : x;
+  const d = Math.max(crossMin - c, 0, c - crossMax);
+  if (d >= r) return null;
+  return Math.sqrt(r * r - d * d);
 }
 
 export function buildColliders(level: LevelDef): AABB[] {
@@ -96,6 +122,7 @@ export function groundHeight(colliders: AABB[], x: number, y: number, z: number)
   for (const b of colliders) {
     if (!b.active) continue;
     if (x < b.min[0] - 0.05 || x > b.max[0] + 0.05 || z < b.min[2] - 0.05 || z > b.max[2] + 0.05) continue;
+    if (b.round && Math.hypot(x - b.round.x, z - b.round.z) > b.round.r + 0.05) continue;
     const top = b.max[1];
     if (top <= y + 0.6 && (best === null || top > best)) best = top;
   }

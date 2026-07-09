@@ -6,6 +6,7 @@ import type { InteractableDef, LevelDef, Vec3 } from '../shared/level';
 import { evalExpr } from '../shared/expr';
 import { buildColliders, raycast, type AABB } from '../shared/collision';
 import { getMaterial, applyWorldUV } from './render/materials';
+import { makePortalVortex, type PortalVortex } from './render/portalMaterial';
 import { PALETTE } from '../shared/palette';
 import { Interpolator } from './interp';
 import type { DynamicLights, LightHandle } from './render/lights';
@@ -56,7 +57,11 @@ export class World {
   private doors: DoorVis[] = [];
   private actives: ActiveVis[] = [];
   private interVis = new Map<string, THREE.Object3D>();
-  private portalVis = new Map<string, { group: THREE.Group; ring: THREE.Mesh; disc: THREE.Mesh; lh: LightHandle; def: NonNullable<LevelDef['portals']>[number] }>();
+  private portalVis = new Map<string, {
+    group: THREE.Group; gate: THREE.Group; ring: THREE.Mesh; ringInner: THREE.Mesh;
+    orbit: THREE.Group; vortex: PortalVortex; lh: LightHandle;
+    def: NonNullable<LevelDef['portals']>[number];
+  }>();
   private interLights = new Map<string, LightHandle>();
   private beamGroup = new THREE.Group();
   private hazardMats = new Map<string, THREE.MeshStandardMaterial>();
@@ -65,7 +70,14 @@ export class World {
   private placedLights = new Map<string, LightHandle>();
   private bodyInterp = new Map<string, Interpolator>();
   private bodyHeld = new Map<string, boolean>();
+  /** carryable crates as solid colliders for the LOCAL player (their true box
+      shape — stand on them, push against them). Kept in sync every frame;
+      inactive while held so a carried crate can't shove its carrier. */
+  private bodyColliders = new Map<string, AABB>();
   private staticMeshes: THREE.Mesh[] = [];
+  private checkpointRings: THREE.Mesh[] = [];
+  private spinners: { mesh: THREE.Mesh; rate: number }[] = [];
+  private trophyGroup?: THREE.Group;
   private cullAcc = 0;
   private time = 0;
 
@@ -119,6 +131,7 @@ export class World {
       mesh.castShadow = g.size[1] > 0.2;
       mesh.receiveShadow = true;
       this.group.add(mesh);
+      if (g.spin && g.collider === false) this.spinners.push({ mesh, rate: g.spin });
       if (g.door) this.doors.push({ mesh, baseY: g.pos[1], height: g.size[1], t: 0, open: false });
       else if (g.activeWhen) this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1 });
       else this.staticMeshes.push(mesh);
@@ -130,6 +143,7 @@ export class World {
         new THREE.MeshStandardMaterial({ color: PALETTE.success, emissive: PALETTE.success, emissiveIntensity: 0.4, transparent: true, opacity: 0.5 }));
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(cp[0], cp[1] - 0.85, cp[2]);
+      this.checkpointRings.push(ring);
       this.group.add(ring);
     }
   }
@@ -170,11 +184,30 @@ export class World {
         break;
       }
       case 'carryable': {
-        const mesh = it.mass === 'heavy'
-          ? new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1), getMaterial('stone', '#b8b2c8', PALETTE.interactable, 0.12))
-          : new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), getMaterial('crystal', undefined, PALETTE.interactable, 0.35));
+        const heavy = it.mass === 'heavy';
+        const s = heavy ? 1.1 : 0.6;
+        const mesh = heavy
+          ? new THREE.Mesh(new THREE.BoxGeometry(s, s, s), getMaterial('stone', '#b8b2c8', PALETTE.interactable, 0.12))
+          : new THREE.Mesh(new THREE.BoxGeometry(s, s, s), getMaterial('crystal', undefined, PALETTE.interactable, 0.35));
         mesh.castShadow = true; mesh.name = 'body';
+        // rune-etched edge frame + a slow-pulsing core so crates read as artefacts
+        const edges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(s * 1.02, s * 1.02, s * 1.02)),
+          new THREE.LineBasicMaterial({ color: PALETTE.interactable, transparent: true, opacity: heavy ? 0.9 : 0.75 }));
+        edges.name = 'edges';
+        mesh.add(edges);
+        const core = new THREE.Mesh(new THREE.OctahedronGeometry(s * 0.22),
+          new THREE.MeshStandardMaterial({ color: PALETTE.interactable, emissive: PALETTE.interactable, emissiveIntensity: 1.6 }));
+        core.name = 'core';
+        mesh.add(core);
         g.add(mesh);
+        // solid to the local player: matches the server body half-extents
+        const half = heavy ? 0.55 : 0.3;
+        this.bodyColliders.set(it.id, {
+          min: [it.pos[0] - half, it.pos[1] - half, it.pos[2] - half],
+          max: [it.pos[0] + half, it.pos[1] + half, it.pos[2] + half],
+          geoIndex: -1, active: true,
+        });
         break;
       }
       case 'collectible': {
@@ -215,17 +248,70 @@ export class World {
         break;
       }
       case 'hazard': {
+        const conveyor = it.kind === 'conveyor';
         const mat = new THREE.MeshStandardMaterial({
-          color: it.kind === 'void' ? '#2a1020' : '#cfe8ff',
-          emissive: it.kind === 'void' ? PALETTE.hostile : '#9fdcff',
+          color: it.kind === 'void' ? '#2a1020' : conveyor ? '#8fb4ff' : '#cfe8ff',
+          emissive: it.kind === 'void' ? PALETTE.hostile : conveyor ? '#7ea8ff' : '#9fdcff',
           emissiveIntensity: it.kind === 'void' ? 0.5 : 0.35,
-          transparent: true, opacity: it.kind === 'void' ? 0.55 : 0.35,
+          transparent: true, opacity: it.kind === 'void' ? 0.55 : conveyor ? 0.25 : 0.35,
           depthWrite: false,
         });
         this.hazardMats.set(it.id, mat);
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(...it.size), mat);
         mesh.name = 'field';
         g.add(mesh);
+        // conveyors show chevrons drifting along the flow
+        if (conveyor && it.dir) {
+          const d = new THREE.Vector3(it.dir[0], 0, it.dir[2]).normalize();
+          for (let i = 0; i < 4; i++) {
+            const chev = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 4),
+              new THREE.MeshStandardMaterial({ color: '#dce8ff', emissive: '#9fc2ff', emissiveIntensity: 1.2 }));
+            chev.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+            chev.name = `chev${i}`;
+            g.add(chev);
+          }
+        }
+        break;
+      }
+      case 'scale': {
+        // balance beam: fulcrum post, tilting beam, a pan hanging off each end
+        const span = it.span ?? 3.0;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.2, 10), getMaterial('metal', '#cfcce0'));
+        post.position.y = 0.6;
+        const arm = new THREE.Group(); arm.name = 'arm'; arm.position.y = 1.25;
+        if (it.rotY) arm.rotation.y = it.rotY;
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(span + 0.6, 0.12, 0.24), getMaterial('metal', '#cfcce0'));
+        const pivot = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), accent);
+        arm.add(beam, pivot);
+        for (const side of [-1, 1] as const) {
+          const pan = new THREE.Group(); pan.name = side < 0 ? 'panL' : 'panR';
+          pan.position.x = side * span / 2;
+          const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 6), getMaterial('metal'));
+          chain.position.y = -0.5;
+          const dish = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.0, 0.14, 18), accent);
+          dish.position.y = -1.05;
+          pan.add(chain, dish);
+          arm.add(pan);
+        }
+        g.add(post, arm);
+        break;
+      }
+      case 'resonator': {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 1.7, 8), getMaterial('stone'));
+        pillar.position.y = 0.85; pillar.castShadow = true;
+        // the chime crystal: dark until sounded, numbered by stacked notches
+        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.3),
+          new THREE.MeshStandardMaterial({ color: '#6a648a', emissive: '#2a2740', emissiveIntensity: 1 }));
+        gem.position.y = 2.0; gem.name = 'gem';
+        for (let i = 0; i <= it.order; i++) {
+          const notch = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.1), accent);
+          notch.position.set(0, 0.35 + i * 0.18, -0.34);
+          g.add(notch);
+        }
+        g.add(pillar, gem);
+        const lh = this.lights.register(PALETTE.interactable, { intensity: 0, range: 6, priority: 1 });
+        lh.pos.set(it.pos[0], it.pos[1] + 2.0, it.pos[2]);
+        this.interLights.set(it.id, lh);
         break;
       }
     }
@@ -237,11 +323,40 @@ export class World {
     const color = def.color ?? PALETTE.portalA;
     const g = new THREE.Group();
     g.position.set(...def.pos);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.1, 12, 40),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6 }));
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.0, 32),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
-    g.add(ring, disc);
+    // face the approach: explicit rotY wins, else look toward the entry spawn
+    const entry = this.level.spawns['entry'];
+    const dx = entry[0] - def.pos[0], dz = entry[2] - def.pos[2];
+    g.rotation.y = def.rotY ?? (Math.hypot(dx, dz) > 0.5 ? Math.atan2(dx, dz) : 0);
+
+    // the gate: swirling vortex framed by counter-rotating rings + orbiting shards
+    const gate = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.085, 12, 48),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.8, metalness: 0.4, roughness: 0.3 }));
+    const ringInner = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.032, 8, 40),
+      new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: 2.6 }));
+    const vortex = makePortalVortex(color);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.04, 40), vortex.material);
+    const orbit = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.09),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.2 }));
+      const a = (i / 6) * Math.PI * 2;
+      shard.position.set(Math.cos(a) * 1.34, Math.sin(a) * 1.34, 0);
+      shard.rotation.set(a, a * 1.7, 0);
+      orbit.add(shard);
+    }
+    gate.add(ring, ringInner, disc, orbit);
+    g.add(gate);
+
+    // anchor pad on the ground below the gate (gates float ~1.3m over the floor)
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.62, 0.07, 28),
+      getMaterial('metal', '#4d4870', color, 0.18));
+    pad.position.y = -1.28;
+    const padRing = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.045, 8, 40),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.3 }));
+    padRing.rotation.x = -Math.PI / 2; padRing.position.y = -1.22; padRing.name = 'padRing';
+    g.add(pad, padRing);
+
     // volumetric-ish light cone rising from the portal (fake god-ray)
     const cone = new THREE.Mesh(new THREE.ConeGeometry(1.05, 3.2, 20, 1, true),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -249,13 +364,13 @@ export class World {
     g.add(cone);
     if (def.label) {
       const label = textSprite(def.label, '#ffffff', 0.55);
-      label.position.y = 1.9;
+      label.position.y = 2.05;
       g.add(label);
     }
     this.group.add(g);
     const lh = this.lights.register(color, { intensity: 2.2, range: 11, priority: 3 });
     lh.pos.set(def.pos[0], def.pos[1] + 0.4, def.pos[2]);
-    this.portalVis.set(def.id, { group: g, ring, disc, lh, def });
+    this.portalVis.set(def.id, { group: g, gate, ring, ringInner, orbit, vortex, lh, def });
   }
 
   // ---------- state sync ----------
@@ -284,13 +399,15 @@ export class World {
 
   /** portal lock display: shards owned + solved state */
   updatePortalLocks(shardCount: number) {
-    for (const { ring, disc, lh, def, group } of this.portalVis.values()) {
+    for (const { ring, ringInner, orbit, lh, def, group } of this.portalVis.values()) {
       const locked = (def.requiresShards ?? 0) > shardCount || (def.requiresSolved === true && !this.solved);
-      const mat = ring.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = locked ? 0.15 : 1.6;
-      (disc.material as THREE.MeshBasicMaterial).opacity = locked ? 0.06 : 0.35;
+      (ring.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.15 : 1.8;
+      (ringInner.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.1 : 2.6;
+      orbit.visible = !locked;
       const cone = group.getObjectByName('cone') as THREE.Mesh | undefined;
       if (cone) (cone.material as THREE.MeshBasicMaterial).opacity = locked ? 0.01 : 0.07;
+      const padRing = group.getObjectByName('padRing') as THREE.Mesh | undefined;
+      if (padRing) (padRing.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.2 : 1.3;
       lh.intensity = locked ? 0.25 : 2.2;
       group.userData.locked = locked;
     }
@@ -306,6 +423,40 @@ export class World {
 
   interactableAt(id: string): THREE.Object3D | undefined { return this.interVis.get(id); }
   interactableDefs(): InteractableDef[] { return this.level.interactables ?? []; }
+
+  /** colliders for LOCAL player movement: level geometry + solid loose crates */
+  playerColliders(): AABB[] {
+    return [...this.colliders, ...this.bodyColliders.values()];
+  }
+
+  /** conveyor flow at a position (players own their movement, so the push is client-side) */
+  conveyorPush(pos: THREE.Vector3): Vec3 | null {
+    for (const it of this.level.interactables ?? []) {
+      if (it.type !== 'hazard' || it.kind !== 'conveyor' || !it.dir) continue;
+      if (this.states.get(it.id)?.frozen) continue;
+      if (Math.abs(pos.x - it.pos[0]) < it.size[0] / 2 &&
+          pos.y + 0.9 > it.pos[1] - it.size[1] / 2 && pos.y < it.pos[1] + it.size[1] / 2 &&
+          Math.abs(pos.z - it.pos[2]) < it.size[2] / 2) return it.dir;
+    }
+    return null;
+  }
+
+  /** shard trophies ringing the Nexus pedestal — one gold crystal per shard earned */
+  setTrophies(count: number) {
+    if (this.level.world !== 'nexus') return;
+    if (this.trophyGroup) this.group.remove(this.trophyGroup);
+    this.trophyGroup = new THREE.Group();
+    const n = Math.min(count, 12);
+    for (let i = 0; i < n; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.16),
+        new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffd98a', emissiveIntensity: 1.6 }));
+      gem.position.set(Math.cos(a) * 2.55, 1.32, Math.sin(a) * 2.55);
+      gem.rotation.y = a;
+      this.trophyGroup.add(gem);
+    }
+    this.group.add(this.trophyGroup);
+  }
 
   /** feed a carryable body snapshot into its interpolation buffer (smoothed per frame) */
   setBodyPos(id: string, pos: Vec3, held: boolean) {
@@ -334,11 +485,15 @@ export class World {
       }
       const color = p.slot === 0 ? PALETTE.portalA : PALETTE.portalB;
       const g = new THREE.Group();
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.09, 10, 32),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2 }));
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.75, 28),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
-      g.add(ring, disc);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.075, 10, 36),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2, metalness: 0.4, roughness: 0.3 }));
+      const ringInner = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.026, 8, 32),
+        new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: 2.6 }));
+      const vortex = makePortalVortex(color, { intensity: 1.15 });
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.78, 32), vortex.material);
+      g.add(ring, ringInner, disc);
+      g.userData.vortex = vortex;
+      g.userData.spin = [ring, ringInner];
       const lh = this.lights.register(color, { intensity: 1.8, range: 8, priority: 2 });
       lh.pos.set(...p.pos);
       this.placedLights.set(key, lh);
@@ -381,6 +536,14 @@ export class World {
     for (const [id, interp] of this.bodyInterp) {
       const vis = this.interVis.get(id);
       if (!vis) continue;
+      const bc = this.bodyColliders.get(id);
+      if (bc) {
+        const held = !!this.bodyHeld.get(id);
+        const half = (bc.max[0] - bc.min[0]) / 2 || 0.3;
+        bc.active = !held;
+        bc.min = [vis.position.x - half, vis.position.y - half, vis.position.z - half];
+        bc.max = [vis.position.x + half, vis.position.y + half, vis.position.z + half];
+      }
       if (interp.sample(vis.position)) {
         const body = vis.getObjectByName('body');
         const speed = Math.hypot(interp.velocity.x, interp.velocity.z);
@@ -414,6 +577,15 @@ export class World {
       if (!vis) continue;
       const st = this.states.get(it.id) ?? {};
       switch (it.type) {
+        case 'carryable': {
+          const core = vis.getObjectByName('core') as THREE.Mesh | undefined;
+          if (core) {
+            core.rotation.y += dt * 1.2;
+            (core.material as THREE.MeshStandardMaterial).emissiveIntensity =
+              1.3 + Math.sin(this.time * 2.6 + it.pos[0]) * 0.5;
+          }
+          break;
+        }
         case 'plate': {
           const top = vis.getObjectByName('top');
           if (top) top.position.y = THREE.MathUtils.lerp(top.position.y, st.pressed ? 0.08 : 0.2, dt * 10);
@@ -460,7 +632,7 @@ export class World {
           const orb = vis.getObjectByName('orb') as THREE.Mesh | undefined;
           if (orb) {
             const m = orb.material as THREE.MeshStandardMaterial;
-            m.emissive.set(st.lit ? PALETTE.portalA : '#222436');
+            m.emissive.set(st.lit ? (it.accepts ?? PALETTE.portalA) : '#222436');
             m.emissiveIntensity = st.lit ? 2.4 : 1;
           }
           const rlh = this.interLights.get(it.id);
@@ -472,27 +644,90 @@ export class World {
           if (mat) {
             if (st.frozen) { mat.emissive.set('#bfe8ff'); mat.opacity = 0.85; mat.emissiveIntensity = 0.5; }
             else if (it.kind === 'void') { mat.emissive.set(PALETTE.hostile); mat.opacity = 0.5 + Math.sin(this.time * 3) * 0.08; }
+            else if (it.kind === 'conveyor') { mat.emissive.set('#7ea8ff'); mat.opacity = 0.22 + Math.sin(this.time * 4) * 0.05; }
             else { mat.emissive.set('#9fdcff'); mat.opacity = 0.3 + Math.sin(this.time * 5 + it.pos[0]) * 0.08; mat.emissiveIntensity = 0.35; }
           }
+          // conveyor chevrons drift with the flow (freeze pins them mid-run)
+          if (it.kind === 'conveyor' && it.dir) {
+            const d = new THREE.Vector3(it.dir[0], 0, it.dir[2]);
+            const speed = d.length() || 1;
+            const along = Math.max(Math.abs(it.dir[0]) > Math.abs(it.dir[2]) ? it.size[0] : it.size[2], 1);
+            const dn = d.clone().normalize();
+            for (let i = 0; i < 4; i++) {
+              const chev = vis.getObjectByName(`chev${i}`);
+              if (!chev) break;
+              const phase = st.frozen ? (i / 4) * along : ((this.time * speed + (i / 4) * along) % along);
+              chev.position.copy(dn.clone().multiplyScalar(phase - along / 2));
+              chev.position.y = -it.size[1] / 2 + 0.3;
+            }
+          }
+          break;
+        }
+        case 'scale': {
+          const arm = vis.getObjectByName('arm');
+          if (arm) {
+            const target = ((st.tilt as number) ?? 0) * 0.16;
+            arm.rotation.z = THREE.MathUtils.lerp(arm.rotation.z, -target, dt * 4);
+            // pans stay level: counter-rotate against the beam
+            const panL = arm.getObjectByName('panL'), panR = arm.getObjectByName('panR');
+            if (panL && panR) { panL.rotation.z = -arm.rotation.z; panR.rotation.z = -arm.rotation.z; }
+          }
+          break;
+        }
+        case 'resonator': {
+          const gem = vis.getObjectByName('gem') as THREE.Mesh | undefined;
+          if (gem) {
+            const m = gem.material as THREE.MeshStandardMaterial;
+            m.emissive.set(st.lit ? PALETTE.interactable : '#2a2740');
+            m.emissiveIntensity = st.lit ? 2.2 : 1;
+            gem.rotation.y += dt * (st.lit ? 2.4 : 0.4);
+          }
+          const rlh = this.interLights.get(it.id);
+          if (rlh) rlh.intensity = st.lit ? 1.6 : 0;
           break;
         }
       }
     }
+    // decor spinners (windmill crystals etc.)
+    for (const s of this.spinners) s.mesh.rotation.y += dt * s.rate;
+    // trophy shards glint
+    if (this.trophyGroup) this.trophyGroup.children.forEach((c, i) => { c.rotation.y += dt * 0.8; c.position.y = 1.32 + Math.sin(this.time * 2 + i) * 0.05; });
+    // checkpoint rings breathe gently
+    for (let i = 0; i < this.checkpointRings.length; i++) {
+      const r = this.checkpointRings[i];
+      const pulse = Math.sin(this.time * 1.8 + i * 1.7) * 0.5 + 0.5;
+      (r.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.3 + pulse * 0.5;
+      r.scale.setScalar(1 + pulse * 0.06);
+    }
     // beams
     this.updateBeams();
-    // portal shimmer
-    for (const { ring, group } of this.portalVis.values()) {
-      if (!group.userData.locked) ring.rotation.z += dt * 0.4;
+    // portals: swirl the vortex, counter-rotate rings, orbit shards, bob + breathe
+    for (const v of this.portalVis.values()) {
+      const locked = !!v.group.userData.locked;
+      v.vortex.tick(dt, locked ? 0.12 : 1);
+      if (locked) continue;
+      const phase = v.def.pos[0] * 0.7 + v.def.pos[2] * 0.3;
+      v.ring.rotation.z += dt * 0.4;
+      v.ringInner.rotation.z -= dt * 1.2;
+      v.orbit.rotation.z += dt * 0.7;
+      v.gate.position.y = Math.sin(this.time * 1.3 + phase) * 0.07;
+      v.lh.intensity = 2.2 + Math.sin(this.time * 2.1 + phase) * 0.5;
+    }
+    // placed portal pairs share the same treatment
+    for (const vis of this.placedVis.values()) {
+      const vortex = vis.userData.vortex as PortalVortex | undefined;
+      vortex?.tick(dt, 1);
+      const spin = vis.userData.spin as THREE.Object3D[] | undefined;
+      if (spin) { spin[0].rotation.z += dt * 0.9; spin[1].rotation.z -= dt * 1.6; }
     }
   }
 
   private updateBeams() {
     this.beamGroup.clear();
-    const emitters = (this.level.interactables ?? []).filter((i) => i.type === 'emitter');
+    const emitters = (this.level.interactables ?? []).filter((i): i is Extract<InteractableDef, { type: 'emitter' }> => i.type === 'emitter');
     if (!emitters.length) return;
-    const receivers = (this.level.interactables ?? []).filter((i) => i.type === 'receiver');
-    const mat = new THREE.MeshBasicMaterial({ color: PALETTE.portalA, transparent: true, opacity: 0.7 });
-    const addSegment = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const receivers = (this.level.interactables ?? []).filter((i): i is Extract<InteractableDef, { type: 'receiver' }> => i.type === 'receiver');
+    const addSegment = (a: THREE.Vector3, b: THREE.Vector3, mat: THREE.Material) => {
       const len = a.distanceTo(b);
       if (len < 0.05) return;
       const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, len, 6), mat);
@@ -501,20 +736,32 @@ export class World {
       this.beamGroup.add(cyl);
     };
     for (const em of emitters) {
-      if (em.type !== 'emitter') continue;
+      const color = em.color ?? PALETTE.portalA;
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+      const matches = (r: { accepts?: string }) => !r.accepts || !em.color || em.color === r.accepts;
       const o = new THREE.Vector3(...em.pos);
       const d = new THREE.Vector3(...em.dir).normalize();
       const hit = raycast(this.colliders, em.pos, [d.x, d.y, d.z], 80);
       const end = o.clone().add(d.clone().multiplyScalar(hit?.dist ?? 80));
-      addSegment(o, end);
+      addSegment(o, end, mat);
+      // relay points: filled prism sockets + prisms carried into the beam
+      const relays: THREE.Vector3[] = [];
       for (const s of this.level.interactables ?? []) {
-        if (s.type !== 'socket') continue;
-        const st = this.states.get(s.id);
-        if (!st?.filled) continue;
-        const sp = new THREE.Vector3(...s.pos);
-        const t = sp.clone().sub(o).dot(d);
-        if (t > 0 && t < (hit?.dist ?? 80) + 0.6 && sp.distanceTo(o.clone().add(d.clone().multiplyScalar(t))) < 0.9) {
-          for (const r of receivers) addSegment(sp, new THREE.Vector3(...(r as { pos: Vec3 }).pos));
+        if (s.type === 'socket') {
+          if (!this.states.get(s.id)?.filled) continue;
+          relays.push(new THREE.Vector3(...s.pos));
+        } else if (s.type === 'carryable' && s.kind === 'prism') {
+          if (!this.bodyHeld.get(s.id)) continue;
+          const vis = this.interVis.get(s.id);
+          if (vis) relays.push(vis.position.clone());
+        }
+      }
+      for (const rp of relays) {
+        const t = rp.clone().sub(o).dot(d);
+        if (t > 0 && t < (hit?.dist ?? 80) + 0.6 && rp.distanceTo(o.clone().add(d.clone().multiplyScalar(t))) < 1.0) {
+          for (const r of receivers) {
+            if (matches(r)) addSegment(rp, new THREE.Vector3(...r.pos), mat);
+          }
         }
       }
     }

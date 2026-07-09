@@ -16,7 +16,7 @@ import type { InteractableDef, LevelDef, Vec3 } from '../shared/level';
 import type { ServerMsg } from '../shared/messages';
 import { PALETTE } from '../shared/palette';
 
-const TOTAL_SHARDS = 11;
+const TOTAL_SHARDS = 12;
 
 let renderer: Renderer;
 let world: World | null = null;
@@ -34,7 +34,7 @@ const audio = new GameAudio();
 
 let playerId = '';
 let profile = {
-  name: '', accent: PALETTE.portalA, shards: [] as string[], skillPoints: 0,
+  name: '', accent: PALETTE.portalA as string, shards: [] as string[], skillPoints: 0,
   skills: [] as string[], devices: ['pulse'] as DeviceId[], inventory: [] as string[],
   bestTimes: {} as Record<string, number>,
 };
@@ -50,9 +50,13 @@ let blockedHintAt = 0;
 let lastDevBar = 0;
 let reviveHideTimer: ReturnType<typeof setTimeout> | undefined;
 let started = false;
+// Echo Core: rolling 8s of positions (10 Hz) — sent with T so the ghost replays your run
+const echoTrail: Vec3[] = [];
+let lastEchoSample = 0;
 
+let chosenAccent = '';
 const hud = new Hud({
-  onStart(name) { start(name); },
+  onStart(name, accent) { chosenAccent = accent; start(name); },
   onEquip(d) { rig.equipped = d; net.send({ t: 'equip', v: 1, device: d }); refreshDeviceBar(); },
   onUnlockSkill(s) { net.send({ t: 'unlock_skill', v: 1, skill: s }); },
   onRespec() { net.send({ t: 'respec', v: 1 }); },
@@ -83,7 +87,7 @@ function start(name: string) {
   started = true;
   renderer = new Renderer(document.getElementById('app')!);
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
-  controller = new PlayerController(() => world?.colliders ?? []);
+  controller = new PlayerController(() => world?.playerColliders() ?? []);
   controller.attach(renderer.canvas);
   peers = new Peers(renderer.scene, () => playerId, renderer.lights);
   enemies = new Enemies(renderer.scene, renderer.lights);
@@ -120,6 +124,16 @@ function handleMsg(msg: ServerMsg) {
     case 'welcome': {
       playerId = msg.playerId;
       Object.assign(profile, msg.profile);
+      // restore skill-driven movement abilities on (re)connect — previously these
+      // only applied after a fresh 'skills' message, so double jump / dash were
+      // silently dead after every reload until the skill tree was touched again
+      controller.canDoubleJump = profile.skills.includes('double-jump');
+      controller.canDash = profile.skills.includes('dash');
+      // apply the accent picked on the title screen (server validates the palette)
+      if (chosenAccent && chosenAccent !== profile.accent) {
+        profile.accent = chosenAccent;
+        net.send({ t: 'set_name', v: 1, name: profile.name, accent: chosenAccent });
+      }
       rig.setOwned(profile.devices);
       hud.setShards(profile.shards.length, TOTAL_SHARDS);
       refreshDeviceBar();
@@ -151,6 +165,8 @@ function handleMsg(msg: ServerMsg) {
       world.setPlacedPortals(s.portalsPlaced ?? [], () => profile.accent);
       world.updatePortalLocks(profile.shards.length);
       inLevel = levelDef.world !== 'nexus';
+      world.setTrophies(profile.shards.length);
+      setupCircuit();
       hud.setLevelInfo(levelDef.name, levelDef.world.toUpperCase(),
         inLevel ? levelDef.coop : 'shared lobby — walk into a portal',
         profile.bestTimes[levelDef.id]);
@@ -216,6 +232,7 @@ function handleMsg(msg: ServerMsg) {
       if (!prev.on && msg.state.on) audio.play('switch');
       if (!prev.filled && msg.state.filled) audio.play('socket');
       if (!prev.frozen && msg.state.frozen) audio.play('frozen');
+      if (!prev.lit && msg.state.lit) audio.play('socket');   // resonators + receivers chime
       break;
     }
     case 'enemy_event': {
@@ -309,7 +326,8 @@ function handleMsg(msg: ServerMsg) {
       break;
     }
     case 'solved': {
-      hud.banner('THRESHOLD CROSSED', `${levelDef?.name ?? ''} — ${(msg.timeMs / 1000).toFixed(1)}s (${msg.via})${msg.skillPoints ? ` · +${msg.skillPoints} skill point${msg.skillPoints > 1 ? 's' : ''}` : ''}`);
+      const styleTag = msg.style?.length ? ` · ${msg.style.join(' · ')}` : '';
+      hud.banner('THRESHOLD CROSSED', `${levelDef?.name ?? ''} — ${(msg.timeMs / 1000).toFixed(1)}s (${msg.via})${msg.skillPoints ? ` · +${msg.skillPoints} skill point${msg.skillPoints > 1 ? 's' : ''}` : ''}${styleTag}`);
       audio.play('solve');
       if (levelDef) profile.bestTimes[levelDef.id] = Math.min(profile.bestTimes[levelDef.id] ?? Infinity, msg.timeMs);
       break;
@@ -318,6 +336,7 @@ function handleMsg(msg: ServerMsg) {
       profile.shards = msg.shards;
       hud.setShards(msg.shards.length, TOTAL_SHARDS);
       world?.updatePortalLocks(msg.shards.length);
+      world?.setTrophies(msg.shards.length);
       audio.play('shard');
       break;
     }
@@ -378,8 +397,8 @@ function bindInput() {
       case 'KeyT':
         if (profile.skills.includes('echo-core')) {
           echoPlaced = !echoPlaced;
-          net.send({ t: 'echo', v: 1, place: echoPlaced });
-          hud.toast(echoPlaced ? 'Echo placed — it holds your weight.' : 'Echo recalled.');
+          net.send({ t: 'echo', v: 1, place: echoPlaced, path: echoPlaced ? [...echoTrail] : undefined });
+          hud.toast(echoPlaced ? 'Echo placed — it replays your last 8 seconds, on loop.' : 'Echo recalled.');
         }
         break;
       case 'KeyV': if (world && profile.skills.includes('phase-sight')) world.phaseSight = true; break;
@@ -611,7 +630,17 @@ function loop(t: number) {
   lastT = t;
 
   controller.frozen = selfDowned || hud.panelOpen || hud.chatOpen || document.pointerLockElement !== renderer.canvas;
+  // conveyors move the local player (client-authoritative movement)
+  controller.external.set(0, 0, 0);
+  const flow = world?.conveyorPush(controller.pos);
+  if (flow) controller.external.set(flow[0], 0, flow[2]);
   controller.update(dt);
+  if (t - lastEchoSample > 100) {
+    lastEchoSample = t;
+    echoTrail.push([controller.pos.x, controller.pos.y, controller.pos.z]);
+    if (echoTrail.length > 80) echoTrail.shift();
+  }
+  updateCircuit(t);
 
   // camera
   renderer.camera.rotation.order = 'YXZ';
@@ -692,6 +721,71 @@ function loop(t: number) {
   audio.setCombat(inLevel && enemies.anyAggro(controller.pos));
 
   renderer.render();
+}
+
+// ---------- Nexus parkour circuit ----------
+// A timed ring race up the spire: start pad at the NE sky steps, finish on the
+// crow's nest. Client-side; best time in localStorage, finishes announced in chat.
+const CIRCUIT: Vec3[] = [
+  [9.47, 1.6, 9.47],    // first sky step
+  [6.08, 4.4, 6.08],    // mid-tier platform
+  [4.24, 6.2, 4.24],    // tier-2 floating step
+  [1.84, 8.7, 1.84],    // spiral around the spire
+  [0, 11.2, 0],         // crow's nest
+];
+let circuitGroup: THREE.Group | null = null;
+let circuitRings: THREE.Mesh[] = [];
+let circuitNext = -1;         // -1 idle, 0..n racing
+let circuitStart = 0;
+
+function setupCircuit() {
+  if (circuitGroup) { renderer.scene.remove(circuitGroup); circuitGroup = null; circuitRings = []; }
+  circuitNext = -1;
+  if (levelDef?.world !== 'nexus') return;
+  circuitGroup = new THREE.Group();
+  for (const p of CIRCUIT) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.07, 8, 32),
+      new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffd98a', emissiveIntensity: 0.35, transparent: true, opacity: 0.55 }));
+    ring.position.set(...p);
+    circuitRings.push(ring);
+    circuitGroup.add(ring);
+  }
+  renderer.scene.add(circuitGroup);
+}
+
+function updateCircuit(t: number) {
+  if (!circuitGroup || levelDef?.world !== 'nexus' || selfDowned) return;
+  const p = controller.pos;
+  // idle: standing by the first ring arms the race
+  if (circuitNext < 0) {
+    if (p.distanceTo(circuitRings[0].position) < 2.2) {
+      circuitNext = 0; circuitStart = t;
+      hud.toast('Circuit started — thread the gold rings to the crow’s nest!');
+      audio.play('beacon');
+    }
+  } else if (p.distanceTo(circuitRings[circuitNext].position) < 1.9) {
+    audio.play('plate');
+    circuitNext++;
+    if (circuitNext >= circuitRings.length) {
+      const secs = (t - circuitStart) / 1000;
+      const best = Number(localStorage.getItem('t-circuit-best') ?? Infinity);
+      if (secs < best) localStorage.setItem('t-circuit-best', String(secs));
+      hud.banner('CIRCUIT CLEAR', `${secs.toFixed(1)}s${secs < best ? ' — new personal best!' : ` (best ${best.toFixed(1)}s)`}`);
+      audio.play('solve');
+      net.send({ t: 'chat', v: 1, text: `cleared the Nexus circuit in ${secs.toFixed(1)}s` });
+      circuitNext = -1;
+    }
+  } else if (t - circuitStart > 90_000) {
+    circuitNext = -1;          // wandered off — quietly disarm
+  }
+  // ring visuals: next ring burns bright, cleared rings dim
+  for (let i = 0; i < circuitRings.length; i++) {
+    const m = circuitRings[i].material as THREE.MeshStandardMaterial;
+    const active = i === circuitNext;
+    m.emissiveIntensity = THREE.MathUtils.lerp(m.emissiveIntensity, active ? 2.2 : 0.35, 0.1);
+    m.opacity = active ? 0.9 : 0.5;
+    circuitRings[i].rotation.y += active ? 0.03 : 0.006;
+  }
 }
 
 let lastHint = '';

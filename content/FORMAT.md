@@ -22,6 +22,8 @@ Levels are JSON files in `content/worlds/<world>/<id>.json`, typed by `shared/le
 ```
 - `rotY` (radians): colliders only honour multiples of PI/2 ≈ 1.5708. Decorative geometry
   may use any rotY with `"collider": false`.
+- `spin` (rad/s): visual-only rotation for decor; requires `"collider": false`.
+- Cylinders collide with their true circular footprint (players slide around the rim).
 - `activeWhen: "rotator1.state==2"` — the box only exists (visual + collider) while the
   expression is true. This is how moving architecture and pulse-summoned bridges are
   authored: one box per state.
@@ -35,28 +37,32 @@ Levels are JSON files in `content/worlds/<world>/<id>.json`, typed by `shared/le
 | `plate` | `reads:"any"\|"mass"`, `threshold` (mass units; player=1, light carryable=1, heavy=3) | `<id>.pressed`, `<id>.mass` |
 | `lever` | `states` (default 2, cycles on interact) | `<id>.state` (0-based) |
 | `rotator` | `states` (cycles on interact; pairs with `visibleWhen`) | `<id>.state` |
-| `switch` | `latched` (default true; else momentary 3 s) — activated by a **Pulse shot** | `<id>.on` |
-| `carryable` | `mass:"light"\|"heavy"` (heavy needs 2 players grabbing, or Quick-Carry skill, or Tractor) , `kind` cosmetic | — |
+| `switch` | `latched` (default true; else momentary — `holdMs`, default 3000) — activated by a **Pulse shot** | `<id>.on` |
+| `carryable` | `mass:"light"\|"heavy"` (heavy needs 2 players grabbing, or Quick-Carry skill, or Tractor); `kind:"prism"` relays beams while carried or docked | — |
 | `collectible` | `grants:"<item>"`, `hidden` (true = shimmer only via Phase Sight) | `<id>.collected` |
 | `socket` | `accepts:"<x>"` — filled by an inventory item (use_item) OR by setting down a carryable whose id/kind matches within 1.3m (docking) | `<id>.filled` |
-| `emitter` | `dir:[x,y,z]` — traces a light beam, blocked by geometry/doors | — |
-| `receiver` | lit when a beam reaches it | `<id>.lit` |
-| `hazard` | `kind:"steam"\|"void"\|"spark"`, `freezable`, `dps` (default 20) | `<id>.frozen` |
+| `emitter` | `dir:[x,y,z]`, `color` (tinted beams only light matching receivers) — blocked by geometry/doors | — |
+| `receiver` | lit when a (color-matching) beam reaches it; `accepts:"<hex>"` | `<id>.lit` |
+| `hazard` | `kind:"steam"\|"void"\|"spark"\|"conveyor"`, `freezable`, `dps` (default 20; conveyors push along `dir` m/s instead of hurting) | `<id>.frozen` |
+| `scale` | balance beam; `span` metres between pans (X axis; `rotY` quarter-turn swaps to Z). Player=1, light=1, heavy=3 | `<id>.left`, `<id>.right`, `<id>.tilt` (-1\|0\|1), `<id>.balanced` |
+| `resonator` | `group`, `order` — Pulse the group's pillars in rising order; a wrong note resets the group | `<id>.lit` |
 
 Enemy state: `<enemyId>.down`, plus `allEnemiesDown` and `playersPresent`.
 
 ## Enemies
 ```jsonc
-{ "type": "drifter"|"warden"|"sower"|"colossus", "id": "d1", "spawn": [x,y,z],
-  "patrol": [[x,y,z],...], "weakTo": ["freeze-shatter"] }
+{ "type": "drifter"|"warden"|"sower"|"colossus"|"mimic", "id": "d1", "spawn": [x,y,z],
+  "patrol": [[x,y,z],...], "weakTo": ["freeze-shatter"], "linkedTo": "w2" }
 ```
 - **drifter**: fodder, telegraphed lunge. **warden**: shielded — Pulse-stagger first.
 - **sower**: spawns drifter adds until killed — positioning puzzle. **colossus**:
   two-role boss — a Tractor must expose its core before it takes damage. Use ONLY in
-  strictly-co-op levels.
+  strictly-co-op levels. **mimic**: disguised as a crate; springs when approached or shot.
+- `linkedTo` (wardens): the pair shares one shield — both must be staggered at once.
 - Enemies never go in the Nexus.
 
 ## Portals
+- Portals auto-face the level's `entry` spawn; set `rotY` to override.
 - Exit “Threshold” portal: `{ "id":"exit", "pos":..., "linkedTo":"nexus", "label":"Threshold", "requiresSolved": true }`.
   Every level MUST have one.
 - `placeablePortals: {"enabled": true, "budgetPerPlayer": 2}` where the Portal Device should work.
@@ -69,7 +75,8 @@ Enemy state: `<enemyId>.down`, plus `allEnemiesDown` and `playersPresent`.
 }
 ```
 **1.1 rules (validator-enforced):**
-- Every level except the nexus and the `atrium-01` tutorial is **co-op**:
+- Every level except the nexus, the `atrium-01` tutorial, and the `proving-01`
+  mechanics gym is **co-op**:
   `players.min >= 2`, coop tier `co-op-required` or `strictly-co-op`, and NO
   `soloSolution` (retired — hidden collectibles remain as secrets only).
 - **Brainy depth:** `solved` (with door `openWhen` chains expanded) must span **>= 2

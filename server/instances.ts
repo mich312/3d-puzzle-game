@@ -8,7 +8,7 @@ import { DOWNED_BLEEDOUT_MS, HP_REGEN_DELAY_MS, HP_REGEN_PER_S, PLAYER_MAX_HP, R
 import { PLAYER_ACCENTS } from '../shared/palette';
 import type { InteractableDef, LevelDef, PortalDef, Vec3 } from '../shared/level';
 import type { ClientMsg, InstanceSnapshot, PlayerSnap, ServerMsg } from '../shared/messages';
-import { buildColliders, groundHeight, pointNearBox, raycast, segmentClear, v3, type AABB } from './physics';
+import { buildColliders, footprintHits, groundHeight, pointNearBox, raycast, roundHalfExtent, segmentClear, v3, type AABB } from './physics';
 import { damageEnemy, freezeEnemy, makeEnemy, stepEnemy, type CombatCtx, type EnemyState } from './enemies';
 import { getLevel } from './content';
 import type { Profile, Store } from './persistence';
@@ -35,6 +35,10 @@ export class PlayerSession {
   equipped: DeviceId = STARTER_DEVICE;
   carrying?: string;
   echo?: Vec3;
+  /** Echo Core replay: recorded path sampled at 10 Hz, looped through `echo` */
+  echoPath?: Vec3[];
+  echoStart = 0;
+  damagedInLevel = false;      // style rating: took any damage since level start
   difficulty: 'story' | 'normal' = 'normal';
   instance?: Instance;
   lastDamageAt = 0;
@@ -167,6 +171,7 @@ export class LevelInstance extends Instance {
   socketFilledBy = new Map<string, string>();
   solved = false;
   solvedVia: 'coop' | 'solo' = 'coop';
+  resetCount = 0;              // style rating: solved without pulling the reset lever
   startedAt = Date.now();
   beacon = false;
   killY: number;
@@ -195,6 +200,8 @@ export class LevelInstance extends Instance {
         case 'socket': this.states.set(it.id, { filled: false }); break;
         case 'receiver': this.states.set(it.id, { lit: false }); break;
         case 'hazard': this.states.set(it.id, { frozen: false, frozenUntil: 0 }); break;
+        case 'scale': this.states.set(it.id, { left: 0, right: 0, tilt: 0, balanced: false }); break;
+        case 'resonator': this.states.set(it.id, { lit: false }); break;
         case 'carryable':
           this.bodies.set(it.id, {
             id: it.id, pos: [...it.pos] as Vec3, vel: [0, 0, 0], spawn: [...it.pos] as Vec3,
@@ -260,7 +267,8 @@ export class LevelInstance extends Instance {
     if ([...this.enemies.values()].some((e) => e.targetId && e.state !== 'down') && this.level.checkpoints?.length) {
       pos = jitter(this.level.checkpoints[0]);
     }
-    p.pos = pos; p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined;
+    p.pos = pos; p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined; p.echoPath = undefined;
+    p.damagedInLevel = false;
     p.lastCheckpoint = -1; p.ignoreMovesUntil = Date.now() + 500; p.portalCooldownUntil = Date.now() + 1500;
     p.armedPortals.clear();
     if (this.level.grantsDevice && !p.profile.devices.includes(this.level.grantsDevice)) {
@@ -280,7 +288,7 @@ export class LevelInstance extends Instance {
 
   override removePlayer(p: PlayerSession) {
     for (const b of this.bodies.values()) b.holders = b.holders.filter((h) => h !== p.id);
-    p.carrying = undefined; p.tractor = undefined; p.echo = undefined;
+    p.carrying = undefined; p.tractor = undefined; p.echo = undefined; p.echoPath = undefined;
     this.placements = this.placements.filter((pl) => pl.owner !== p.id);
     super.removePlayer(p);
     if (this.players.size === 0) this.beacon = false;
@@ -414,10 +422,27 @@ export class LevelInstance extends Instance {
           const st = this.states.get(it.id)!;
           if (it.latched === false) {
             this.setState(it.id, { on: true });
-            setTimeout(() => { this.setState(it.id, { on: false }); this.applyExprGeometry(); }, 3000);
+            setTimeout(() => { this.setState(it.id, { on: false }); this.applyExprGeometry(); }, it.holdMs ?? 3000);
           } else this.setState(it.id, { on: !st.on });
           this.applyExprGeometry();
         }
+      }
+      // resonators — pulse the group's pillars in order; a wrong note resets the chord
+      for (const it of this.inter.values()) {
+        if (it.type !== 'resonator') continue;
+        if (!this.pointOnRay(it.pos, origin, dir, dev.range, 1.1) || !this.clearToPoint(origin, it.pos, 0.9)) continue;
+        const groupPillars = [...this.inter.values()]
+          .filter((o): o is Extract<InteractableDef, { type: 'resonator' }> => o.type === 'resonator' && o.group === it.group);
+        const st = this.states.get(it.id)!;
+        if (st.lit) break;                                 // already sounded — no-op
+        const priorLit = groupPillars.every((o) => o.order >= it.order || this.states.get(o.id)!.lit);
+        if (priorLit) {
+          this.setState(it.id, { lit: true });     // client chimes on the lit transition
+        } else {
+          for (const o of groupPillars) this.setState(o.id, { lit: false });
+        }
+        this.applyExprGeometry();
+        break;                                             // one pillar per shot
       }
       // knock carryables
       for (const b of this.bodies.values()) {
@@ -492,11 +517,13 @@ export class LevelInstance extends Instance {
       if (it.type === 'collectible' && [...this.players.values()].some((pl) => pl.profile.inventory.includes(it.grants)))
         keptCollected.add(it.id);
     }
+    this.resetCount++;
     this.seed();
     for (const id of keptCollected) { const st = this.states.get(id); if (st) st.collected = true; }
     for (const p of this.players.values()) {
       p.pos = jitter(this.level.spawns['entry']);
-      p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined;
+      p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined; p.echoPath = undefined;
+      p.damagedInLevel = false;
       p.tractor = undefined; p.reviveTargetId = undefined; p.armedPortals.clear();
       p.lastCheckpoint = -1; p.ignoreMovesUntil = Date.now() + 500; p.portalCooldownUntil = Date.now() + 1500;
       p.link.send({ t: 'joined', v: 1, snapshot: this.joinSnapshot(), spawn: p.pos, spawnYaw: 0 });
@@ -512,22 +539,28 @@ export class LevelInstance extends Instance {
     if (delta === 0 && axis !== 1) return false;
     const p = [...b.pos] as Vec3;
     p[axis] += delta;
-    const overlapsBox = (min: Vec3, max: Vec3) =>
+    const overlapsBox = (min: Vec3, max: Vec3, c?: AABB) =>
       p[0] - b.half < max[0] && p[0] + b.half > min[0] &&
       p[1] - b.half < max[1] && p[1] + b.half > min[1] &&
-      p[2] - b.half < max[2] && p[2] + b.half > min[2];
+      p[2] - b.half < max[2] && p[2] + b.half > min[2] &&
+      (!c || footprintHits(c, p[0] - b.half, p[0] + b.half, p[2] - b.half, p[2] + b.half));
     let grounded = false;
-    const resolve = (min: Vec3, max: Vec3) => {
-      if (!overlapsBox(min, max)) return;
-      if (delta > 0) p[axis] = min[axis] - b.half - 0.001;
-      else p[axis] = max[axis] + b.half + 0.001;
+    const resolve = (min: Vec3, max: Vec3, c?: AABB) => {
+      if (!overlapsBox(min, max, c)) return;
+      // round colliders clamp to the chord the body footprint meets, not the square
+      const cross = axis === 0 ? 2 : 0;
+      const half = axis !== 1 && c ? roundHalfExtent(c, axis, p[cross] - b.half, p[cross] + b.half) : null;
+      const faceMin = half !== null ? (axis === 0 ? c!.round!.x : c!.round!.z) - half : min[axis];
+      const faceMax = half !== null ? (axis === 0 ? c!.round!.x : c!.round!.z) + half : max[axis];
+      if (delta > 0) p[axis] = faceMin - b.half - 0.001;
+      else p[axis] = faceMax + b.half + 0.001;
       if (axis === 1 && delta <= 0) { grounded = true; b.vel[1] = 0; }
       else if (axis === 1) b.vel[1] = 0;
       else b.vel[axis] *= -0.35;   // restitution off walls
     };
     for (const c of this.colliders) {
       if (!c.active) continue;
-      resolve(c.min, c.max);
+      resolve(c.min, c.max, c);
     }
     for (const o of this.bodies.values()) {
       if (o.id === b.id) continue;
@@ -594,6 +627,7 @@ export class LevelInstance extends Instance {
       event: (id, ev, data) => this.broadcast({ t: 'enemy_event', v: 1, id, ev, data }),
       addEnemy: (e) => this.enemies.set(e.id, e),
       isTractored: (enemyId) => [...this.players.values()].some((pl) => pl.tractor?.targetId === enemyId),
+      getEnemy: (id) => this.enemies.get(id),
     };
   }
 
@@ -601,6 +635,7 @@ export class LevelInstance extends Instance {
     const p = this.players.get(id);
     if (!p || p.state === 'downed') return;
     const actual = Math.round(dmg * (p.difficulty === 'story' ? 0.4 : 1));
+    if (actual > 0) p.damagedInLevel = true;
     p.hp = Math.max(0, p.hp - actual);
     p.lastDamageAt = Date.now();
     this.broadcast({ t: 'hp', v: 1, id, hp: p.hp });
@@ -746,19 +781,65 @@ export class LevelInstance extends Instance {
       }
     }
 
-    // hazards: unfreeze timers + damage
+    // weight scales: mass on each pan → tilt / balanced
+    for (const it of this.inter.values()) {
+      if (it.type !== 'scale') continue;
+      const span = it.span ?? 3.0;
+      const q = Math.round((it.rotY ?? 0) / (Math.PI / 2)) % 2;   // quarter-turns swap the axis
+      const axis = q === 0 ? 0 : 2;
+      const panAt = (side: -1 | 1): Vec3 => {
+        const p = [...it.pos] as Vec3;
+        p[axis] += side * span / 2;
+        return p;
+      };
+      const massOn = (pan: Vec3) => {
+        let m = 0;
+        const on = (pos: Vec3) =>
+          Math.abs(pos[0] - pan[0]) < 1.15 && Math.abs(pos[2] - pan[2]) < 1.15 && Math.abs(pos[1] - pan[1]) < 1.6;
+        for (const p of this.present()) {
+          if (p.state === 'alive' && on(p.pos)) m += 1;
+          if (p.echo && on(p.echo)) m += 1;
+        }
+        for (const b of this.bodies.values()) if (on(b.pos)) m += b.mass === 'heavy' ? 3 : 1;
+        return m;
+      };
+      const left = massOn(panAt(-1)), right = massOn(panAt(1));
+      const tilt = Math.sign(right - left);
+      const balanced = left === right && left > 0;
+      const st = this.states.get(it.id)!;
+      if (st.left !== left || st.right !== right || st.tilt !== tilt || st.balanced !== balanced) {
+        this.setState(it.id, { left, right, tilt, balanced });
+        this.applyExprGeometry();
+      }
+    }
+
+    // hazards: unfreeze timers + damage (+ conveyors, which push instead of hurt)
     for (const it of this.inter.values()) {
       if (it.type !== 'hazard') continue;
       const st = this.states.get(it.id)!;
       if (st.frozen && now > (st.frozenUntil as number)) { this.setState(it.id, { frozen: false, frozenUntil: 0 }); }
       if (st.frozen) continue;
+      const insideOf = (pos: Vec3, lift: number) =>
+        Math.abs(pos[0] - it.pos[0]) < it.size[0] / 2 &&
+        pos[1] + lift > it.pos[1] - it.size[1] / 2 && pos[1] < it.pos[1] + it.size[1] / 2 &&
+        Math.abs(pos[2] - it.pos[2]) < it.size[2] / 2;
+      if (it.kind === 'conveyor') {
+        // players push client-side (they own their movement); crates + enemies here
+        const push = it.dir ?? [1, 0, 0];
+        for (const b of this.bodies.values()) {
+          if (b.holders.length || b.docked || !insideOf(b.pos, 0.4)) continue;
+          this.sweepBodyTo(b, v3.add(b.pos, v3.scale(push, dt)), v3.len(push) * dt + 0.01);
+          b.resting = false;
+        }
+        for (const e of this.enemies.values()) {
+          if (e.state === 'down' || !insideOf(e.pos, 0.4)) continue;
+          e.pos = v3.add(e.pos, v3.scale([push[0], 0, push[2]], dt));
+        }
+        continue;
+      }
       for (const p of this.players.values()) {
         if (p.state !== 'alive') continue;
-        const inside =
-          Math.abs(p.pos[0] - it.pos[0]) < it.size[0] / 2 &&
-          p.pos[1] + 0.9 > it.pos[1] - it.size[1] / 2 && p.pos[1] < it.pos[1] + it.size[1] / 2 &&
-          Math.abs(p.pos[2] - it.pos[2]) < it.size[2] / 2;
-        if (!inside) continue;
+        if (!insideOf(p.pos, 0.9)) continue;
         if (it.kind === 'void') { this.damagePlayer(p.id, 12, it.id); this.respawn(p); }
         else this.damagePlayer(p.id, (it.dps ?? 20) * dt, it.id);
       }
@@ -773,6 +854,13 @@ export class LevelInstance extends Instance {
 
     // players: falls, checkpoints, regen, bleedout, revive progress, portal traversal
     for (const p of this.players.values()) {
+      // echo replay: walk the recorded path on loop (10 Hz samples, lerped)
+      if (p.echoPath && p.echo) {
+        const t = ((now - p.echoStart) / 100) % p.echoPath.length;
+        const i = Math.floor(t), f = t - i;
+        const a = p.echoPath[i], b = p.echoPath[(i + 1) % p.echoPath.length];
+        p.echo = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+      }
       if (p.pos[1] < this.killY + 5 && p.state === 'alive') { this.damagePlayer(p.id, 10, 'fall'); this.respawn(p); }
       this.level.checkpoints?.forEach((cp, i) => {
         if (i > p.lastCheckpoint && v3.dist(p.pos, cp) < 3.5) p.lastCheckpoint = i;
@@ -822,25 +910,35 @@ export class LevelInstance extends Instance {
   }
 
   stepBeams() {
-    const emitters = [...this.inter.values()].filter((i) => i.type === 'emitter');
-    const receivers = [...this.inter.values()].filter((i) => i.type === 'receiver');
+    const emitters = [...this.inter.values()].filter((i): i is Extract<InteractableDef, { type: 'emitter' }> => i.type === 'emitter');
+    const receivers = [...this.inter.values()].filter((i): i is Extract<InteractableDef, { type: 'receiver' }> => i.type === 'receiver');
     if (!emitters.length || !receivers.length) return;
     const lit = new Set<string>();
+    // colored beams only feed matching receivers (untinted matches anything)
+    const matches = (em: { color?: string }, r: { accepts?: string }) =>
+      !r.accepts || !em.color || em.color === r.accepts;
     for (const em of emitters) {
-      if (em.type !== 'emitter') continue;
       const dir = v3.norm(em.dir);
       const hit = raycast(this.colliders, em.pos, dir, 80);
       const maxT = hit?.dist ?? 80;
       for (const r of receivers) {
-        if (this.pointOnRay(r.pos, em.pos, dir, maxT + 0.6, 0.8)) lit.add(r.id);
+        if (matches(em, r) && this.pointOnRay(r.pos, em.pos, dir, maxT + 0.6, 0.8)) lit.add(r.id);
       }
-      // prism redirect: filled socket on the beam relays to any receiver with clear LOS
+      // relay points on the beam bend it to any receiver with clear LOS:
+      // filled prism sockets, and prisms CARRIED by a player standing in the beam
+      const relays: Vec3[] = [];
       for (const s of this.inter.values()) {
         if (s.type !== 'socket') continue;
         const st = this.states.get(s.id)!;
-        if (!st.filled) continue;
-        if (this.pointOnRay(s.pos, em.pos, dir, maxT + 0.6, 0.9)) {
-          for (const r of receivers) if (segmentClear(this.colliders, s.pos, r.pos)) lit.add(r.id);
+        if (st.filled && this.pointOnRay(s.pos, em.pos, dir, maxT + 0.6, 0.9)) relays.push(s.pos);
+      }
+      for (const b of this.bodies.values()) {
+        if (b.kind !== 'prism' || b.holders.length === 0) continue;
+        if (this.pointOnRay(b.pos, em.pos, dir, maxT + 0.6, 1.0)) relays.push(b.pos);
+      }
+      for (const rp of relays) {
+        for (const r of receivers) {
+          if (matches(em, r) && segmentClear(this.colliders, rp, r.pos)) lit.add(r.id);
         }
       }
     }
@@ -922,7 +1020,13 @@ export class LevelInstance extends Instance {
       const best = p.profile.bestTimes[this.level.id];
       if (!best || timeMs < best) p.profile.bestTimes[this.level.id] = timeMs;
       this.mgr.store.saveProfile(p.profile);
-      p.link.send({ t: 'solved', v: 1, levelId: this.level.id, via, timeMs, shard: pz.shard, skillPoints: firstClear ? (pz.skillPoints ?? 1) : 0 });
+      // style tags: bragging rights only — no power attached
+      const style: string[] = [];
+      if (!p.damagedInLevel) style.push('Untouched');
+      if (this.resetCount === 0) style.push('First Try');
+      if (timeMs < 120_000) style.push('Swift');
+      if (style.length === 3) style.length = 0, style.push('Flawless');
+      p.link.send({ t: 'solved', v: 1, levelId: this.level.id, via, timeMs, shard: pz.shard, skillPoints: firstClear ? (pz.skillPoints ?? 1) : 0, style });
       p.link.send({ t: 'shards', v: 1, shards: p.profile.shards, unlockedWorlds: unlockedWorlds(p.profile) });
       p.link.send({ t: 'skills', v: 1, skills: p.profile.skills, skillPoints: p.profile.skillPoints });
       if (p.hasSkill('overcharge')) p.overchargeUntil = Date.now() + 10_000;
@@ -1059,7 +1163,7 @@ export class GameServer {
     p.instance = lobby;
     const nexus = getLevel('nexus');
     p.pos = jitter(nexus?.spawns['entry'] ?? [0, 1, 0]);
-    p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.tractor = undefined; p.echo = undefined;
+    p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.tractor = undefined; p.echo = undefined; p.echoPath = undefined;
     p.portalCooldownUntil = Date.now() + 1500;
     p.ignoreMovesUntil = Date.now() + 500;
     p.armedPortals.clear();
@@ -1251,7 +1355,17 @@ export class GameServer {
       case 'reset_level': if (inst instanceof LevelInstance) inst.reset(p); break;
       case 'echo':
         if (!p.hasSkill('echo-core')) break;
-        p.echo = msg.place ? ([...p.pos] as Vec3) : undefined;
+        if (msg.place) {
+          // a recorded path replays as a moving echo; a bare place holds position
+          const path = (msg.path ?? []).slice(0, 84).filter((pt) =>
+            Array.isArray(pt) && pt.length === 3 && pt.every((n) => Number.isFinite(n)) &&
+            v3.dist(pt, p.pos) < 60);
+          p.echoPath = path.length >= 2 ? (path as Vec3[]) : undefined;
+          p.echoStart = Date.now();
+          p.echo = p.echoPath ? [...p.echoPath[0]] as Vec3 : [...p.pos] as Vec3;
+        } else {
+          p.echo = undefined; p.echoPath = undefined;
+        }
         break;
       case 'chat': {
         const now = Date.now();
@@ -1274,6 +1388,7 @@ export class GameServer {
       case 'set_opts': if (msg.difficulty) p.difficulty = msg.difficulty; break;
       case 'set_name':
         p.profile.name = msg.name.slice(0, 24) || p.profile.name;
+        if (msg.accent && PLAYER_ACCENTS.includes(msg.accent)) p.profile.accent = msg.accent;
         this.store.saveProfile(p.profile);
         break;
       case 'telemetry': this.store.telemetry(p.profile.token, msg.name, msg.payload ?? {}); break;
