@@ -32,8 +32,10 @@ const GLOW_BLUE = '#8b9fd0';
 const GLOW_GOLD = '#ffd98a';
 const GLOW_VIOLET = '#b8a8ff';
 
-// ---- tier 1: sky-step chains up from the island rim (all four diagonals) ----
-for (const [dx, dz] of DIAG) {
+// ---- tier 1: sky-step chains up from the island rim (two diagonals — four
+// floating platforms around one spire read as clutter; NE + SW carry the
+// routes up, and the parkour circuit runs the NE chain) ----
+for (const [dx, dz] of [DIAG[0], DIAG[2]]) {
   const steps = [[13.4, 0.9], [12.1, 1.8], [10.8, 2.7]];
   for (const [dist, top] of steps) {
     cyl(dx * dist, top, dz * dist, 1.1, 0.5);
@@ -54,14 +56,13 @@ for (const [dx, dz] of [DIAG[0], DIAG[2]]) {
     glow(dx * dist, top, dz * dist, 0.85, GLOW_VIOLET, 0.35);
   }
 }
-// halo plaza: a floating disc around the spire
-cyl(0, 7.0, 0, 5.4, 0.55);
-glow(0, 7.0, 0, 5.15, GLOW_VIOLET, 0.22);
-cyl(0, 6.45, 0, 2.6, 1.8, { collider: false, color: '#413c56' });
+// halo plaza: a slim floating ring-walk around the spire
+cyl(0, 7.0, 0, 4.3, 0.45);
+glow(0, 7.0, 0, 4.05, GLOW_VIOLET, 0.22);
 // plaza rim crystals
-for (let i = 0; i < 6; i++) {
-  const a = (i / 6) * Math.PI * 2 + 0.26;
-  crystal(Math.cos(a) * 4.7, 7.55, Math.sin(a) * 4.7, 0.45, GLOW_VIOLET, 1.3, R(a));
+for (let i = 0; i < 4; i++) {
+  const a = (i / 4) * Math.PI * 2 + 0.26;
+  crystal(Math.cos(a) * 3.6, 7.5, Math.sin(a) * 3.6, 0.42, GLOW_VIOLET, 1.3, R(a));
 }
 
 // ---- tier 3: spiral steps around the spire to the crow's nest ----
@@ -172,7 +173,7 @@ DIAG.forEach(([dx, dz], i) => {
   bush(ix - dx * 3.8 - dz * 2.4, top, iz - dz * 3.8 + dx * 2.4, (i + 2) % 3);
 });
 // mid-tier platforms: a bush beside each crystal
-for (const [dx, dz] of DIAG) bush(dx * 8.6 - dz * 1.9, 3.6, dz * 8.6 + dx * 1.9, 0);
+for (const [dx, dz] of [DIAG[0], DIAG[2]]) bush(dx * 8.6 - dz * 1.9, 3.6, dz * 8.6 + dx * 1.9, 0);
 
 // slow-spinning decor: nest + plaza crystals get a spin rate
 for (const g of out) {

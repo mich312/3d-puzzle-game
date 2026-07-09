@@ -7220,175 +7220,6 @@
       "pos": [
         -9.475,
         0.65,
-        9.475
-      ],
-      "size": [
-        1.1,
-        0.5,
-        1.1
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -9.475,
-        0.941,
-        9.475
-      ],
-      "size": [
-        0.95,
-        0.08,
-        0.95
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.3,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -8.556,
-        1.55,
-        8.556
-      ],
-      "size": [
-        1.1,
-        0.5,
-        1.1
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -8.556,
-        1.841,
-        8.556
-      ],
-      "size": [
-        0.95,
-        0.08,
-        0.95
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.3,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -7.637,
-        2.45,
-        7.637
-      ],
-      "size": [
-        1.1,
-        0.5,
-        1.1
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -7.637,
-        2.741,
-        7.637
-      ],
-      "size": [
-        0.95,
-        0.08,
-        0.95
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.3,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -6.081,
-        3.3,
-        6.081
-      ],
-      "size": [
-        2.8,
-        0.6,
-        2.8
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -6.081,
-        3.641,
-        6.081
-      ],
-      "size": [
-        2.55,
-        0.08,
-        2.55
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.25,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -6.081,
-        1.9,
-        6.081
-      ],
-      "size": [
-        1.7,
-        2.2,
-        1.7
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#413c56",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        -4.667,
-        4.3,
-        7.495
-      ],
-      "size": [
-        0.55,
-        0.55,
-        0.55
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#b8a8ff",
-      "emissiveIntensity": 1.2,
-      "rotY": 0.6,
-      "gen": "nexus-expansion",
-      "spin": 0.5
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -9.475,
-        0.65,
         -9.475
       ],
       "size": [
@@ -7556,175 +7387,6 @@
     {
       "shape": "cylinder",
       "pos": [
-        9.475,
-        0.65,
-        -9.475
-      ],
-      "size": [
-        1.1,
-        0.5,
-        1.1
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        9.475,
-        0.941,
-        -9.475
-      ],
-      "size": [
-        0.95,
-        0.08,
-        0.95
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.3,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        8.556,
-        1.55,
-        -8.556
-      ],
-      "size": [
-        1.1,
-        0.5,
-        1.1
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        8.556,
-        1.841,
-        -8.556
-      ],
-      "size": [
-        0.95,
-        0.08,
-        0.95
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.3,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        7.637,
-        2.45,
-        -7.637
-      ],
-      "size": [
-        1.1,
-        0.5,
-        1.1
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        7.637,
-        2.741,
-        -7.637
-      ],
-      "size": [
-        0.95,
-        0.08,
-        0.95
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.3,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        6.081,
-        3.3,
-        -6.081
-      ],
-      "size": [
-        2.8,
-        0.6,
-        2.8
-      ],
-      "material": "stone",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        6.081,
-        3.641,
-        -6.081
-      ],
-      "size": [
-        2.55,
-        0.08,
-        2.55
-      ],
-      "material": "tile",
-      "collider": false,
-      "emissive": "#8b9fd0",
-      "emissiveIntensity": 0.25,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        6.081,
-        1.9,
-        -6.081
-      ],
-      "size": [
-        1.7,
-        2.2,
-        1.7
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#413c56",
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        4.667,
-        4.3,
-        -7.495
-      ],
-      "size": [
-        0.55,
-        0.55,
-        0.55
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#b8a8ff",
-      "emissiveIntensity": 1.2,
-      "rotY": 0.6,
-      "gen": "nexus-expansion",
-      "spin": 0.5
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
         4.95,
         4.275,
         4.95
@@ -7924,13 +7586,13 @@
       "shape": "cylinder",
       "pos": [
         0,
-        6.725,
+        6.775,
         0
       ],
       "size": [
-        5.4,
-        0.55,
-        5.4
+        4.3,
+        0.45,
+        4.3
       ],
       "material": "stone",
       "gen": "nexus-expansion"
@@ -7943,9 +7605,9 @@
         0
       ],
       "size": [
-        5.15,
+        4.05,
         0.08,
-        5.15
+        4.05
       ],
       "material": "tile",
       "collider": false,
@@ -7954,33 +7616,16 @@
       "gen": "nexus-expansion"
     },
     {
-      "shape": "cylinder",
-      "pos": [
-        0,
-        5.55,
-        0
-      ],
-      "size": [
-        2.6,
-        1.8,
-        2.6
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#413c56",
-      "gen": "nexus-expansion"
-    },
-    {
       "shape": "box",
       "pos": [
-        4.542,
-        7.55,
-        1.208
+        3.479,
+        7.5,
+        0.925
       ],
       "size": [
-        0.45,
-        0.45,
-        0.45
+        0.42,
+        0.42,
+        0.42
       ],
       "material": "crystal",
       "collider": false,
@@ -7993,54 +7638,34 @@
     {
       "shape": "box",
       "pos": [
-        1.225,
-        7.55,
-        4.538
+        -0.925,
+        7.5,
+        3.479
       ],
       "size": [
-        0.45,
-        0.45,
-        0.45
+        0.42,
+        0.42,
+        0.42
       ],
       "material": "crystal",
       "collider": false,
       "emissive": "#b8a8ff",
       "emissiveIntensity": 1.3,
-      "rotY": 1.307,
+      "rotY": 1.831,
       "gen": "nexus-expansion",
       "spin": 0.5
     },
     {
       "shape": "box",
       "pos": [
-        -3.317,
-        7.55,
-        3.329
+        -3.479,
+        7.5,
+        -0.925
       ],
       "size": [
-        0.45,
-        0.45,
-        0.45
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#b8a8ff",
-      "emissiveIntensity": 1.3,
-      "rotY": 2.354,
-      "gen": "nexus-expansion",
-      "spin": 0.5
-    },
-    {
-      "shape": "box",
-      "pos": [
-        -4.542,
-        7.55,
-        -1.208
-      ],
-      "size": [
-        0.45,
-        0.45,
-        0.45
+        0.42,
+        0.42,
+        0.42
       ],
       "material": "crystal",
       "collider": false,
@@ -8053,40 +7678,20 @@
     {
       "shape": "box",
       "pos": [
-        -1.225,
-        7.55,
-        -4.538
+        0.925,
+        7.5,
+        -3.479
       ],
       "size": [
-        0.45,
-        0.45,
-        0.45
+        0.42,
+        0.42,
+        0.42
       ],
       "material": "crystal",
       "collider": false,
       "emissive": "#b8a8ff",
       "emissiveIntensity": 1.3,
-      "rotY": 4.449,
-      "gen": "nexus-expansion",
-      "spin": 0.5
-    },
-    {
-      "shape": "box",
-      "pos": [
-        3.317,
-        7.55,
-        -3.329
-      ],
-      "size": [
-        0.45,
-        0.45,
-        0.45
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#b8a8ff",
-      "emissiveIntensity": 1.3,
-      "rotY": 5.496,
+      "rotY": 4.972,
       "gen": "nexus-expansion",
       "spin": 0.5
     },
@@ -12074,9 +11679,9 @@
     {
       "shape": "cylinder",
       "pos": [
-        -7.425,
+        -4.738,
         3.911,
-        4.738
+        -7.425
       ],
       "size": [
         0.688,
@@ -12093,9 +11698,9 @@
     {
       "shape": "cylinder",
       "pos": [
-        -6.981,
+        -4.294,
         3.78,
-        4.405
+        -7.758
       ],
       "size": [
         0.422,
@@ -12112,65 +11717,8 @@
     {
       "shape": "box",
       "pos": [
-        -7.625,
-        4.211,
-        4.988
-      ],
-      "size": [
-        0.1,
-        0.1,
-        0.1
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.9,
-      "rotY": 3.33,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -4.738,
-        3.846,
-        -7.425
-      ],
-      "size": [
-        0.546,
-        0.493,
-        0.546
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -4.386,
-        3.78,
-        -7.689
-      ],
-      "size": [
-        0.334,
-        0.36,
-        0.334
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
         -4.938,
-        4.084,
+        4.211,
         -7.175
       ],
       "size": [
@@ -12182,64 +11730,7 @@
       "collider": false,
       "emissive": "#3f7a5c",
       "emissiveIntensity": 0.9,
-      "rotY": 2.64,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        7.425,
-        3.866,
-        -4.738
-      ],
-      "size": [
-        0.589,
-        0.532,
-        0.589
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        7.805,
-        3.78,
-        -5.023
-      ],
-      "size": [
-        0.361,
-        0.36,
-        0.361
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        7.225,
-        4.123,
-        -4.488
-      ],
-      "size": [
-        0.1,
-        0.1,
-        0.1
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.9,
-      "rotY": 2.85,
+      "rotY": 3.33,
       "gen": "nexus-expansion"
     }
   ],
