@@ -34,7 +34,7 @@ const audio = new GameAudio();
 
 let playerId = '';
 let profile = {
-  name: '', accent: PALETTE.portalA, shards: [] as string[], skillPoints: 0,
+  name: '', accent: PALETTE.portalA as string, shards: [] as string[], skillPoints: 0,
   skills: [] as string[], devices: ['pulse'] as DeviceId[], inventory: [] as string[],
   bestTimes: {} as Record<string, number>,
 };
@@ -54,8 +54,9 @@ let started = false;
 const echoTrail: Vec3[] = [];
 let lastEchoSample = 0;
 
+let chosenAccent = '';
 const hud = new Hud({
-  onStart(name) { start(name); },
+  onStart(name, accent) { chosenAccent = accent; start(name); },
   onEquip(d) { rig.equipped = d; net.send({ t: 'equip', v: 1, device: d }); refreshDeviceBar(); },
   onUnlockSkill(s) { net.send({ t: 'unlock_skill', v: 1, skill: s }); },
   onRespec() { net.send({ t: 'respec', v: 1 }); },
@@ -128,6 +129,11 @@ function handleMsg(msg: ServerMsg) {
       // silently dead after every reload until the skill tree was touched again
       controller.canDoubleJump = profile.skills.includes('double-jump');
       controller.canDash = profile.skills.includes('dash');
+      // apply the accent picked on the title screen (server validates the palette)
+      if (chosenAccent && chosenAccent !== profile.accent) {
+        profile.accent = chosenAccent;
+        net.send({ t: 'set_name', v: 1, name: profile.name, accent: chosenAccent });
+      }
       rig.setOwned(profile.devices);
       hud.setShards(profile.shards.length, TOTAL_SHARDS);
       refreshDeviceBar();

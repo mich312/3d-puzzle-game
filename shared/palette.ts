@@ -24,4 +24,4 @@ export const WORLD_PALETTES: Record<string, {
   observatory: { sky: '#0e0c20', fog: '#252043', fogDensity: 0.026, key: '#b8a8ff', keyIntensity: 1.0, hemiSky: '#584f9e', hemiGround: '#1a1730', ambient: 0.4 },
 };
 
-export const PLAYER_ACCENTS = ['#6ec6ff', '#ff9ecb', '#a8f0c6', '#ffd98a'];
+export const PLAYER_ACCENTS = ['#6ec6ff', '#ff9ecb', '#a8f0c6', '#ffd98a', '#c9a8ff', '#8fe8e0'];

@@ -30,7 +30,7 @@ export type ClientMsg =
   | { t: 'ping'; v: 1; pos: Vec3 }                    // "look here" world marker
   | { t: 'echo'; v: 1; place: boolean; path?: Vec3[] } // Echo Core: place a stationary echo, or replay a recorded path (10 Hz samples, <=84)
   | { t: 'set_opts'; v: 1; difficulty?: 'story' | 'normal' }
-  | { t: 'set_name'; v: 1; name: string }
+  | { t: 'set_name'; v: 1; name: string; accent?: string }   // accent must be one of PLAYER_ACCENTS
   | { t: 'telemetry'; v: 1; name: string; payload?: Record<string, unknown> };
 
 // ---- server → client ----

@@ -1388,6 +1388,7 @@ export class GameServer {
       case 'set_opts': if (msg.difficulty) p.difficulty = msg.difficulty; break;
       case 'set_name':
         p.profile.name = msg.name.slice(0, 24) || p.profile.name;
+        if (msg.accent && PLAYER_ACCENTS.includes(msg.accent)) p.profile.accent = msg.accent;
         this.store.saveProfile(p.profile);
         break;
       case 'telemetry': this.store.telemetry(p.profile.token, msg.name, msg.payload ?? {}); break;

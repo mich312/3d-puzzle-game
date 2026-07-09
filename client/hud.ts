@@ -2,11 +2,12 @@
 // device bar, prompts, toasts, loadout/skill panels, settings, beacons, overlays.
 import { DEVICES, type DeviceId } from '../shared/devices';
 import { SKILLS, type SkillId } from '../shared/skills';
+import { PLAYER_ACCENTS } from '../shared/palette';
 import type { InstanceSnapshot } from '../shared/messages';
 import { icon, DEVICE_ICON, SKILL_ICON } from './icons';
 
 export interface HudCallbacks {
-  onStart(name: string): void;
+  onStart(name: string, accent: string): void;
   onEquip(d: DeviceId): void;
   onUnlockSkill(s: SkillId): void;
   onRespec(): void;
@@ -79,13 +80,38 @@ const CSS = `
 .bigpanel input[type=range] { width: 220px; }
 .bigpanel button { pointer-events: auto; background: #2a2740; color: #e8e4f0; border: 1px solid rgba(160,150,220,0.4); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
 .bigpanel button:hover { border-color: #ffd98a; }
-#intro { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; background: radial-gradient(ellipse at 50% 30%, #2a2545, #14121f); z-index: 20; pointer-events: auto; }
-#intro h1 { font-weight: 200; letter-spacing: 0.5em; font-size: 42px; color: #e8e4f0; text-shadow: 0 0 30px rgba(110,198,255,0.5); }
-#intro p { opacity: 0.7; max-width: 420px; text-align: center; line-height: 1.5; font-size: 14px; }
-#intro input { background: #221f38; border: 1px solid rgba(160,150,220,0.4); color: #e8e4f0; padding: 9px 14px; border-radius: 8px; font-size: 15px; text-align: center; outline: none; }
-#intro button { background: linear-gradient(135deg,#6ec6ff33,#ff9ecb33); border: 1px solid #6ec6ff; color: #fff; font-size: 16px; padding: 12px 44px; border-radius: 10px; cursor: pointer; letter-spacing: 0.2em; }
-#intro button:hover { box-shadow: 0 0 24px rgba(110,198,255,0.5); }
-#intro .keys { font-size: 12px; opacity: 0.55; }
+#intro { position: fixed; inset: 0; z-index: 20; pointer-events: auto; overflow: hidden; background: #14121f; opacity: 1; transition: opacity 0.7s ease; }
+#intro.leaving { opacity: 0; pointer-events: none; }
+#intro-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#intro .wrap { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 20px; }
+#intro h1 { font-weight: 200; letter-spacing: 0.5em; text-indent: 0.5em; font-size: clamp(36px, 6.5vw, 62px); color: #f0edfa;
+  text-shadow: 0 0 30px rgba(110,198,255,0.7), 0 0 80px rgba(255,158,203,0.35); animation: introGlow 5s ease-in-out infinite; }
+@keyframes introGlow { 50% { text-shadow: 0 0 44px rgba(110,198,255,0.95), 0 0 110px rgba(255,158,203,0.55); } }
+#intro .tag { font-size: 12px; letter-spacing: 0.42em; text-indent: 0.42em; text-transform: uppercase; opacity: 0.6; margin-top: -10px; }
+#intro .card { background: rgba(15,13,26,0.68); border: 1px solid rgba(160,150,220,0.3); border-radius: 16px;
+  backdrop-filter: blur(10px); padding: 24px 32px 22px; width: min(430px, 94vw); display: flex; flex-direction: column;
+  gap: 14px; box-shadow: 0 18px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.02) inset; }
+#intro .card .field-label { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.55; }
+#intro .wb { font-size: 12px; opacity: 0.65; text-align: center; margin-top: -4px; }
+#intro input { background: rgba(30,27,50,0.85); border: 1px solid rgba(160,150,220,0.4); color: #e8e4f0; padding: 11px 14px;
+  border-radius: 10px; font-size: 16px; text-align: center; outline: none; letter-spacing: 0.04em; transition: border-color 0.2s, box-shadow 0.2s; }
+#intro input:focus { border-color: var(--accent, #6ec6ff); box-shadow: 0 0 14px color-mix(in srgb, var(--accent, #6ec6ff) 40%, transparent); }
+#intro .accents { display: flex; gap: 12px; justify-content: center; padding: 2px 0; }
+#intro .sw { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+#intro .sw:hover { transform: scale(1.14); }
+#intro .sw.sel { border-color: #fff; transform: scale(1.18); box-shadow: 0 0 12px var(--c); }
+#intro button#intro-go { background: linear-gradient(135deg, color-mix(in srgb, var(--accent, #6ec6ff) 26%, transparent), rgba(255,158,203,0.14));
+  border: 1px solid var(--accent, #6ec6ff); color: #fff; font-size: 15px; padding: 13px 0; width: 100%; border-radius: 10px;
+  cursor: pointer; letter-spacing: 0.32em; text-indent: 0.32em; transition: box-shadow 0.2s, transform 0.1s; }
+#intro button#intro-go:hover { box-shadow: 0 0 28px color-mix(in srgb, var(--accent, #6ec6ff) 55%, transparent); }
+#intro button#intro-go:active { transform: scale(0.985); }
+#intro .stats { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; opacity: 0.5; text-align: center; }
+#intro .keys { display: flex; flex-wrap: wrap; gap: 6px 10px; justify-content: center; max-width: 620px; font-size: 11px; opacity: 0.72; }
+#intro .keys span { white-space: nowrap; }
+#intro kbd { background: rgba(30,27,50,0.9); border: 1px solid rgba(160,150,220,0.35); border-bottom-width: 2px;
+  border-radius: 5px; padding: 1px 6px; font-family: inherit; font-size: 10px; color: #ffd98a; }
+#intro .share { font-size: 12px; opacity: 0.5; text-align: center; }
 #banner { position: absolute; left: 50%; top: 34%; transform: translateX(-50%); text-align: center; display: none; }
 #banner h2 { font-weight: 200; letter-spacing: 0.4em; font-size: 34px; color: #ffd98a; text-shadow: 0 0 24px rgba(255,217,138,0.7); }
 #banner p { opacity: 0.85; margin-top: 6px; }
@@ -173,24 +199,57 @@ export class Hud {
     const intro = document.createElement('div');
     intro.id = 'intro';
     const saved = localStorage.getItem('threshold-name') ?? '';
+    const savedAccent = localStorage.getItem('t-accent') ?? PLAYER_ACCENTS[0];
+    const accent = PLAYER_ACCENTS.includes(savedAccent) ? savedAccent : PLAYER_ACCENTS[0];
+    intro.style.setProperty('--accent', accent);
     intro.innerHTML = `
-      <h1>THRESHOLD</h1>
-      <p>A cooperative puzzle-adventure. Walk through a portal and think your way out —
-      alone, or with whoever else steps through. Share this page's URL to bring a friend into your world.</p>
-      <input id="intro-name" maxlength="24" placeholder="your name" value="${saved.replace(/"/g, '')}" />
-      <button id="intro-go">ENTER</button>
-      <p class="keys">WASD move · mouse look · SPACE jump · E interact · F carry · LMB device ·
-      1-4 equip · ENTER chat · MMB ping · Q beacon · L loadout · T echo · ESC menu</p>
+      <canvas id="intro-bg"></canvas>
+      <div class="wrap">
+        <h1>THRESHOLD</h1>
+        <div class="tag">a cooperative puzzle-adventure</div>
+        <div class="card">
+          ${saved ? `<div class="wb">welcome back, <b style="color:var(--accent)">${saved.replace(/[<>&"]/g, '')}</b></div>` : ''}
+          <div class="field-label">call sign</div>
+          <input id="intro-name" maxlength="24" placeholder="your name" value="${saved.replace(/"/g, '')}" />
+          <div class="field-label">accent — your colour in the world</div>
+          <div class="accents">${PLAYER_ACCENTS.map((c) =>
+            `<div class="sw ${c === accent ? 'sel' : ''}" data-accent="${c}" style="background:${c};--c:${c}"></div>`).join('')}</div>
+          <button id="intro-go">STEP THROUGH</button>
+          <div class="stats">13 levels · 12 shards · 1–4 players · drop-in co-op</div>
+        </div>
+        <div class="keys">
+          <span><kbd>WASD</kbd> move</span><span><kbd>SPACE</kbd> jump</span><span><kbd>E</kbd> interact</span>
+          <span><kbd>F</kbd> carry</span><span><kbd>LMB</kbd> device</span><span><kbd>1–4</kbd> equip</span>
+          <span><kbd>ENTER</kbd> chat</span><span><kbd>MMB</kbd> ping</span><span><kbd>Q</kbd> beacon</span>
+          <span><kbd>L</kbd> loadout</span><span><kbd>T</kbd> echo</span><span><kbd>ESC</kbd> menu</span>
+        </div>
+        <div class="share">share this page's URL to pull a friend into your Nexus</div>
+      </div>
     `;
     document.body.appendChild(intro);
+    const stopBg = runIntroBackdrop(intro.querySelector('#intro-bg') as HTMLCanvasElement, this.settings.reduceMotion);
+
+    let chosen = accent;
+    intro.querySelectorAll<HTMLElement>('.sw').forEach((sw) => sw.addEventListener('click', () => {
+      chosen = sw.dataset.accent!;
+      localStorage.setItem('t-accent', chosen);
+      intro.style.setProperty('--accent', chosen);
+      intro.querySelectorAll('.sw').forEach((n) => n.classList.toggle('sel', n === sw));
+    }));
+
+    let leaving = false;
     const go = () => {
+      if (leaving) return;
+      leaving = true;
       const name = (intro.querySelector('#intro-name') as HTMLInputElement).value.trim() || 'Wanderer';
       localStorage.setItem('threshold-name', name);
-      intro.remove();
-      this.cb.onStart(name);
+      this.cb.onStart(name, chosen);            // boot the game behind the fade
+      intro.classList.add('leaving');
+      setTimeout(() => { stopBg(); intro.remove(); }, 750);
     };
     intro.querySelector('#intro-go')!.addEventListener('click', go);
     (intro.querySelector('#intro-name') as HTMLInputElement).addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    setTimeout(() => (intro.querySelector('#intro-name') as HTMLInputElement).focus(), 50);
   }
 
   private $(sel: string) { return this.root.querySelector(sel) as HTMLElement; }
@@ -435,3 +494,110 @@ export class Hud {
 }
 
 function esc(s: string) { return s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]!)); }
+
+// ---------- title-screen backdrop ----------
+// A self-contained 2D-canvas vista of the game's world: parallax stars, aurora
+// bands, drifting islands with lit lamps, and a slow portal vortex behind the
+// title. No dependency on the renderer — it runs before the game boots.
+function runIntroBackdrop(canvas: HTMLCanvasElement, reduceMotion: boolean): () => void {
+  const ctx = canvas.getContext('2d')!;
+  let w = 0, h = 0, raf = 0;
+  const fit = () => { w = canvas.width = innerWidth; h = canvas.height = innerHeight; };
+  fit();
+  addEventListener('resize', fit);
+
+  const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+  const stars = Array.from({ length: 150 }, () => ({
+    x: Math.random(), y: Math.random() * 0.85, r: rnd(0.4, 1.5), tw: rnd(0, Math.PI * 2), spd: rnd(0.2, 1),
+  }));
+  const islands = [
+    { x: 0.14, y: 0.68, s: 1.35, ph: 0.5 }, { x: 0.82, y: 0.6, s: 1.1, ph: 2.2 },
+    { x: 0.3, y: 0.84, s: 0.8, ph: 4.0 }, { x: 0.68, y: 0.87, s: 1.0, ph: 1.3 },
+    { x: 0.92, y: 0.82, s: 0.6, ph: 3.1 },
+  ];
+
+  const draw = (tms: number) => {
+    const t = tms / 1000;
+    // night-sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#191729');
+    sky.addColorStop(0.55, '#221f38');
+    sky.addColorStop(1, '#151222');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+    // stars
+    for (const s of stars) {
+      const a = 0.35 + Math.sin(t * s.spd + s.tw) * 0.3;
+      ctx.fillStyle = `rgba(220,225,255,${Math.max(0.08, a)})`;
+      ctx.fillRect(s.x * w, s.y * h, s.r, s.r);
+    }
+    // aurora bands
+    for (let b = 0; b < 3; b++) {
+      ctx.beginPath();
+      const baseY = h * (0.2 + b * 0.16);
+      ctx.moveTo(0, baseY);
+      for (let x = 0; x <= w; x += 24) {
+        ctx.lineTo(x, baseY + Math.sin(x * 0.0018 + t * 0.12 + b * 2.1) * 46 + Math.sin(x * 0.0007 - t * 0.07) * 70);
+      }
+      ctx.lineTo(w, h); ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = ['rgba(107,91,149,0.10)', 'rgba(110,198,255,0.05)', 'rgba(255,158,203,0.045)'][b];
+      ctx.fill();
+    }
+    // portal vortex behind the title (upper third)
+    const px = w / 2, py = h * 0.30, pr = Math.min(w, h) * 0.22;
+    const glow = ctx.createRadialGradient(px, py, pr * 0.1, px, py, pr * 1.5);
+    glow.addColorStop(0, 'rgba(110,198,255,0.16)');
+    glow.addColorStop(0.6, 'rgba(255,158,203,0.05)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(px - pr * 1.6, py - pr * 1.6, pr * 3.2, pr * 3.2);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let ring = 0; ring < 3; ring++) {
+      const rr = pr * (0.55 + ring * 0.22);
+      const rot = t * (0.1 + ring * 0.06) * (ring % 2 ? -1 : 1);
+      ctx.strokeStyle = ['rgba(110,198,255,0.4)', 'rgba(255,158,203,0.28)', 'rgba(201,168,255,0.22)'][ring];
+      ctx.lineWidth = 2.2 - ring * 0.5;
+      for (let i = 0; i < 5; i++) {
+        const a0 = rot + (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(px, py, rr, a0, a0 + Math.PI * 0.26);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    // floating islands: slab + drift-rock cone + lamp
+    for (const is of islands) {
+      const bob = Math.sin(t * 0.4 + is.ph) * 6 * is.s;
+      const ix = is.x * w, iy = is.y * h + bob, sw = 130 * is.s;
+      ctx.fillStyle = '#211d33';
+      ctx.beginPath();
+      ctx.ellipse(ix, iy, sw, 16 * is.s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(ix - sw * 0.7, iy + 6 * is.s);
+      ctx.lineTo(ix, iy + 95 * is.s);
+      ctx.lineTo(ix + sw * 0.7, iy + 6 * is.s);
+      ctx.closePath();
+      ctx.fillStyle = '#1b1830';
+      ctx.fill();
+      // glowing rim + lamp
+      ctx.strokeStyle = 'rgba(139,159,208,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(ix, iy - 3 * is.s, sw * 0.92, 12 * is.s, 0, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+      const lampA = 0.5 + Math.sin(t * 1.3 + is.ph * 3) * 0.2;
+      ctx.fillStyle = `rgba(255,217,138,${lampA})`;
+      ctx.beginPath();
+      ctx.arc(ix + sw * 0.4, iy - 14 * is.s, 3 * is.s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  if (reduceMotion) { draw(0); return () => removeEventListener('resize', fit); }
+  const loop = (tms: number) => { draw(tms); raf = requestAnimationFrame(loop); };
+  raf = requestAnimationFrame(loop);
+  return () => { cancelAnimationFrame(raf); removeEventListener('resize', fit); };
+}
