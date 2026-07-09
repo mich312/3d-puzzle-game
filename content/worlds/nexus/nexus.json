@@ -11561,127 +11561,14 @@
     {
       "shape": "cylinder",
       "pos": [
-        19.021,
-        3.058,
-        19.021
+        20.223,
+        1.902,
+        16.829
       ],
       "size": [
-        0.194,
-        2.916,
-        0.194
-      ],
-      "material": "wood",
-      "color": "#8a6a50",
-      "emissive": "#6a4a34",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        4.616,
-        19.021
-      ],
-      "size": [
-        1.026,
-        0.594,
-        1.026
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        5.178,
-        19.021
-      ],
-      "size": [
-        0.756,
-        0.54,
-        0.756
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        5.739,
-        19.021
-      ],
-      "size": [
-        0.454,
-        0.486,
-        0.454
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        19.993,
-        4.916,
-        19.321
-      ],
-      "size": [
-        0.16,
-        0.16,
-        0.16
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 1.1,
-      "rotY": 1.08,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        18.521,
-        5.488,
-        18.157
-      ],
-      "size": [
-        0.13,
-        0.13,
-        0.13
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 1,
-      "rotY": 2.16,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        20.294,
-        1.838,
-        17.748
-      ],
-      "size": [
-        0.527,
-        0.476,
-        0.527
+        0.67,
+        0.605,
+        0.67
       ],
       "material": "stone",
       "collider": false,
@@ -11693,14 +11580,14 @@
     {
       "shape": "cylinder",
       "pos": [
-        20.634,
+        20.655,
         1.78,
-        17.493
+        16.505
       ],
       "size": [
-        0.323,
+        0.41,
         0.36,
-        0.323
+        0.41
       ],
       "material": "stone",
       "collider": false,
@@ -11712,9 +11599,9 @@
     {
       "shape": "box",
       "pos": [
-        20.094,
-        2.068,
-        17.998
+        20.023,
+        2.194,
+        17.079
       ],
       "size": [
         0.1,
@@ -11725,15 +11612,72 @@
       "collider": false,
       "emissive": "#7a68ab",
       "emissiveIntensity": 0.9,
+      "rotY": 3.24,
+      "gen": "nexus-expansion"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        16.829,
+        1.838,
+        20.223
+      ],
+      "size": [
+        0.527,
+        0.476,
+        0.527
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3527",
+      "emissive": "#9c7d54",
+      "emissiveIntensity": 0.12,
+      "gen": "nexus-expansion"
+    },
+    {
+      "shape": "cylinder",
+      "pos": [
+        17.169,
+        1.78,
+        19.968
+      ],
+      "size": [
+        0.323,
+        0.36,
+        0.323
+      ],
+      "material": "stone",
+      "collider": false,
+      "color": "#3f3527",
+      "emissive": "#9c7d54",
+      "emissiveIntensity": 0.12,
+      "gen": "nexus-expansion"
+    },
+    {
+      "shape": "box",
+      "pos": [
+        16.629,
+        2.068,
+        20.473
+      ],
+      "size": [
+        0.1,
+        0.1,
+        0.1
+      ],
+      "material": "crystal",
+      "collider": false,
+      "emissive": "#9c7d54",
+      "emissiveIntensity": 0.9,
       "rotY": 2.55,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        17.89,
-        1.858,
-        20.153
+        -16.829,
+        2.658,
+        20.223
       ],
       "size": [
         0.57,
@@ -11750,9 +11694,9 @@
     {
       "shape": "cylinder",
       "pos": [
-        18.258,
-        1.78,
-        19.877
+        -16.461,
+        2.58,
+        19.947
       ],
       "size": [
         0.35,
@@ -11769,9 +11713,9 @@
     {
       "shape": "box",
       "pos": [
-        17.69,
-        2.106,
-        20.403
+        -17.029,
+        2.906,
+        20.473
       ],
       "size": [
         0.1,
@@ -11788,122 +11732,66 @@
     {
       "shape": "cylinder",
       "pos": [
-        -19.021,
-        3.737,
-        19.021
+        -20.223,
+        2.677,
+        16.829
       ],
       "size": [
-        0.178,
-        2.673,
-        0.178
+        0.614,
+        0.554,
+        0.614
       ],
-      "material": "wood",
-      "color": "#8a6a50",
-      "emissive": "#6a4a34",
+      "material": "stone",
+      "collider": false,
+      "color": "#26413a",
+      "emissive": "#3f7a5c",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -19.021,
-        5.173,
-        19.021
+        -19.827,
+        2.58,
+        16.532
       ],
       "size": [
-        0.941,
-        0.545,
-        0.941
+        0.376,
+        0.36,
+        0.376
       ],
       "material": "stone",
       "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -19.021,
-        5.688,
-        19.021
-      ],
-      "size": [
-        0.693,
-        0.495,
-        0.693
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -19.021,
-        6.203,
-        19.021
-      ],
-      "size": [
-        0.416,
-        0.446,
-        0.416
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.07,
+      "color": "#26413a",
+      "emissive": "#3f7a5c",
+      "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "box",
       "pos": [
-        -18.13,
-        5.473,
-        19.321
+        -20.423,
+        2.944,
+        17.079
       ],
       "size": [
-        0.16,
-        0.16,
-        0.16
+        0.1,
+        0.1,
+        0.1
       ],
       "material": "crystal",
       "collider": false,
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 1.1,
-      "rotY": 0.99,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        -19.521,
-        5.964,
-        18.229
-      ],
-      "size": [
-        0.13,
-        0.13,
-        0.13
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 1,
-      "rotY": 1.98,
+      "emissive": "#3f7a5c",
+      "emissiveIntensity": 0.9,
+      "rotY": 2.97,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -17.748,
-        2.697,
-        20.294
+        -20.223,
+        1.897,
+        -16.829
       ],
       "size": [
         0.657,
@@ -11912,17 +11800,17 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
+      "color": "#26413a",
+      "emissive": "#3f7a5c",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -17.324,
-        2.58,
-        19.976
+        -19.799,
+        1.78,
+        -17.147
       ],
       "size": [
         0.403,
@@ -11931,17 +11819,17 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
+      "color": "#26413a",
+      "emissive": "#3f7a5c",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "box",
       "pos": [
-        -17.948,
-        2.983,
-        20.544
+        -20.423,
+        2.183,
+        -16.579
       ],
       "size": [
         0.1,
@@ -11950,7 +11838,7 @@
       ],
       "material": "crystal",
       "collider": false,
-      "emissive": "#9c7d54",
+      "emissive": "#3f7a5c",
       "emissiveIntensity": 0.9,
       "rotY": 3.18,
       "gen": "nexus-expansion"
@@ -11958,9 +11846,9 @@
     {
       "shape": "cylinder",
       "pos": [
-        -20.153,
-        2.716,
-        17.89
+        -16.829,
+        1.916,
+        -20.223
       ],
       "size": [
         0.701,
@@ -11969,17 +11857,17 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
+      "color": "#332e4c",
+      "emissive": "#7a68ab",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -19.701,
-        2.58,
-        17.551
+        -16.377,
+        1.78,
+        -20.562
       ],
       "size": [
         0.429,
@@ -11988,17 +11876,17 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
+      "color": "#332e4c",
+      "emissive": "#7a68ab",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "box",
       "pos": [
-        -20.353,
-        3.021,
-        18.14
+        -17.029,
+        2.222,
+        -19.973
       ],
       "size": [
         0.1,
@@ -12007,7 +11895,7 @@
       ],
       "material": "crystal",
       "collider": false,
-      "emissive": "#3f7a5c",
+      "emissive": "#7a68ab",
       "emissiveIntensity": 0.9,
       "rotY": 3.39,
       "gen": "nexus-expansion"
@@ -12015,122 +11903,66 @@
     {
       "shape": "cylinder",
       "pos": [
-        -19.021,
-        2.815,
-        -19.021
+        16.829,
+        2.652,
+        -20.223
       ],
       "size": [
-        0.162,
-        2.43,
-        0.162
+        0.558,
+        0.504,
+        0.558
       ],
-      "material": "wood",
-      "color": "#8a6a50",
-      "emissive": "#6a4a34",
+      "material": "stone",
+      "collider": false,
+      "color": "#332e4c",
+      "emissive": "#7a68ab",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -19.021,
-        4.13,
-        -19.021
+        17.189,
+        2.58,
+        -20.493
       ],
       "size": [
-        0.855,
-        0.495,
-        0.855
+        0.342,
+        0.36,
+        0.342
       ],
       "material": "stone",
       "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -19.021,
-        4.598,
-        -19.021
-      ],
-      "size": [
-        0.63,
-        0.45,
-        0.63
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        -19.021,
-        5.066,
-        -19.021
-      ],
-      "size": [
-        0.378,
-        0.405,
-        0.378
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 0.07,
+      "color": "#332e4c",
+      "emissive": "#7a68ab",
+      "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "box",
       "pos": [
-        -18.211,
-        4.43,
-        -18.721
+        16.629,
+        2.895,
+        -19.973
       ],
       "size": [
-        0.16,
-        0.16,
-        0.16
+        0.1,
+        0.1,
+        0.1
       ],
       "material": "crystal",
       "collider": false,
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 1.1,
-      "rotY": 0.9,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        -19.521,
-        4.84,
-        -19.741
-      ],
-      "size": [
-        0.13,
-        0.13,
-        0.13
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 1,
-      "rotY": 1.8,
+      "emissive": "#7a68ab",
+      "emissiveIntensity": 0.9,
+      "rotY": 2.7,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -20.294,
-        1.872,
-        -17.748
+        20.223,
+        2.672,
+        -16.829
       ],
       "size": [
         0.601,
@@ -12139,17 +11971,17 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
+      "color": "#3f3527",
+      "emissive": "#9c7d54",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -19.906,
-        1.78,
-        -18.039
+        20.611,
+        2.58,
+        -17.12
       ],
       "size": [
         0.369,
@@ -12158,17 +11990,17 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
+      "color": "#3f3527",
+      "emissive": "#9c7d54",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "box",
       "pos": [
-        -20.494,
-        2.134,
-        -17.498
+        20.023,
+        2.934,
+        -16.579
       ],
       "size": [
         0.1,
@@ -12177,7 +12009,7 @@
       ],
       "material": "crystal",
       "collider": false,
-      "emissive": "#3f7a5c",
+      "emissive": "#9c7d54",
       "emissiveIntensity": 0.9,
       "rotY": 2.91,
       "gen": "nexus-expansion"
@@ -12185,9 +12017,9 @@
     {
       "shape": "cylinder",
       "pos": [
-        -17.89,
-        1.891,
-        -20.153
+        4.738,
+        3.891,
+        7.425
       ],
       "size": [
         0.645,
@@ -12196,306 +12028,22 @@
       ],
       "material": "stone",
       "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
+      "color": "#26413a",
+      "emissive": "#3f7a5c",
       "emissiveIntensity": 0.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
-        -17.474,
-        1.78,
-        -20.465
+        5.154,
+        3.78,
+        7.113
       ],
       "size": [
         0.395,
         0.36,
         0.395
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        -18.09,
-        2.172,
-        -19.903
-      ],
-      "size": [
-        0.1,
-        0.1,
-        0.1
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.9,
-      "rotY": 3.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        3.899,
-        -19.021
-      ],
-      "size": [
-        0.2,
-        2.997,
-        0.2
-      ],
-      "material": "wood",
-      "color": "#8a6a50",
-      "emissive": "#6a4a34",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        5.497,
-        -19.021
-      ],
-      "size": [
-        1.054,
-        0.61,
-        1.054
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        6.074,
-        -19.021
-      ],
-      "size": [
-        0.777,
-        0.555,
-        0.777
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        19.021,
-        6.651,
-        -19.021
-      ],
-      "size": [
-        0.466,
-        0.499,
-        0.466
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.07,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        20.02,
-        5.797,
-        -18.721
-      ],
-      "size": [
-        0.16,
-        0.16,
-        0.16
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 1.1,
-      "rotY": 1.11,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        18.521,
-        6.396,
-        -19.909
-      ],
-      "size": [
-        0.13,
-        0.13,
-        0.13
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 1,
-      "rotY": 2.22,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        17.748,
-        2.646,
-        -20.294
-      ],
-      "size": [
-        0.546,
-        0.493,
-        0.546
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        18.1,
-        2.58,
-        -20.558
-      ],
-      "size": [
-        0.334,
-        0.36,
-        0.334
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#332e4c",
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        17.548,
-        2.884,
-        -20.044
-      ],
-      "size": [
-        0.1,
-        0.1,
-        0.1
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#7a68ab",
-      "emissiveIntensity": 0.9,
-      "rotY": 2.64,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        20.153,
-        2.666,
-        -17.89
-      ],
-      "size": [
-        0.589,
-        0.532,
-        0.589
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        20.533,
-        2.58,
-        -18.175
-      ],
-      "size": [
-        0.361,
-        0.36,
-        0.361
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#3f3527",
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "box",
-      "pos": [
-        19.953,
-        2.923,
-        -17.64
-      ],
-      "size": [
-        0.1,
-        0.1,
-        0.1
-      ],
-      "material": "crystal",
-      "collider": false,
-      "emissive": "#9c7d54",
-      "emissiveIntensity": 0.9,
-      "rotY": 2.85,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        4.738,
-        3.886,
-        7.425
-      ],
-      "size": [
-        0.632,
-        0.571,
-        0.632
-      ],
-      "material": "stone",
-      "collider": false,
-      "color": "#26413a",
-      "emissive": "#3f7a5c",
-      "emissiveIntensity": 0.12,
-      "gen": "nexus-expansion"
-    },
-    {
-      "shape": "cylinder",
-      "pos": [
-        5.146,
-        3.78,
-        7.119
-      ],
-      "size": [
-        0.388,
-        0.36,
-        0.388
       ],
       "material": "stone",
       "collider": false,
@@ -12508,7 +12056,7 @@
       "shape": "box",
       "pos": [
         4.538,
-        4.161,
+        4.172,
         7.675
       ],
       "size": [
@@ -12520,20 +12068,20 @@
       "collider": false,
       "emissive": "#3f7a5c",
       "emissiveIntensity": 0.9,
-      "rotY": 3.06,
+      "rotY": 3.12,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
         -7.425,
-        3.905,
+        3.911,
         4.738
       ],
       "size": [
-        0.676,
-        0.61,
-        0.676
+        0.688,
+        0.622,
+        0.688
       ],
       "material": "stone",
       "collider": false,
@@ -12545,14 +12093,14 @@
     {
       "shape": "cylinder",
       "pos": [
-        -6.989,
+        -6.981,
         3.78,
-        4.411
+        4.405
       ],
       "size": [
-        0.414,
+        0.422,
         0.36,
-        0.414
+        0.422
       ],
       "material": "stone",
       "collider": false,
@@ -12565,7 +12113,7 @@
       "shape": "box",
       "pos": [
         -7.625,
-        4.2,
+        4.211,
         4.988
       ],
       "size": [
@@ -12577,20 +12125,20 @@
       "collider": false,
       "emissive": "#3f7a5c",
       "emissiveIntensity": 0.9,
-      "rotY": 3.27,
+      "rotY": 3.33,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
         -4.738,
-        3.841,
+        3.846,
         -7.425
       ],
       "size": [
-        0.533,
-        0.482,
-        0.533
+        0.546,
+        0.493,
+        0.546
       ],
       "material": "stone",
       "collider": false,
@@ -12602,14 +12150,14 @@
     {
       "shape": "cylinder",
       "pos": [
-        -4.394,
+        -4.386,
         3.78,
-        -7.683
+        -7.689
       ],
       "size": [
-        0.327,
+        0.334,
         0.36,
-        0.327
+        0.334
       ],
       "material": "stone",
       "collider": false,
@@ -12622,7 +12170,7 @@
       "shape": "box",
       "pos": [
         -4.938,
-        4.073,
+        4.084,
         -7.175
       ],
       "size": [
@@ -12634,20 +12182,20 @@
       "collider": false,
       "emissive": "#3f7a5c",
       "emissiveIntensity": 0.9,
-      "rotY": 2.58,
+      "rotY": 2.64,
       "gen": "nexus-expansion"
     },
     {
       "shape": "cylinder",
       "pos": [
         7.425,
-        3.86,
+        3.866,
         -4.738
       ],
       "size": [
-        0.577,
-        0.521,
-        0.577
+        0.589,
+        0.532,
+        0.589
       ],
       "material": "stone",
       "collider": false,
@@ -12659,14 +12207,14 @@
     {
       "shape": "cylinder",
       "pos": [
-        7.797,
+        7.805,
         3.78,
-        -5.017
+        -5.023
       ],
       "size": [
-        0.353,
+        0.361,
         0.36,
-        0.353
+        0.361
       ],
       "material": "stone",
       "collider": false,
@@ -12679,7 +12227,7 @@
       "shape": "box",
       "pos": [
         7.225,
-        4.112,
+        4.123,
         -4.488
       ],
       "size": [
@@ -12691,7 +12239,7 @@
       "collider": false,
       "emissive": "#3f7a5c",
       "emissiveIntensity": 0.9,
-      "rotY": 2.79,
+      "rotY": 2.85,
       "gen": "nexus-expansion"
     }
   ],

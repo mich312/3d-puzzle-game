@@ -161,13 +161,15 @@ for (const [x, z] of [[-7.5, 44.5], [7.5, 44.5], [-7.5, 55.5], [7.5, 55.5]]) {
 // atrium + observatory get a violet pair each; vaults stays barren ice
 tree(-8, 4.0, -45, 1); tree(8, 4.0, -45, 1);
 tree(-45, 6.05, -7, 1); tree(-45, 6.05, 7, 1);
-// outer leisure islands: one tree + undergrowth on the inward side
+// outer leisure islands: low undergrowth only — a full tree crowds a 5.5m
+// island that already holds a lamp, a perch, and (NE) the Proving Ground
+// portal. Two bushes flank the stepping-stone landing on the inward rim, so
+// the sightline back to the spire and the portal pad stay open.
 DIAG.forEach(([dx, dz], i) => {
   const top = i % 2 === 0 ? 1.6 : 2.4;
-  const tx = dx * 30 - dx * 3.1, tz = dz * 30 - dz * 3.1;
-  tree(tx, top, tz, i % 3);
-  bush(tx + dz * 1.8, top, tz - dx * 1.8, (i + 1) % 3);
-  bush(tx - dz * 1.6, top, tz + dx * 1.6, (i + 2) % 3);
+  const ix = dx * 30, iz = dz * 30;
+  bush(ix - dx * 3.8 + dz * 2.4, top, iz - dz * 3.8 - dx * 2.4, (i + 1) % 3);
+  bush(ix - dx * 3.8 - dz * 2.4, top, iz - dz * 3.8 + dx * 2.4, (i + 2) % 3);
 });
 // mid-tier platforms: a bush beside each crystal
 for (const [dx, dz] of DIAG) bush(dx * 8.6 - dz * 1.9, 3.6, dz * 8.6 + dx * 1.9, 0);
