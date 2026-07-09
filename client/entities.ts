@@ -8,6 +8,113 @@ import { Interpolator } from './interp';
 import type { DynamicLights, LightHandle } from './render/lights';
 
 // ---------- peers ----------
+// An articulated, low-poly "explorer" rig — faceted suit panels, a glowing accent
+// visor + chest core, and swinging limbs driven by the avatar's ground speed. Local
+// players are first-person, so this is what you see of your teammates in co-op.
+interface AvatarRig {
+  root: THREE.Group;                       // whole humanoid (collapses when downed)
+  legL: THREE.Group; legR: THREE.Group;    // hip-pivoting leg groups
+  armL: THREE.Group; armR: THREE.Group;    // shoulder-pivoting arm groups
+  torso: THREE.Group;                       // subtle breathing bob
+  recolor: THREE.MeshStandardMaterial[];    // accent emissives (→ hostile when downed)
+}
+
+function limb(len: number, top: number, bottom: number, mat: THREE.Material, accent?: THREE.Mesh): THREE.Group {
+  // a single tapered segment hanging from a pivot at y=0, plus an optional joint cap
+  const g = new THREE.Group();
+  const seg = new THREE.Mesh(new THREE.CylinderGeometry(bottom, top, len, 6), mat);
+  seg.position.y = -len / 2;
+  seg.castShadow = true;
+  g.add(seg);
+  if (accent) g.add(accent);
+  return g;
+}
+
+export function buildAvatar(accentHex: string): AvatarRig {
+  const accent = new THREE.Color(accentHex);
+  const recolor: THREE.MeshStandardMaterial[] = [];
+  const suit = new THREE.MeshStandardMaterial({
+    color: '#c9c5d8', roughness: 0.5, metalness: 0.35, flatShading: true,
+    emissive: accent, emissiveIntensity: 0.14,
+  });
+  recolor.push(suit);
+  const panel = new THREE.MeshStandardMaterial({
+    color: '#43405e', roughness: 0.42, metalness: 0.5, flatShading: true,
+  });
+  const glow = () => {
+    const m = new THREE.MeshStandardMaterial({ color: accentHex, emissive: accentHex, emissiveIntensity: 1.5, roughness: 0.3 });
+    recolor.push(m);
+    return m;
+  };
+
+  const root = new THREE.Group();
+
+  // ---- torso: tapered chest over a slimmer waist ----
+  const torso = new THREE.Group();
+  const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.3, 0.52, 6), suit);
+  chest.position.y = 1.24; chest.castShadow = true;
+  const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.26, 0.28, 6), panel);
+  waist.position.y = 0.92;
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.28, 0.2, 6), suit);
+  hips.position.y = 0.8;
+  // glowing chest core + collar trim
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.11), glow());
+  core.position.set(0, 1.3, -0.28);
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 6, 16), glow());
+  collar.position.y = 1.5; collar.rotation.x = Math.PI / 2;
+  // small backpack
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.4, 0.18), panel);
+  pack.position.set(0, 1.24, 0.3); pack.castShadow = true;
+  const vent = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.06, 0.04), glow());
+  vent.position.set(0, 1.32, 0.4);
+  torso.add(chest, waist, hips, core, collar, pack, vent);
+
+  // ---- head: helmet with a wraparound visor band ----
+  const head = new THREE.Group(); head.position.y = 1.6;
+  const helmet = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 1), suit);
+  helmet.castShadow = true;
+  // glowing visor band across the FRONT face (θ=π is -Z); radius just proud of the helmet
+  const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.208, 0.208, 0.13, 12, 1, true,
+    Math.PI * 0.55, Math.PI * 0.9), glow());
+  visor.position.set(0, -0.01, 0);
+  const brow = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.022, 6, 14, Math.PI), panel);
+  brow.position.y = 0.09; brow.rotation.set(Math.PI / 2, 0, Math.PI);   // dark crest hood over the visor
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.22), panel);
+  crest.position.set(0, 0.11, 0.02);
+  head.add(helmet, visor, brow, crest);
+  torso.add(head);
+  root.add(torso);
+
+  // ---- shoulders + arms (swing from the shoulder) ----
+  const armFor = (side: number): THREE.Group => {
+    const pauldron = new THREE.Mesh(new THREE.IcosahedronGeometry(0.14, 0), suit);
+    const arm = limb(0.62, 0.11, 0.08, suit, pauldron);
+    const hand = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), panel);
+    hand.position.y = -0.62; arm.add(hand);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.02, 5, 12), glow());
+    band.position.y = -0.34; band.rotation.x = Math.PI / 2; arm.add(band);
+    arm.position.set(side * 0.36, 1.42, 0);
+    return arm;
+  };
+  const armL = armFor(-1), armR = armFor(1);
+  root.add(armL, armR);
+
+  // ---- legs (swing from the hip) ----
+  const legFor = (side: number): THREE.Group => {
+    const leg = limb(0.66, 0.13, 0.09, suit);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.28), panel);
+    boot.position.set(0, -0.66, -0.04); boot.castShadow = true; leg.add(boot);
+    const knee = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 5, 12), glow());
+    knee.position.y = -0.36; knee.rotation.x = Math.PI / 2; leg.add(knee);
+    leg.position.set(side * 0.16, 0.8, 0);
+    return leg;
+  };
+  const legL = legFor(-1), legR = legFor(1);
+  root.add(legL, legR);
+
+  return { root, legL, legR, armL, armR, torso, recolor };
+}
+
 class PeerAvatar {
   group = new THREE.Group();
   interp = new Interpolator();
@@ -15,30 +122,26 @@ class PeerAvatar {
   private bubble?: THREE.Sprite;
   private bubbleUntil = 0;
   hpBar: THREE.Sprite;
-  body: THREE.Mesh;
+  private rig: AvatarRig;
   private dl: LightHandle;
   echoGhost?: THREE.Mesh;
   accent: string;
+  private phase = Math.random() * Math.PI * 2;   // desync stride between peers
+  private speed = 0;
+  private prev = new THREE.Vector3();
+  private collapse = 0;                            // 0 = standing, 1 = fully downed
 
   constructor(snap: PlayerSnap, private lights: DynamicLights) {
     this.accent = snap.accent || PALETTE.portalA;
-    const mat = new THREE.MeshStandardMaterial({ color: '#d8d3e0', roughness: 0.6, emissive: this.accent, emissiveIntensity: 0.25 });
-    this.body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.9, 4, 12), mat);
-    this.body.position.y = 0.85;
-    this.body.castShadow = true;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12),
-      new THREE.MeshStandardMaterial({ color: this.accent, emissive: this.accent, emissiveIntensity: 0.9 }));
-    head.position.y = 1.55;
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.1),
-      new THREE.MeshBasicMaterial({ color: '#ffffff' }));
-    visor.position.set(0, 1.57, -0.18);
+    this.rig = buildAvatar(this.accent);
     const name = textSprite(snap.name, this.accent, 0.42);
     name.position.y = 2.15;
     this.hpBar = makeBar(this.accent);
     this.hpBar.position.y = 1.95;
     this.dl = lights.register(PALETTE.hostile, { intensity: 0, range: 8, priority: 2 });
-    this.group.add(this.body, head, visor, name, this.hpBar);
+    this.group.add(this.rig.root, name, this.hpBar);
     this.group.position.set(...snap.p);
+    this.prev.copy(this.group.position);
     this.interp.push(snap.p, snap.yaw);
   }
 
@@ -50,9 +153,7 @@ class PeerAvatar {
     const downed = snap.state === 'downed';
     this.downed = downed;
     this.dl.intensity = downed ? 3 : 0;
-    (this.body.material as THREE.MeshStandardMaterial).emissive.set(downed ? PALETTE.hostile : this.accent);
-    this.body.rotation.x = downed ? Math.PI / 2 : 0;
-    this.body.position.y = downed ? 0.4 : 0.85;
+    for (const m of this.rig.recolor) m.emissive.set(downed ? PALETTE.hostile : this.accent);
   }
 
   say(text: string) {
@@ -66,7 +167,41 @@ class PeerAvatar {
   update(dt: number) {
     const s = this.interp.sample(this.group.position);
     if (s) this.group.rotation.y = s.yaw;
-    if (this.downed) this.dl.pos.copy(this.group.position).setY(this.group.position.y + 1);
+
+    // ground speed drives the stride (planar delta since last frame)
+    const inst = this.group.position.distanceTo(this.prev) / Math.max(dt, 1e-3);
+    this.prev.copy(this.group.position);
+    this.speed += (inst - this.speed) * Math.min(1, dt * 10);   // smooth
+    const t = performance.now() / 1000;
+
+    // collapse toward the downed pose (or back up)
+    this.collapse += ((this.downed ? 1 : 0) - this.collapse) * Math.min(1, dt * 8);
+    const { root, legL, legR, armL, armR, torso } = this.rig;
+
+    if (this.collapse > 0.001) {
+      root.rotation.z = this.collapse * Math.PI * 0.5;
+      root.position.set(this.collapse * 0.2, this.collapse * -0.1, 0);
+    } else {
+      root.rotation.z = 0; root.position.set(0, 0, 0);
+    }
+
+    const moving = this.speed > 0.4;
+    if (moving) this.phase += this.speed * dt * 1.9;
+    const stand = 1 - this.collapse;
+    const amp = (moving ? Math.min(0.62, 0.22 + this.speed * 0.05) : 0) * stand;
+    legL.rotation.x = Math.sin(this.phase) * amp;
+    legR.rotation.x = Math.sin(this.phase + Math.PI) * amp;
+    armL.rotation.x = Math.sin(this.phase + Math.PI) * amp * 0.85;
+    armR.rotation.x = Math.sin(this.phase) * amp * 0.85;
+    // step bob while walking, gentle breathing while idle
+    const bob = moving ? Math.abs(Math.sin(this.phase)) * 0.05 : (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.02;
+    torso.position.y = bob * stand;
+    torso.rotation.z = Math.sin(this.phase) * 0.04 * amp;
+    // arms relax outward a touch when idle-collapsed
+    armL.rotation.z = (0.08 + this.collapse * 0.5) ;
+    armR.rotation.z = -(0.08 + this.collapse * 0.5);
+
+    if (this.downed) this.dl.pos.copy(this.group.position).setY(this.group.position.y + 0.5);
     if (this.bubble && performance.now() > this.bubbleUntil) {
       this.group.remove(this.bubble);
       this.bubble = undefined;
