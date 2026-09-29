@@ -381,7 +381,7 @@ function vaults(ctx: Ctx, grp: THREE.Group) {
   }
   const merged = mergeAll(pipeParts);
   if (merged) {
-    const m = new THREE.Mesh(merged, getMaterial('metal', '#7a7494'));
+    const m = new THREE.Mesh(merged, getMaterial('metal', '#a29ec0'));
     m.castShadow = true; m.receiveShadow = true;
     grp.add(m);
   }

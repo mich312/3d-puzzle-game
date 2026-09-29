@@ -56,16 +56,19 @@ export function makeHazardMaterial(kind: 'steam' | 'void' | 'spark' | 'conveyor'
         vec3 n01 = vLocal / uSize + 0.5;              // 0..1 inside the box
         vec3 V = normalize(cameraPosition - vWPos);
         float facing = abs(dot(V, vWNrm));
-        // soft volume edges: faces seen edge-on and box borders fade out
-        vec3 bd = min(n01, 1.0 - n01);
-        float border = min(min(bd.x * uSize.x, bd.z * uSize.z), 9.0);
+        // soft volume edges: fade toward the rim of whichever box face we're on
+        vec3 an = abs(vWNrm);
+        vec2 fp = an.x > 0.5 ? vLocal.zy : an.z > 0.5 ? vLocal.xy : vLocal.xz;
+        vec2 hs = an.x > 0.5 ? uSize.zy * 0.5 : an.z > 0.5 ? uSize.xy * 0.5 : uSize.xz * 0.5;
+        vec2 dE = hs - abs(fp);
+        float border = min(dE.x, dE.y);
         float t = uTime * (1.0 - uFrozen);
         vec3 col; float a;
         if (uKind < 0.5) {                            // STEAM: rising turbulent wisps
           vec3 q = vWPos * vec3(1.1, 0.7, 1.1) - vec3(0.0, t * 1.6, 0.0);
           float w = fbm3(q + fbm3(q * 0.7 + t * 0.2) * 1.5);
           float rise = smoothstep(0.0, 0.25, n01.y) * (1.0 - smoothstep(0.55, 1.0, n01.y));
-          a = smoothstep(0.38, 0.8, w) * (0.25 + 0.55 * rise) * (0.35 + 0.65 * facing);
+          a = smoothstep(0.3, 0.68, w) * (0.3 + 0.6 * rise) * (0.35 + 0.65 * facing);
           col = mix(vec3(0.78, 0.88, 1.0), vec3(1.0), w);
           a *= 0.55;
         } else if (uKind < 1.5) {                     // VOID: dark churning rift with ember lips
@@ -92,7 +95,7 @@ export function makeHazardMaterial(kind: 'steam' | 'void' | 'spark' | 'conveyor'
         vec3 ice = vec3(0.78, 0.92, 1.0) * (0.55 + 0.45 * fbm3(vWPos * 3.0));
         col = mix(col, ice, uFrozen);
         a = mix(a, 0.72 + 0.2 * (1.0 - facing), uFrozen);
-        a *= smoothstep(0.0, 0.12, border + uFrozen);
+        a *= mix(smoothstep(0.0, 0.35, border), 1.0, uFrozen);
         gl_FragColor = vec4(col, clamp(a, 0.0, 0.95));
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
