@@ -325,7 +325,7 @@ function crystal(n: number, f: Fields) {
     const v = y / n;
     for (let x = 0; x < n; x++) {
       const u = x / n, i = y * n + x;
-      const w = worley(u, v, 6, 101);
+      const w = worley(u, v, 4, 101);
       const f1 = w[0], f2 = w[1], id = w[2];
       const edge = f2 - f1;
       const gx = Math.cos(id * 6.283), gy = Math.sin(id * 6.283);
@@ -333,13 +333,13 @@ function crystal(n: number, f: Fields) {
       const w2 = worley(u, v, 18, 131);
       const cloud = fbm(u, v, 8, 4, 141);
       f.h[i] = facet + sstep(0.0, 0.08, edge) * 0.004 + (w2[1] - w2[0]) * 0.0015;
-      const vein = sstep(0.06, 0.0, edge);
+      const vein = sstep(0.04, 0.0, edge);
       const tone = 0.82 + id * 0.16 + (cloud - 0.5) * 0.2 + vein * 0.25;
       f.r[i] = br * tone; f.g[i] = bg * tone; f.b[i] = bb * tone;
       f.ao[i] = 1;
       f.rough[i] = 0.05 + cloud * 0.12 + (1 - sstep(0, 0.03, edge)) * 0.2;
       f.metal[i] = 0;
-      f.glow![i] = clamp01(0.3 + vein * 0.7 + (cloud - 0.45) * 0.9 + sstep(0.35, 0.05, f1) * 0.15);
+      f.glow![i] = clamp01(0.45 + vein * 0.35 + (cloud - 0.45) * 0.8 + sstep(0.35, 0.05, f1) * 0.15);
     }
   }
 }

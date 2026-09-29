@@ -125,7 +125,20 @@ function patchSurface(mat: THREE.MeshStandardMaterial, look: RoleLook, crystal: 
 }
 
 export function getMaterial(role: TexRole, colorOverride?: string, emissive?: string, emissiveIntensity = 1): THREE.MeshStandardMaterial {
-  const key = `${role}|${colorOverride ?? ''}|${emissive ?? ''}|${emissiveIntensity}`;
+  return makeMaterial(role, colorOverride, emissive, emissiveIntensity, false);
+}
+
+/**
+ * Material for merged static batches: colour overrides travel as vertex colours,
+ * so every piece of one (role, emissive) look shares ONE material → one draw per
+ * batch cell instead of one per colour variant (fewer draws in every scene pass).
+ */
+export function getBatchMaterial(role: TexRole, emissive?: string, emissiveIntensity = 1): THREE.MeshStandardMaterial {
+  return makeMaterial(role, undefined, emissive, emissiveIntensity, true);
+}
+
+function makeMaterial(role: TexRole, colorOverride: string | undefined, emissive: string | undefined, emissiveIntensity: number, vc: boolean): THREE.MeshStandardMaterial {
+  const key = `${vc ? 'vc|' : ''}${role}|${colorOverride ?? ''}|${emissive ?? ''}|${emissiveIntensity}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const look = LOOK[role];
@@ -156,6 +169,7 @@ export function getMaterial(role: TexRole, colorOverride?: string, emissive?: st
   } else {
     mat = new THREE.MeshStandardMaterial(params);
   }
+  if (vc) mat.vertexColors = true;
   if (emissive) {
     mat.emissive = new THREE.Color(emissive);
     mat.emissiveIntensity = emissiveIntensity;

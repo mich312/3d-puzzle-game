@@ -90,12 +90,12 @@ export function bevelCylinder(radius: number, height: number, r: number, radial:
   const idx: number[] = [];
   // side + rim arcs as one smooth strip: profile points (radius, y, nr, ny, edge)
   const prof: [number, number, number, number, number][] = [];
-  for (let m = 0; m <= seg * 2; m++) {           // bottom arc: normal from -y to +r
-    const t = m / (seg * 2), a = -Math.PI / 2 + t * Math.PI / 2;
+  for (let m = 0; m <= seg; m++) {               // bottom arc: normal from -y to +r
+    const t = m / seg, a = -Math.PI / 2 + t * Math.PI / 2;
     prof.push([radius - r + Math.cos(a) * r, -hy + r + Math.sin(a) * r, Math.cos(a), Math.sin(a), 1 - t]);
   }
-  for (let m = 0; m <= seg * 2; m++) {           // top arc: normal from +r to +y
-    const t = m / (seg * 2), a = t * Math.PI / 2;
+  for (let m = 0; m <= seg; m++) {               // top arc: normal from +r to +y
+    const t = m / seg, a = t * Math.PI / 2;
     prof.push([radius - r + Math.cos(a) * r, hy - r + Math.sin(a) * r, Math.cos(a), Math.sin(a), t]);
   }
   const circ = 2 * Math.PI * radius;
@@ -157,7 +157,7 @@ export function finalize(g: THREE.BufferGeometry, worldUV = false, edgeValue = 0
     const ids = new Array(n); for (let i = 0; i < n; i++) ids[i] = i;
     g.setIndex(ids);
   }
-  for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'aEdge'].includes(k)) g.deleteAttribute(k);
+  for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'aEdge', 'color'].includes(k)) g.deleteAttribute(k);
   if (!g.getAttribute('normal')) g.computeVertexNormals();
   const n = g.getAttribute('position').count;
   if (!g.getAttribute('uv')) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2), 2));

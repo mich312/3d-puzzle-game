@@ -525,7 +525,7 @@ function nexusLike(ctx: Ctx, grp: THREE.Group, world: 'nexus' | 'atrium') {
   const lm = mergeAll(lampParts);
   if (lm) { const m = new THREE.Mesh(lm, getMaterial('metal', '#3e3a56')); m.castShadow = true; grp.add(m); }
   const gm = mergeAll(glassParts);
-  if (gm) grp.add(new THREE.Mesh(gm, asset(`mat|lamp|${col.lamp}`, () => new THREE.MeshStandardMaterial({ color: col.lamp, emissive: col.lamp, emissiveIntensity: 1.8 }))));
+  if (gm) grp.add(new THREE.Mesh(gm, asset(`mat|lamp|${col.lamp}`, () => new THREE.MeshStandardMaterial({ color: col.lamp, emissive: col.lamp, emissiveIntensity: 2.2 }))));
   // far floating debris around the islands (distance dressing)
   const box = new THREE.Box3();
   for (const p of ctx.statics) box.union(p.box);

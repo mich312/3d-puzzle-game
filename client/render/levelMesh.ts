@@ -14,7 +14,8 @@
 //     only where there is clear air beneath (never into walkable space)
 import * as THREE from 'three';
 import type { GeometryDef, LevelDef, MaterialRole, Vec3 } from '../../shared/level';
-import { getMaterial, emissiveCap } from './materials';
+import { getMaterial, getBatchMaterial, emissiveCap } from './materials';
+import type { TexRole } from './textures';
 import { roundedBox, bevelCylinder, bevelFor, rockSpike, finalize, mergeAll } from './geometry';
 import { mulberry } from './textures';
 
@@ -52,14 +53,18 @@ export function pieceOf(g: GeometryDef, i: number): Piece {
 
 /** Bevelled geometry for one GeometryDef, in LOCAL space (centre at origin, unrotated). */
 export function pieceGeometry(g: GeometryDef, tier: Tier): THREE.BufferGeometry {
-  const seg = tier === 'low' ? 1 : 2;
   const origin = new THREE.Vector3(...g.pos).applyAxisAngle(new THREE.Vector3(0, 1, 0), -(g.rotY ?? 0));
   if (g.shape === 'cylinder') {
     const r = g.size[0];
-    const radial = Math.round(THREE.MathUtils.clamp(r * 10, 14, 56) / (tier === 'low' ? 1.6 : 1));
+    // triangle budget: radial density ~7/m, round rims only on big high-tier drums
+    const radial = Math.round(THREE.MathUtils.clamp(r * 7, 12, 40) / (tier === 'low' ? 1.5 : 1));
+    const seg = tier === 'high' && r >= 1 ? 2 : 1;
     const bevel = bevelFor([r * 2, g.size[1], r * 2], g.material);
     return bevelCylinder(r, g.size[1], bevel, radial, seg, origin);
   }
+  // soft chamfer everywhere; fully rounded arcs only on large high-tier pieces
+  const big = Math.min(...g.size) >= 0.4 && Math.max(...g.size) >= 2;
+  const seg = tier === 'high' && big ? 2 : 1;
   return roundedBox(g.size[0], g.size[1], g.size[2], bevelFor(g.size, g.material), seg, origin);
 }
 
@@ -69,19 +74,35 @@ export function pieceMatrix(g: GeometryDef): THREE.Matrix4 {
   return m;
 }
 
+/** A surface look: role + optional colour override + (size-capped) emissive. */
+export interface Look { role: TexRole; color?: string; emissive?: string; ei: number }
+
+export function pieceLook(g: GeometryDef): Look {
+  const cap = g.emissive ? emissiveCap(g.size, g.shape, g.material) : 1;
+  const ei = g.emissive ? Math.round(Math.min(g.emissiveIntensity ?? 1, cap) * 100) / 100 : 1;
+  return { role: g.material, color: g.color, emissive: g.emissive, ei };
+}
+
 /** Material for a GeometryDef, emissive capped by the piece's size (no bloom slabs). */
 export function pieceMaterial(g: GeometryDef): THREE.MeshStandardMaterial {
-  const cap = g.emissive ? emissiveCap(g.size, g.shape, g.material) : 1;
-  const ei = Math.min(g.emissiveIntensity ?? 1, cap);
-  return getMaterial(g.material, g.color, g.emissive, Math.round(ei * 100) / 100);
+  const l = pieceLook(g);
+  return getMaterial(l.role, l.color, l.emissive, l.ei);
 }
 
 /** Collects geometry per material bucket and flushes merged meshes. */
 export class StaticBatcher {
   private buckets = new Map<string, { mat: THREE.Material; cast: boolean; geos: THREE.BufferGeometry[] }>();
+  private tmpC = new THREE.Color();
   constructor(private cell = 40) {}
 
-  add(geo: THREE.BufferGeometry, mat: THREE.Material, cast: boolean, at: THREE.Vector3) {
+  /** add a finalized, world-space geometry with a surface look (colour → vertex colours) */
+  add(geo: THREE.BufferGeometry, look: Look, cast: boolean, at: THREE.Vector3) {
+    const mat = getBatchMaterial(look.role, look.emissive, look.ei);
+    const c = this.tmpC.set(look.color ?? '#ffffff');
+    const n = geo.getAttribute('position').count;
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const cx = Math.floor(at.x / this.cell), cz = Math.floor(at.z / this.cell);
     const key = `${mat.uuid}|${cast ? 1 : 0}|${cx},${cz}`;
     let b = this.buckets.get(key);
@@ -122,7 +143,7 @@ function overlaps(ctx: DetailCtx, box: THREE.Box3, self: Piece): Piece[] {
   return hits;
 }
 
-function addLocal(ctx: DetailCtx, geo: THREE.BufferGeometry, local: THREE.Matrix4, owner: GeometryDef, mat: THREE.Material, cast: boolean, worldUV = false) {
+function addLocal(ctx: DetailCtx, geo: THREE.BufferGeometry, local: THREE.Matrix4, owner: GeometryDef, mat: Look, cast: boolean, worldUV = false) {
   geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(pieceMatrix(owner), local));
   finalize(geo, worldUV);
   ctx.batch.add(geo, mat, cast, new THREE.Vector3(...owner.pos));
@@ -145,7 +166,7 @@ function topCovered(ctx: DetailCtx, p: Piece): boolean {
 
 function trimBand(ctx: DetailCtx, p: Piece) {
   const g = p.g;
-  const trimMat = getMaterial('metal', TRIM[ctx.level.world] ?? TRIM.nexus);
+  const trimMat: Look = { role: 'metal', color: TRIM[ctx.level.world] ?? TRIM.nexus, ei: 1 };
   const bandH = THREE.MathUtils.clamp(p.h * 0.2, 0.05, 0.14);
   const y = p.h / 2 - 0.035 - bandH / 2;
   const t = 0.03;       // straddles the face: 1.5 cm proud, 1.5 cm buried
@@ -167,7 +188,7 @@ function trimBand(ctx: DetailCtx, p: Piece) {
   }
 }
 
-function coping(ctx: DetailCtx, p: Piece, mat: THREE.Material) {
+function coping(ctx: DetailCtx, p: Piece, mat: Look) {
   const g = p.g;
   const thinX = g.size[0] < g.size[2];
   const lip = 0.04, ch = 0.14;
@@ -177,7 +198,7 @@ function coping(ctx: DetailCtx, p: Piece, mat: THREE.Material) {
   addLocal(ctx, geo, new THREE.Matrix4().makeTranslation(0, g.size[1] / 2 - ch / 2 + 0.001, 0), g, mat, true, true);
 }
 
-function pillarDress(ctx: DetailCtx, p: Piece, mat: THREE.Material) {
+function pillarDress(ctx: DetailCtx, p: Piece, mat: Look) {
   const g = p.g;
   const lip = 0.05;
   const hy = g.size[1] / 2;
@@ -218,7 +239,7 @@ function rockHang(ctx: DetailCtx, p: Piece, rnd: () => number) {
     }
   }
   if (depth < 0.8) return;
-  const mat = getMaterial('rock', ROCK[ctx.level.world] ?? ROCK.nexus);
+  const mat: Look = { role: 'rock', color: ROCK[ctx.level.world] ?? ROCK.nexus, ei: 1 };
   const bottom = -g.size[1] / 2 + 0.03;          // tuck into the slab's underside
   const maxSpikes = ctx.tier === 'low' ? 6 : ctx.tier === 'medium' ? 14 : 22;
   const cell = THREE.MathUtils.clamp(minH / 2, 1.4, 5);
@@ -271,7 +292,7 @@ export function addDetails(level: LevelDef, tier: Tier, pieces: Piece[], statics
     const role = g.material;
     const minH = Math.min(p.w, p.d), maxH = Math.max(p.w, p.d);
     const quarter = Math.abs(Math.sin(2 * (g.rotY ?? 0))) < 0.01;   // axis-aligned (trims read cleanly)
-    const mat = getMaterial(g.material, g.color);                     // non-emissive twin for trims/caps
+    const mat: Look = { role: g.material, color: g.color, ei: 1 };   // non-emissive twin for trims/caps
     // platform: trim band + hangs
     if ((STRUCT.includes(role) || role === 'wood') && p.h <= 4 && p.h >= 0.25 && minH >= 1.8 && maxH >= 2 && !g.emissive) {
       if (quarter || g.shape === 'cylinder') trimBand(ctx, p);

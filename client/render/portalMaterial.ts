@@ -21,7 +21,7 @@ export function makePortalVortex(color: string, opts?: { intensity?: number }): 
       uTime: { value: Math.random() * 20 },
       uColor: { value: new THREE.Color(color) },
       uOpen: { value: 1 },
-      uIntensity: { value: opts?.intensity ?? 1 },
+      uIntensity: { value: (opts?.intensity ?? 1) * 0.85 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -80,9 +80,9 @@ export function makePortalVortex(color: string, opts?: { intensity?: number }): 
         float fres = 1.0 - abs(V.z);
         col += mix(uColor, vec3(1.0), 0.4) * horizon * (0.55 + 0.35 * fres);
         col *= uIntensity;
-        // hard ceiling: never a white slab under bloom
+        // hard ceiling just under the bloom knee: only the horizon/streak peaks glow
         float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-        col *= min(1.0, 1.1 / max(lum, 1e-3));
+        col *= min(1.0, 0.8 / max(lum, 1e-3));
 
         float alpha = mix(0.35, 0.94, smoothstep(1.0, 0.75, r)) * smoothstep(1.0, 0.94, r);
         alpha = max(alpha, horizon * 0.9);

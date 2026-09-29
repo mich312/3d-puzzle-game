@@ -52,7 +52,7 @@ export function plateModel(size: [number, number, number]): THREE.Group {
   const top = new THREE.Group(); top.name = 'top'; top.position.y = 0.2;
   top.add(mesh(box(sx, 0.16, sz, 0.04), gold()));
   // glowing inset frame (own material → brightens when pressed)
-  const gm = ownGlow(PALETTE.interactable, 1.0);
+  const gm = ownGlow(PALETTE.interactable, 1.2);
   const inset = 0.22, wStrip = 0.06;
   const strips: [number, number, number, number][] = [
     [sx - inset * 2, wStrip, 0, sz / 2 - inset], [sx - inset * 2, wStrip, 0, -(sz / 2 - inset)],
@@ -82,7 +82,7 @@ export function leverModel(rotator: boolean, states: number): THREE.Group {
   if (!rotator) {
     const hub = mesh(cyl(0.12, 0.34, 16), steel()); hub.rotation.z = Math.PI / 2; handle.add(hub);
     handle.add(mesh(cyl(0.045, 0.72, 10), steel(), 0, 0.38, 0));
-    handle.add(mesh(new THREE.SphereGeometry(0.1, 16, 12), glow(PALETTE.interactable, 1.8), 0, 0.8, 0));
+    handle.add(mesh(new THREE.SphereGeometry(0.1, 16, 12), glow(PALETTE.interactable, 2.4), 0, 0.8, 0));
     handle.add(mesh(cyl(0.07, 0.05, 12), gold(), 0, 0.68, 0));
   } else {
     // handwheel on top + glowing pointer
@@ -94,7 +94,7 @@ export function leverModel(rotator: boolean, states: number): THREE.Group {
       sp.rotation.y = (i / 4) * Math.PI; handle.add(sp);
     }
     handle.add(mesh(cyl(0.08, 0.14, 12), steel(), 0, 0.1, 0));
-    const ptr = mesh(new THREE.ConeGeometry(0.07, 0.24, 4), glow(PALETTE.interactable, 1.8), 0, 0.12, 0.44);
+    const ptr = mesh(new THREE.ConeGeometry(0.07, 0.24, 4), glow(PALETTE.interactable, 2.4), 0, 0.12, 0.44);
     ptr.rotation.x = Math.PI / 2; handle.add(ptr);
   }
   g.add(handle);
@@ -104,7 +104,7 @@ export function leverModel(rotator: boolean, states: number): THREE.Group {
     g.add(ring);
     for (let i = 0; i < states; i++) {
       const a = (i / states) * Math.PI * 2;
-      const tick = mesh(new THREE.BoxGeometry(0.06, 0.03, 0.18), glow(PALETTE.interactable, 1.5), Math.sin(a) * 0.72, 0.07, Math.cos(a) * 0.72, false);
+      const tick = mesh(new THREE.BoxGeometry(0.06, 0.03, 0.18), glow(PALETTE.interactable, 2.2), Math.sin(a) * 0.72, 0.07, Math.cos(a) * 0.72, false);
       tick.rotation.y = a; g.add(tick);
     }
   }
@@ -134,7 +134,7 @@ export function switchModel(): THREE.Group {
 export function crateModel(heavy: boolean, kind?: string): THREE.Group {
   const s = heavy ? 1.1 : 0.6;
   const body = new THREE.Group(); body.name = 'body';
-  const coreMat = ownGlow(PALETTE.interactable, 1.3);
+  const coreMat = ownGlow(PALETTE.interactable, 1.6);
   if (kind === 'prism') {
     // crystal prism caged in a gold frame; the crystal itself is the glowing core
     const prism = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.34, s * 0.34, s * 0.78, 3),
@@ -210,10 +210,10 @@ export function collectibleModel(): THREE.Group {
   const g = new THREE.Group();
   const geo = new THREE.OctahedronGeometry(0.3, 0); geo.scale(1, 1.45, 1);
   const gem = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    color: '#ffe7b0', emissive: PALETTE.interactable, emissiveIntensity: 1.4, roughness: 0.12, metalness: 0.2, flatShading: true,
+    color: '#ffe7b0', emissive: PALETTE.interactable, emissiveIntensity: 2.2, roughness: 0.12, metalness: 0.2, flatShading: true,
   }));
   gem.name = 'gem';
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.012, 6, 40), glow(PALETTE.interactable, 1.6));
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.012, 6, 40), glow(PALETTE.interactable, 2.2));
   halo.rotation.x = Math.PI / 2.4;
   gem.add(halo);
   g.add(gem);
@@ -234,7 +234,7 @@ export function socketModel(): THREE.Group {
     g.add(prong);
   }
   g.add(mesh(new THREE.CircleGeometry(0.2, 24).rotateX(-Math.PI / 2), glow(PALETTE.success, 1.2), 0, 0.245, 0, false));
-  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), ownGlow(PALETTE.success, 1.4, '#d8ffe8'));
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), ownGlow(PALETTE.success, 2.2, '#d8ffe8'));
   gem.position.y = 0.55; gem.name = 'gem'; gem.visible = false;
   g.add(gem);
   return g;
@@ -248,7 +248,7 @@ export function emitterModel(dir: [number, number, number], color: string): THRE
   aim.add(mesh(cyl(0.24, 0.5, 20), gunmetal(), 0, -0.12, 0));
   aim.add(mesh(cyl(0.27, 0.08, 20), gold(), 0, 0.1, 0));
   aim.add(mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.12, 20), steel(), 0, 0.18, 0));
-  const lens = mesh(new THREE.CircleGeometry(0.14, 24).rotateX(-Math.PI / 2), glow(color, 2.2), 0, 0.241, 0, false);
+  const lens = mesh(new THREE.CircleGeometry(0.14, 24).rotateX(-Math.PI / 2), glow(color, 2.6), 0, 0.241, 0, false);
   aim.add(lens);
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
@@ -332,7 +332,7 @@ export function resonatorModel(order: number): THREE.Group {
   gem.position.y = 2.0; gem.name = 'gem';
   g.add(gem);
   for (let i = 0; i <= order; i++) {
-    g.add(mesh(box(0.34, 0.05, 0.08, 0.015), glow(PALETTE.interactable, 1.6), 0, 0.45 + i * 0.16, -0.36, false));
+    g.add(mesh(box(0.34, 0.05, 0.08, 0.015), glow(PALETTE.interactable, 2.2), 0, 0.45 + i * 0.16, -0.36, false));
   }
   return g;
 }
@@ -364,7 +364,7 @@ export function doorModel(g: GeometryDef, mat: THREE.Material): { group: THREE.G
   inner.add(mesh(new THREE.BoxGeometry(0.07, H - 2 * b, Math.min(seamT + 0.02, T + 0.004)), seam, 0, 0, 0, false));
   // gold chevrons on the frame corners: "this opens when solved"
   for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
-    inner.add(mesh(new THREE.BoxGeometry(b * 0.5, b * 0.18, Math.min(T + 0.01, T + 0.01)), glow(PALETTE.interactable, 1.4), sx * (W / 2 - b / 2), sy * (H / 2 - b / 2), 0, false));
+    inner.add(mesh(new THREE.BoxGeometry(b * 0.5, b * 0.18, Math.min(T + 0.01, T + 0.01)), glow(PALETTE.interactable, 2.0), sx * (W / 2 - b / 2), sy * (H / 2 - b / 2), 0, false));
   }
   grp.add(inner);
   return { group: grp, seam };
