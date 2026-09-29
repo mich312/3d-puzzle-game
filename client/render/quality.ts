@@ -16,23 +16,34 @@ export interface QualitySpec {
   bloomRadius: number;
   volumetrics: boolean;       // fake light shafts / god-ray cones at bright sources
   ambientParticles: boolean;  // per-world weather
+  // --- render pipeline (renderer.ts / post/*) ---
+  bloomThreshold: number;     // pre-tonemap luminance where bloom starts (~0.9 + soft knee: only HDR emitters)
+  shadowExtent: number;       // half-size (m) of the fitted, texel-snapped shadow frustum
+  ao: 'off' | 'half' | 'full';// GTAO ground-contact / crevice occlusion
+  aa: 'fxaa' | 'smaa' | 'msaa';// post AA (msaa = multisampled HDR scene target)
+  grain: number;              // film grain amplitude (display space)
+  aberration: boolean;        // edge chromatic aberration in the grade pass
+  skyDetail: 1 | 2;           // sky shader: star layers / nebula octaves
 }
 
 export const QUALITY: Record<QualityTier, QualitySpec> = {
   low: {
     tier: 'low', pixelRatioCap: 1, shadowMap: 1024, lightBudget: 4,
     projectileLights: false, reflections: false, reflectionRes: 0, reflectionOpacity: 0,
-    bloomStrength: 0.45, bloomRadius: 0.35, volumetrics: false, ambientParticles: false,
+    bloomStrength: 0.6, bloomRadius: 0.4, volumetrics: false, ambientParticles: false,
+    bloomThreshold: 0.85, shadowExtent: 34, ao: 'off', aa: 'fxaa', grain: 0, aberration: false, skyDetail: 1,
   },
   medium: {
     tier: 'medium', pixelRatioCap: 1.5, shadowMap: 2048, lightBudget: 8,
-    projectileLights: true, reflections: true, reflectionRes: 512, reflectionOpacity: 0.5,
-    bloomStrength: 0.6, bloomRadius: 0.6, volumetrics: true, ambientParticles: true,
+    projectileLights: true, reflections: true, reflectionRes: 512, reflectionOpacity: 0.42,
+    bloomStrength: 0.65, bloomRadius: 0.45, volumetrics: true, ambientParticles: true,
+    bloomThreshold: 0.85, shadowExtent: 36, ao: 'half', aa: 'smaa', grain: 0.028, aberration: false, skyDetail: 2,
   },
   high: {
-    tier: 'high', pixelRatioCap: 2, shadowMap: 2048, lightBudget: 12,
-    projectileLights: true, reflections: true, reflectionRes: 1024, reflectionOpacity: 0.62,
-    bloomStrength: 0.72, bloomRadius: 0.75, volumetrics: true, ambientParticles: true,
+    tier: 'high', pixelRatioCap: 2, shadowMap: 4096, lightBudget: 12,
+    projectileLights: true, reflections: true, reflectionRes: 768, reflectionOpacity: 0.5,
+    bloomStrength: 0.7, bloomRadius: 0.5, volumetrics: true, ambientParticles: true,
+    bloomThreshold: 0.85, shadowExtent: 44, ao: 'full', aa: 'msaa', grain: 0.032, aberration: true, skyDetail: 2,
   },
 };
 

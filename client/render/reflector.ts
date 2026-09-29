@@ -1,8 +1,13 @@
-// Planar mirror floor — a true reflection render (Three's Reflector) on hero
-// surfaces (Nexus plaza, Observatory dome). This is the "fake ray tracing":
-// a second scene render from the mirrored camera, blended over the textured
-// floor so the grain still reads. One active plane at a time (it costs a full
+// Planar reflection floor — a true reflection render (Three's Reflector) on hero
+// surfaces (Nexus plaza, Observatory dome), blended over the textured floor so
+// the stone grain still reads. One active plane at a time (it costs a full
 // extra scene render), gated by the quality tier.
+//
+// Shaded as POLISHED STONE rather than a mirror sheet: the reflection target is
+// mip-mapped and sampled with a roughness blur (mip bias + a small rotated tap
+// kernel), gently warped by procedural micro-relief, and its strength follows a
+// Schlick fresnel — faint when looking down at your feet, strong at grazing
+// angles — then fades out with distance the way the floor itself fogs.
 import * as THREE from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
@@ -11,43 +16,111 @@ export interface ReflectiveFloor {
   dispose(): void;
 }
 
+const PolishedStoneShader = {
+  name: 'PolishedStoneReflector',
+  uniforms: {
+    color: { value: null as THREE.Color | null },
+    tDiffuse: { value: null as THREE.Texture | null },
+    textureMatrix: { value: null as THREE.Matrix4 | null },
+    uOpacity: { value: 0.5 },
+    uBlur: { value: 1.5 },
+    uTexel: { value: 1 / 512 },
+    uFogDensity: { value: 0.02 },
+  },
+  vertexShader: /* glsl */`
+    uniform mat4 textureMatrix;
+    varying vec4 vUv;
+    varying vec3 vWorld;
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    void main() {
+      vUv = textureMatrix * vec4(position, 1.0);
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorld = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: /* glsl */`
+    uniform vec3 color;
+    uniform sampler2D tDiffuse;
+    uniform float uOpacity, uBlur, uTexel, uFogDensity;
+    varying vec4 vUv;
+    varying vec3 vWorld;
+    #include <logdepthbuf_pars_fragment>
+
+    float h2(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+    float vnoise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y);
+    }
+
+    void main() {
+      #include <logdepthbuf_fragment>
+      vec2 uv = vUv.xy / vUv.w;
+      // micro-relief: faint low-frequency warp so the reflection wobbles like honed stone
+      vec2 wp = vWorld.xz;
+      vec2 warp = vec2(vnoise(wp * 0.9), vnoise(wp * 0.9 + 17.0)) - 0.5;
+      uv += warp * 0.004;
+      // roughness blur: mip bias + a vertically stretched tap kernel — polished
+      // stone smears bright reflections into soft streaks toward the viewer
+      float rad = uTexel * 3.0;
+      vec3 refl = texture2D(tDiffuse, uv, uBlur).rgb * 0.2;
+      refl += texture2D(tDiffuse, uv + vec2( rad * 0.5,  rad * 1.5), uBlur).rgb * 0.15;
+      refl += texture2D(tDiffuse, uv + vec2(-rad * 0.5, -rad * 1.5), uBlur).rgb * 0.15;
+      refl += texture2D(tDiffuse, uv + vec2(-rad * 0.4,  rad * 3.5), uBlur + 0.7).rgb * 0.125;
+      refl += texture2D(tDiffuse, uv + vec2( rad * 0.4, -rad * 3.5), uBlur + 0.7).rgb * 0.125;
+      refl += texture2D(tDiffuse, uv + vec2( rad * 1.2,  0.0), uBlur).rgb * 0.125;
+      refl += texture2D(tDiffuse, uv + vec2(-rad * 1.2,  0.0), uBlur).rgb * 0.125;
+
+      vec3 toCam = cameraPosition - vWorld;
+      float dist = length(toCam);
+      float cosT = clamp(toCam.y / max(dist, 1e-4), 0.0, 1.0);
+      float fres = 0.08 + 0.92 * pow(1.0 - cosT, 5.0);
+      float fade = exp(-dist * uFogDensity * 0.9);
+      float a = uOpacity * mix(0.25, 1.0, fres) * fade;
+      gl_FragColor = vec4(refl * color, a);
+    }`,
+};
+
 /**
  * @param shape 'circle' for the round plaza, 'plane' for rectangular halls
- * @param opacity how strongly the mirror shows through the floor grain
+ * @param opacity peak strength of the reflection (reached at grazing angles)
  */
 export function makeReflectiveFloor(
   scene: THREE.Scene, y: number, size: number, res: number,
   tint: string, shape: 'circle' | 'plane', opacity: number,
+  fogDensity = 0.02,
 ): ReflectiveFloor {
   const geo = shape === 'circle'
-    ? new THREE.CircleGeometry(size / 2, 48)
+    ? new THREE.CircleGeometry(size / 2, 64)
     : new THREE.PlaneGeometry(size, size);
+  // tint is a floor colour; lift it toward white so reflections keep their hue
+  const tintCol = new THREE.Color(tint).lerp(new THREE.Color('#ffffff'), 0.55);
   const mirror = new Reflector(geo, {
-    color: new THREE.Color(tint),
+    color: tintCol,
     textureWidth: res,
     textureHeight: res,
     clipBias: 0.003,
+    multisample: 0,           // blurred anyway — MSAA would be wasted
+    shader: PolishedStoneShader,
   });
   mirror.rotation.x = -Math.PI / 2;
   mirror.position.y = y + 0.02;
   mirror.renderOrder = 1;
 
-  // patch the Reflector's material so the reflection blends (alpha) over the
-  // floor beneath instead of replacing it — keeps the PBR grain visible.
+  // mip chain for the roughness blur (regenerated by three after each reflection render)
+  const tex = mirror.getRenderTarget().texture;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+
   const mat = mirror.material as THREE.ShaderMaterial;
   mat.transparent = true;
   mat.depthWrite = false;
-  mat.uniforms.uOpacity = { value: opacity };
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uOpacity = mat.uniforms.uOpacity;
-    shader.fragmentShader = 'uniform float uOpacity;\n' + shader.fragmentShader;
-    // multiply final alpha; works whether the shader ends in gl_FragColor or the
-    // three r150+ `#include <opaque_fragment>`/`gl_FragColor` form
-    shader.fragmentShader = shader.fragmentShader.replace(
-      /gl_FragColor\s*=\s*vec4\(([^;]+)\);/,
-      'gl_FragColor = vec4($1); gl_FragColor.a *= uOpacity;');
-  };
-  mat.needsUpdate = true;
+  mat.uniforms.uOpacity.value = opacity;
+  mat.uniforms.uTexel.value = 1 / res;
+  mat.uniforms.uBlur.value = res >= 768 ? 2.3 : 1.8;
+  mat.uniforms.uFogDensity.value = fogDensity;
 
   scene.add(mirror);
   return {
