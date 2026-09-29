@@ -80,7 +80,9 @@ function applySettings() {
       renderer.setQuality(s.quality);
       setModelQuality(s.quality);
       projectiles?.setQuality(renderer.q.projectileLights);
+      particles?.setQuality(renderer.q);
     }
+    particles?.setReduceMotion(s.reduceMotion);
   }
   net?.send({ t: 'set_opts', v: 1, difficulty: s.difficulty });
 }
@@ -96,13 +98,14 @@ function start(name: string) {
   enemies = new Enemies(renderer.scene, renderer.lights);
   echoes = new Echoes(renderer.scene);
   pings = new Pings(renderer.scene, renderer.lights);
-  particles = new Particles(renderer.scene);
+  particles = new Particles(renderer.scene, renderer.lights);
+  particles.setQuality(renderer.q);
   projectiles = new Projectiles(renderer.scene, particles, renderer.lights);
   projectiles.setQuality(renderer.q.projectileLights);
   viewmodel = new Viewmodel(renderer.camera);
   renderer.scene.add(renderer.camera);       // camera must be in-scene to carry the viewmodel
   hud.bindChat((text) => net.send({ t: 'chat', v: 1, text }));
-  rig = new DeviceRig(renderer.scene);
+  rig = new DeviceRig(renderer.scene, particles);
   audio.init();
   net = new Net();
   net.onMessage(handleMsg);
@@ -119,6 +122,25 @@ function start(name: string) {
     pos: () => [controller.pos.x, controller.pos.y, controller.pos.z],
     warp: (x: number, y: number, z: number) => controller.teleport([x, y, z]),
     look: (yaw: number, pitch = 0) => { controller.yaw = yaw; controller.pitch = pitch; },
+    // VFX debug: fire the equipped-style device locally, or play a named effect
+    // a few metres in front of the camera (visual test rig only)
+    fire: (dev: DeviceId = 'pulse') => { rig.owned.includes(dev) || rig.owned.push(dev); fireDevice(dev, false); },
+    vfx: (name: string, dist = 4) => {
+      const f = controller.forward(), e = controller.eye();
+      const p = e.clone().addScaledVector(f, dist);
+      const fx = particles.fx as unknown as Record<string, (...a: unknown[]) => void>;
+      const back = f.clone().negate();
+      if (name === 'impact' || name === 'frostBurst') fx[name](p, back, name === 'impact' ? DEVICES.pulse.color : DEVICES.freeze.color);
+      else if (name === 'portalPlaced') fx[name](p, back, PALETTE.portalA);
+      else if (name === 'portalTraverse') fx[name](p, PALETTE.portalB);
+      else if (name === 'landing') fx[name](controller.pos, 1);
+      else if (name === 'tractor') {
+        const m = viewmodel.muzzle(new THREE.Vector3());
+        const to = p.clone().add(new THREE.Vector3(1.5, -0.8, 0));
+        let n = 0;
+        const h = setInterval(() => { rig.tractorBeam('debug', viewmodel.muzzle(m), controller.forward(), to, DEVICES.tractor.color, 0.016); if (++n > 400) clearInterval(h); }, 16);
+      } else fx[name]?.(p);
+    },
   };
 }
 
@@ -152,6 +174,9 @@ function handleMsg(msg: ServerMsg) {
       peers.clear();
       echoes.clear();
       projectiles.clear();
+      particles.clear();
+      rig.clearVfx();
+      lastCheckpoint = -1;
       levelDef = s.level ?? null;
       if (!levelDef) break;
       world = new World(renderer.scene, levelDef, s.states, renderer.lights);
@@ -161,6 +186,7 @@ function handleMsg(msg: ServerMsg) {
       if (levelDef.fog) renderer.setFog(levelDef.fog.color, levelDef.fog.density);
       audio.setWorld(levelDef.world);
       controller.teleport(msg.spawn, msg.spawnYaw);
+      particles.fx.arrival(msg.spawn, PALETTE.portalA);
       controller.frozen = false;
       selfDowned = false; selfHp = 100;
       hud.setHealth(100, false);
@@ -238,6 +264,10 @@ function handleMsg(msg: ServerMsg) {
       if (!prev.filled && msg.state.filled) audio.play('socket');
       if (!prev.frozen && msg.state.frozen) audio.play('frozen');
       if (!prev.lit && msg.state.lit) audio.play('socket');   // resonators + receivers chime
+      if (!prev.collected && msg.state.collected) {
+        const vis = world.interactableAt(msg.id);
+        if (vis) particles.fx.pickup(vis.position);
+      }
       break;
     }
     case 'enemy_event': {
@@ -248,9 +278,9 @@ function handleMsg(msg: ServerMsg) {
       enemies.event(msg.id, msg.ev, msg.data);
       if (msg.ev === 'telegraph') { enemies.telegraph(msg.id, (msg.data?.ms as number) ?? 900); audio.play('telegraph', at); }
       else if (msg.ev === 'attack') audio.play('enemy-attack', at);
-      else if (msg.ev === 'down') { audio.play('enemy-down', at); if (pos) particles.burst(pos, PALETTE.hostile, 20, 4, 0.9); }
-      else if (msg.ev === 'shatter') { audio.play('shatter', at); if (pos) particles.burst(pos, '#bfe8ff', 30, 5.5, 1.1); }
-      else if (msg.ev === 'frozen') { audio.play('frozen', at); if (pos) particles.burst(pos, '#9fdcff', 12, 2, 0.7); }
+      else if (msg.ev === 'down') { audio.play('enemy-down', at); if (pos) particles.fx.enemyDeath([pos.x, pos.y + 0.9, pos.z], PALETTE.hostile); }
+      else if (msg.ev === 'shatter') { audio.play('shatter', at); if (pos) particles.fx.shatter([pos.x, pos.y + 0.9, pos.z]); }
+      else if (msg.ev === 'frozen') { audio.play('frozen', at); if (pos) particles.fx.frozen([pos.x, pos.y + 0.9, pos.z]); }
       else if (msg.ev === 'hit') {
         audio.play('hit', at);
         if (msg.data?.blocked && performance.now() - blockedHintAt > 12000) {
@@ -269,15 +299,20 @@ function handleMsg(msg: ServerMsg) {
         msg.origin[1] + msg.dir[1] * DEVICES[msg.device].range,
         msg.origin[2] + msg.dir[2] * DEVICES[msg.device].range];
       if (msg.device === 'pulse' || msg.device === 'freeze')
-        projectiles.fire(muzzle, end, DEVICES[msg.device].color, { speed: msg.device === 'freeze' ? 52 : 72 });
+        projectiles.fire(muzzle, end, DEVICES[msg.device].color, { speed: msg.device === 'freeze' ? 52 : 72, kind: msg.device });
       else
         rig.tracer(muzzle, end, DEVICES[msg.device].color);
       audio.play(msg.device === 'freeze' ? 'fire-freeze' : 'fire-pulse', { pos: msg.origin });
       break;
     }
-    case 'portal_placed': audio.play('portal-place', { pos: msg.placement.pos }); break;
+    case 'portal_placed':
+      audio.play('portal-place', { pos: msg.placement.pos });
+      particles.fx.portalPlaced(msg.placement.pos, msg.placement.normal, msg.placement.slot === 0 ? PALETTE.portalA : PALETTE.portalB);
+      break;
     case 'portal_traverse':
       if (msg.player === playerId) { controller.teleport(msg.to); }
+      if (msg.player === playerId) particles.fx.arrival(msg.to, PALETTE.portalA);
+      else particles.fx.portalTraverse([msg.to[0], msg.to[1] + 1, msg.to[2]], PALETTE.portalA);
       audio.play('portal-traverse', { pos: msg.to });
       break;
     case 'hp': {
@@ -289,6 +324,8 @@ function handleMsg(msg: ServerMsg) {
       break;
     }
     case 'downed': {
+      const dp = msg.id === playerId ? controller.pos : peers.positionOf(msg.id);
+      if (dp) particles.fx.downed(dp);
       if (msg.id === playerId) {
         selfDowned = true; controller.frozen = true;
         hud.setHealth(0, true);
@@ -300,7 +337,7 @@ function handleMsg(msg: ServerMsg) {
     case 'revived': {
       if (msg.id === playerId) { selfDowned = false; controller.frozen = false; selfHp = 60; hud.setHealth(60, false); audio.play('revived'); }
       const rp = msg.id === playerId ? controller.pos : peers.positionOf(msg.id);
-      if (rp) particles.burst([rp.x, rp.y + 1, rp.z], PALETTE.success, 18, 2.5, 1.2);
+      if (rp) particles.fx.revive(rp, PALETTE.success);
       hud.reviveProgress(null);
       break;
     }
@@ -341,6 +378,11 @@ function handleMsg(msg: ServerMsg) {
       break;
     }
     case 'shards': {
+      if (msg.shards.length > profile.shards.length) {
+        const f = controller.forward();
+        const e = controller.eye();
+        particles.fx.shardGained([e.x + f.x * 2.5, e.y + f.y * 2.5, e.z + f.z * 2.5]);
+      }
       profile.shards = msg.shards;
       hud.setShards(msg.shards.length, TOTAL_SHARDS);
       world?.updatePortalLocks(msg.shards.length);
@@ -562,6 +604,7 @@ function fireDevice(dev: DeviceId, charged: boolean) {
       projectiles.fire(muzzle, end, DEVICES[dev].color, {
         speed: dev === 'freeze' ? 52 : 72,
         scale: dev === 'freeze' ? 1.3 : 1,
+        kind: dev,
       });
       viewmodel.kick();
       audio.play(dev === 'freeze' ? 'fire-freeze' : 'fire-pulse');
@@ -592,7 +635,8 @@ function placePortal(slot: 0 | 1) {
     origin[1] + dir[1] * hit.dist + hit.normal[1] * 0.08,
     origin[2] + dir[2] * hit.dist + hit.normal[2] * 0.08];
   net.send({ t: 'place_portal', v: 1, slot, pos, normal: hit.normal });
-  rig.tracer(origin, pos, slot === 0 ? PALETTE.portalA : PALETTE.portalB, 0.03);
+  const pm = viewmodel.muzzle(new THREE.Vector3());
+  rig.tracer([pm.x, pm.y, pm.z], pos, slot === 0 ? PALETTE.portalA : PALETTE.portalB, 0.03, 220);
   viewmodel.kick(slot);
 }
 
@@ -705,8 +749,11 @@ function loop(t: number) {
       origin[1] + dir[1] * rig.tractorDist,
       origin[2] + dir[2] * rig.tractorDist];
     net.send({ t: 'tractor', v: 1, active: true, targetId: rig.tractorTarget, aim: aimPoint });
+  }
+  if (rig.tractorActive && rig.tractorTarget) {
+    // continuous curved beam, re-aimed every frame (replaces the 100ms tracer spam)
     const tp = enemies.positionOf(rig.tractorTarget) ?? world?.interactableAt(rig.tractorTarget)?.position;
-    if (tp) rig.tracer(origin, [tp.x, tp.y, tp.z], DEVICES.tractor.color, 0.03, 120);
+    if (tp) rig.tractorBeam('local', viewmodel.muzzle(tractorFrom), controller.forward(), tp, DEVICES.tractor.color, dt);
   }
 
   // world + entities
@@ -716,6 +763,7 @@ function loop(t: number) {
   pings.update(dt);
   projectiles.update(dt);
   rig.update(dt);
+  landingAndCheckpointFx();
 
   // viewmodel + particles
   viewmodel.setDevice(rig.equipped);
@@ -827,6 +875,30 @@ function updateCircuit(t: number) {
     m.emissiveIntensity = THREE.MathUtils.lerp(m.emissiveIntensity, active ? 2.2 : 0.35, 0.1);
     m.opacity = active ? 0.9 : 0.5;
     circuitRings[i].rotation.y += active ? 0.03 : 0.006;
+  }
+}
+
+// VFX hooks driven by the local controller: landing dust and checkpoint rings
+const tractorFrom = new THREE.Vector3();
+let wasGrounded = true;
+let airVy = 0;
+let lastCheckpoint = -1;
+function landingAndCheckpointFx() {
+  if (!controller.onGround) airVy = Math.min(airVy, controller.vel.y);
+  else {
+    if (!wasGrounded && airVy < -5) particles.fx.landing(controller.pos, (-airVy - 5) / 9);
+    airVy = 0;
+  }
+  wasGrounded = controller.onGround;
+  const cps = levelDef?.checkpoints;
+  if (cps && !selfDowned) {
+    for (let i = lastCheckpoint + 1; i < cps.length; i++) {
+      const c = cps[i];
+      if (Math.hypot(c[0] - controller.pos.x, c[1] - controller.pos.y, c[2] - controller.pos.z) < 3.5) {
+        lastCheckpoint = i;
+        particles.fx.checkpoint(c);
+      }
+    }
   }
 }
 
