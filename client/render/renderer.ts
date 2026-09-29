@@ -199,7 +199,10 @@ export class Renderer {
     this.hemi.intensity = p.ambient;
     this.key.color.set(p.key);
     this.key.intensity = p.keyIntensity;
-    this.applyGrade();
+    // Fresh post stack per world: the GTAO pass carried state across a level change
+    // (full-res AO + MSAA painted a black, world-anchored slab where a Nexus object
+    // had been). A rebuild clears it and only costs a few render targets per load.
+    this.buildComposer();
     // note: the light pool is NOT cleared here — World/Enemies/Peers/Projectiles
     // each unregister their own handles on dispose, and this runs AFTER the new
     // World has registered, so a clear would wipe the fresh handles.
