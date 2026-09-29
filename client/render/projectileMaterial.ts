@@ -55,7 +55,7 @@ const FRAG = /* glsl */`
       float t = float(i) / float(STEPS - 1);
       vec3 p = p0 + dir * (z * 2.0) * t;    // front → back of the sphere
       float rr = length(p);
-      float shell = smoothstep(1.0, 0.15, rr);            // denser toward the core
+      float shell = 1.0 - smoothstep(0.15, 1.0, rr);           // denser toward the core
       float n = fbm(p * 3.2 + vec3(uSeed, uTime * 1.6, -uTime));
       float d = shell * (0.45 + 0.55 * n);
       dens += d;
@@ -63,12 +63,16 @@ const FRAG = /* glsl */`
     }
     dens /= float(STEPS);
     emis /= float(STEPS);
-    float core = pow(1.0 - r2, 3.0);        // white-hot centre
+    float core = pow(1.0 - r2, 4.0);        // white-hot centre (small)
     float rim  = pow(1.0 - z, 2.2);         // fresnel edge glow
-    vec3 hot = mix(uColor, vec3(1.0), clamp(core * 0.9 + 0.25, 0.0, 1.0));
-    vec3 col = hot * (emis * 3.2 + core * 2.6) + uColor * rim * 1.6;
-    float alpha = clamp(dens * 1.7 + core * 0.8, 0.0, 1.0);
-    gl_FragColor = vec4(col, alpha);
+    vec3 hot = mix(uColor, vec3(1.0), clamp(core * 0.8, 0.0, 1.0));
+    // bloom convention: the small core peaks ~2.5 (blooms), the plasma shell
+    // and rim stay around/below 1 so the orb reads as a coloured ball, not a
+    // white blob. Edge fades to zero so the impostor disc never shows.
+    vec3 col = hot * (emis * 1.3 + core * 1.5) + uColor * rim * 0.7;
+    float edge = 1.0 - smoothstep(0.7, 1.0, r2);
+    float alpha = clamp(dens * 1.6 + core * 0.6, 0.0, 1.0) * edge;
+    gl_FragColor = vec4(col * alpha, 0.0);  // premultiplied additive
   }
 `;
 
@@ -84,7 +88,11 @@ export function makeProjectileMaterial(): THREE.ShaderMaterial {
     fragmentShader: FRAG,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
     side: THREE.DoubleSide,
   });
 }
