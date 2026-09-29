@@ -8,7 +8,8 @@ export type IconName =
   | 'charged-pulse' | 'dash' | 'field-medic' | 'overcharge'
   // ui
   | 'shard' | 'beacon' | 'downed' | 'ping' | 'chat' | 'heart'
-  | 'gem' | 'lock' | 'reset' | 'respec' | 'players' | 'check' | 'link';
+  | 'gem' | 'lock' | 'reset' | 'respec' | 'players' | 'check' | 'link'
+  | 'threshold' | 'resume' | 'leave' | 'gear';
 
 const S = `fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"`;
 
@@ -37,6 +38,10 @@ const PATHS: Record<IconName, string> = {
   respec: `<path ${S} d="M8 3v12M8 15l-3-3M8 15l3-3M16 21V9M16 9l-3 3M16 9l3 3"/>`,
   players: `<circle cx="8.5" cy="8" r="3.2" ${S}/><path ${S} d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="16.5" cy="9" r="2.6" ${S}/><path ${S} d="M15.5 14.7c3 .2 6 2.2 6 5.3"/>`,
   check: `<path ${S} d="M4 12.5l5.5 5.5L20 6.5"/>`,
+  threshold: `<path ${S} d="M5.5 21V10.5a6.5 6.5 0 0 1 13 0V21"/><path ${S} d="M2.5 21h19"/><path ${S} d="M12 8.2l2.4 3.9-2.4 3.9-2.4-3.9z"/>`,
+  resume: `<path ${S} d="M8 5.5v13l10-6.5-10-6.5z"/>`,
+  leave: `<path ${S} d="M14 4h5v16h-5"/><path ${S} d="M10 8l-4 4 4 4M6 12h10"/>`,
+  gear: `<circle cx="12" cy="12" r="3" ${S}/><path ${S} d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>`,
   link: `<path ${S} d="M10 14a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 1 0-6.4-6.4l-1.6 1.6"/><path ${S} d="M14 10a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 1 0 6.4 6.4l1.6-1.6"/>`,
 };
 

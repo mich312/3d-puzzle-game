@@ -114,6 +114,7 @@ function start(name: string) {
   requestAnimationFrame(loop);
   // dev console hook (also used by the visual test rig)
   (window as unknown as Record<string, unknown>).__threshold = {
+    hud,                                       // HUD feedback states for the screenshot rig
     enterLevel: (id: string) => net.send({ t: 'enter_level', v: 1, level: id }),
     leave: () => net.send({ t: 'leave_level', v: 1 }),
     pos: () => [controller.pos.x, controller.pos.y, controller.pos.z],
@@ -268,6 +269,8 @@ function handleMsg(msg: ServerMsg) {
       break;
     }
     case 'enemy_event': {
+      if (lastShot && msg.id === lastShot.id && performance.now() - lastShot.t < 1500 && msg.ev !== 'telegraph' && msg.ev !== 'attack' && msg.ev !== 'spawn')
+        hud.hitMarker(msg.ev === 'down' || msg.ev === 'shatter');
       const pos = enemies.positionOf(msg.id);
       const at = pos ? { pos: [pos.x, pos.y, pos.z] as Vec3 } : undefined;
       if (msg.ev === 'telegraph') { enemies.telegraph(msg.id, (msg.data?.ms as number) ?? 900); audio.play('telegraph', at); }
@@ -311,7 +314,7 @@ function handleMsg(msg: ServerMsg) {
       break;
     case 'hp': {
       if (msg.id === playerId) {
-        if (msg.hp < selfHp) { hud.damageFlash(); audio.play('hurt'); }
+        if (msg.hp < selfHp) { hud.damageFlash(damageAngle()); audio.play('hurt'); }
         selfHp = msg.hp;
         hud.setHealth(selfHp, selfDowned);
       }
@@ -527,6 +530,16 @@ function pickBodyOnRay(range: number): { id: string; point: Vec3 } | null {
 }
 
 let chargeHeld = false;
+let lastShot: { id: string; t: number } | null = null;   // for server-confirmed hit markers
+/** screen angle (0 = ahead, +right) toward the nearest aggroed enemy, for the damage-direction arc */
+function damageAngle(): number | undefined {
+  const p = controller.pos;
+  let best: THREE.Vector3 | undefined, bd = Infinity;
+  for (const e of enemies.aggroPositions()) { const d = e.distanceToSquared(p); if (d < bd) { bd = d; best = e; } }
+  if (!best) return undefined;
+  const dx = best.x - p.x, dz = best.z - p.z, y = controller.yaw;
+  return Math.atan2(dx * Math.cos(y) - dz * Math.sin(y), -dx * Math.sin(y) - dz * Math.cos(y));
+}
 function cancelRevive() {
   if (revivingId) { net.send({ t: 'revive_cancel', v: 1 }); revivingId = null; }
 }
@@ -577,6 +590,8 @@ function fireDevice(dev: DeviceId, charged: boolean) {
     case 'pulse': case 'freeze': {
       rig.markFired(dev);
       const enemy = pickEnemyOnRay(DEVICES[dev].range);
+      hud.fired();
+      if (enemy) lastShot = { id: enemy.id, t: performance.now() };
       const wall = world?.raycastWalls(origin, dir, DEVICES[dev].range);
       const end: Vec3 = enemy?.point ?? (wall
         ? [origin[0] + dir[0] * wall.dist, origin[1] + dir[1] * wall.dist, origin[2] + dir[2] * wall.dist]

@@ -153,6 +153,30 @@ export function validateLevel(lv: LevelDef): string[] {
     if (g.activeWhen) checkExpr(g.activeWhen, `geometry activeWhen`);
     if (g.door) checkExpr(g.door.openWhen, `door ${g.door.id}`);
   }
+  // door chains: a door's openWhen may reference other doors' .open — reject
+  // self-references and cycles (they would recurse forever at runtime)
+  const doorDeps = new Map<string, string[]>();
+  for (const g of lv.geometry) {
+    if (!g.door) continue;
+    if (doorDeps.has(g.door.id)) errs.push(`duplicate door id ${g.door.id}`);
+    let deps: string[] = [];
+    try { deps = exprIdents(g.door.openWhen).map((i) => i.split('.')[0]); } catch { /* reported above */ }
+    doorDeps.set(g.door.id, [...(doorDeps.get(g.door.id) ?? []), ...deps]);
+  }
+  const DONE = 2, VISITING = 1;
+  const mark = new Map<string, number>();
+  const visit = (id: string, trail: string[]) => {
+    if (mark.get(id) === DONE) return;
+    if (mark.get(id) === VISITING) {
+      const cyc = [...trail.slice(trail.indexOf(id)), id];
+      errs.push(cyc.length === 2 ? `door ${id}: openWhen references itself` : `door cycle: ${cyc.join(' → ')}`);
+      return;
+    }
+    mark.set(id, VISITING);
+    for (const dep of doorDeps.get(id) ?? []) if (doorDeps.has(dep)) visit(dep, [...trail, id]);
+    mark.set(id, DONE);
+  };
+  for (const id of doorDeps.keys()) visit(id, []);
   if (lv.puzzle) {
     checkExpr(lv.puzzle.solved, 'puzzle.solved');
     if (lv.puzzle.soloSolution) checkExpr(lv.puzzle.soloSolution, 'puzzle.soloSolution');
