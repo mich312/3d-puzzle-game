@@ -2,6 +2,8 @@
 // into a set of levels and saves screenshots from player A's view (player B stands
 // in frame so avatars are covered too).
 // Usage: PORT=8080 tsx server/index.ts &  then  tsx tools/shots.ts [outDir] [level ...]
+// Env: BASE_URL (default http://127.0.0.1:8080), QUALITY=low|medium|high (default high),
+//      SOLO=1 (one client only — cheaper; co-op levels are skipped since they need two)
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,6 +12,9 @@ const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8080';
 const OUT = process.argv[2] ?? 'shots';
 const ONLY = process.argv.slice(3);
 const W = 1280, H = 720;
+const QUALITY = process.env.QUALITY ?? 'high';
+const SOLO = process.env.SOLO === '1';
+const SOLO_LEVELS = new Set(['nexus', 'atrium-01', 'proving-01']);
 
 type Api = { enterLevel(id: string): void; warp(x: number, y: number, z: number): void; look(yaw: number, pitch?: number): void; pos(): number[] };
 const api = (p: Page) => p.evaluate.bind(p);
@@ -19,6 +24,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const PLAN: [string, [string, [number, number, number] | null, number, number][]][] = [
   ['nexus', [['spawn', null, 0, -0.05], ['plaza', [0, 3, 14], 0, -0.25], ['back', null, Math.PI, -0.05]]],
   ['atrium-01', [['spawn', null, 0, -0.05]]],
+  ['proving-01', [['spawn', null, 0, -0.05]]],
   ['gardens-02', [['spawn', null, 0, -0.05]]],
   ['vaults-01', [['spawn', null, 0, -0.05]]],
   ['observatory-02', [['spawn', null, 0, -0.05]]],
@@ -41,7 +47,7 @@ async function main() {
   });
   const mk = async (name: string) => {
     const ctx = await browser.newContext({ viewport: { width: W, height: H } });
-    await ctx.addInitScript(() => localStorage.setItem('t-quality', (window as unknown as { __Q?: string }).__Q ?? 'high'));
+    await ctx.addInitScript((q) => localStorage.setItem('t-quality', q), QUALITY);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`[${name}] pageerror`, e.message));
     page.on('console', (m) => { if (m.type() === 'error') console.log(`[${name}] console`, m.text()); });
@@ -49,11 +55,13 @@ async function main() {
     return page;
   };
   const a = await mk('Aster');
-  const b = await mk('Brin');
+  const b = SOLO ? null : await mk('Brin');
   for (const [level, views] of PLAN) {
     if (ONLY.length && !ONLY.includes(level)) continue;
+    if (SOLO && !SOLO_LEVELS.has(level)) continue;
+    const both = b ? [a, b] : [a];
     if (level !== 'nexus') {
-      for (const p of [a, b]) await api(p)((id: string) => ((window as unknown as { __threshold: Api }).__threshold).enterLevel(id), level);
+      for (const p of both) await api(p)((id: string) => ((window as unknown as { __threshold: Api }).__threshold).enterLevel(id), level);
       await sleep(5000);
     }
     for (const [label, pos, yaw, pitch] of views) {
@@ -64,7 +72,7 @@ async function main() {
       }, [pos, yaw, pitch] as const);
       // park B a few metres in front of A so the avatar is in shot
       const ap = await api(a)(() => (window as unknown as { __threshold: Api }).__threshold.pos());
-      await api(b)(([x, y, z, yaw]) => {
+      if (b) await api(b)(([x, y, z, yaw]) => {
         const t = (window as unknown as { __threshold: Api }).__threshold;
         t.warp(x - Math.sin(yaw) * 4 + 1, y, z - Math.cos(yaw) * 4); t.look(yaw + Math.PI * 0.8, 0);
       }, [ap[0], ap[1], ap[2], yaw] as const);
@@ -74,7 +82,7 @@ async function main() {
       console.log('saved', file);
     }
     if (level !== 'nexus') {
-      for (const p of [a, b]) await api(p)(() => (window as unknown as { __threshold: { leave(): void } }).__threshold.leave());
+      for (const p of both) await api(p)(() => (window as unknown as { __threshold: { leave(): void } }).__threshold.leave());
       await sleep(3000);
     }
   }
