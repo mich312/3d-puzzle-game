@@ -93,11 +93,11 @@ const FRAG = /* glsl */`
       col = uColor * halo * 0.4 * bands + hot * (core * 0.8 * bands + (s1 + s2) * 1.2 + core * sparkle * 1.2);
     } else if (uStyle < 2.5) {
       // projectile trail: fades out toward the tail (t=0), soft
-      along = pow(vT, 1.8);
+      along = pow(max(vT, 0.0), 1.8);
       col = uColor * halo * 0.5 + hot * core * 1.1;
     } else {
       // ice trail: frosty, slightly noisy core
-      along = pow(vT, 1.3);
+      along = pow(max(vT, 0.0), 1.3);
       float frost = 0.75 + 0.25 * sin(vT * uLen * 14.0 + uSeed * 7.0);
       col = uColor * halo * 0.6 + mix(uColor, vec3(1.0), 0.7) * core * 1.2 * frost;
     }

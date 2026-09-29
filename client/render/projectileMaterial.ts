@@ -63,8 +63,8 @@ const FRAG = /* glsl */`
     }
     dens /= float(STEPS);
     emis /= float(STEPS);
-    float core = pow(1.0 - r2, 4.0);        // white-hot centre (small)
-    float rim  = pow(1.0 - z, 2.2);         // fresnel edge glow
+    float core = pow(max(1.0 - r2, 0.0), 4.0);       // white-hot centre (small)
+    float rim  = pow(max(1.0 - z, 0.0), 2.2);        // fresnel edge glow
     vec3 hot = mix(uColor, vec3(1.0), clamp(core * 0.8, 0.0, 1.0));
     // bloom convention: the small core peaks ~2.5 (blooms), the plasma shell
     // and rim stay around/below 1 so the orb reads as a coloured ball, not a

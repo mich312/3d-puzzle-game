@@ -114,7 +114,7 @@ const VERT = /* glsl */`
         mv.xy += dirP * (c.x * size) + dirA * (c.y * len - len + size);
       }
     } else if (mode < 2.5) {
-      vec3 n = normalize(aVel.xyz);
+      vec3 n = normalize(aVel.xyz + vec3(0.0, 1e-6, 0.0));
       vec3 t2;
       vec3 t1 = perpBasis(n, t2);
       float r = aSpr.y + aSpr.z * age;
@@ -122,7 +122,7 @@ const VERT = /* glsl */`
       vec2 cr = vec2(c.x * cs - c.y * sn, c.x * sn + c.y * cs);
       mv = viewMatrix * vec4(aPos.xyz + (t1 * cr.x + t2 * cr.y) * size, 1.0);
     } else {
-      vec3 n = normalize(aVel.xyz);
+      vec3 n = normalize(aVel.xyz + vec3(0.0, 1e-6, 0.0));
       vec3 t2;
       vec3 t1 = perpBasis(n, t2);
       float ang = aSpr.y + aSpr.z * age;

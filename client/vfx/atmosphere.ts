@@ -102,7 +102,7 @@ const VERT = /* glsl */`
     float energy = vfxMinSize(size, -mv.z, 2.0);
     mv.xy += position.xy * size;
     gl_Position = projectionMatrix * mv;
-    float tw = pow(0.5 + 0.5 * sin(t * uTw.y * (0.6 + 0.8 * fract(aSeed.w * 3.9)) + ph * 5.0), uTw.z);
+    float tw = pow(max(0.0, 0.5 + 0.5 * sin(t * uTw.y * (0.6 + 0.8 * fract(aSeed.w * 3.9)) + ph * 5.0)), uTw.z);   // pow(neg) = NaN → bloom blocks
     float twk = mix(1.0, tw, uTw.x);
     vA = edge * twk * energy * smoothstep(0.25, 1.2, -mv.z) * vfxFog(length(mv.xyz));
     vMix = fract(aSeed.w * 29.1);
