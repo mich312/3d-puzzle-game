@@ -1,10 +1,15 @@
 // DOM HUD: minimal chrome (spec §10) — roster, level name, shard pips, health,
-// device bar, prompts, toasts, loadout/skill panels, settings, beacons, overlays.
+// device bar, crosshair, prompts, toasts, loadout/skill panels, settings, beacons,
+// screen-space feedback (damage direction, downed, level cards, solve banner).
+// Styling lives in ui/hud-css.ts; the title backdrop in ui/backdrop.ts.
+// Safety: every user-/server-provided string goes through esc() or textContent.
 import { DEVICES, type DeviceId } from '../shared/devices';
 import { SKILLS, type SkillId } from '../shared/skills';
 import { PLAYER_ACCENTS } from '../shared/palette';
 import type { InstanceSnapshot } from '../shared/messages';
 import { icon, DEVICE_ICON, SKILL_ICON } from './icons';
+import { HUD_CSS } from './ui/hud-css';
+import { startBackdrop, type Backdrop } from './ui/backdrop';
 
 export interface HudCallbacks {
   onStart(name: string, accent: string): void;
@@ -24,121 +29,14 @@ export interface HudSettings {
   quality: 'low' | 'medium' | 'high';
 }
 
-const CSS = `
-#hud, #hud * { box-sizing: border-box; margin: 0; user-select: none; }
-#hud { position: fixed; inset: 0; pointer-events: none; color: #e8e4f0; font-family: 'Segoe UI', system-ui, sans-serif; z-index: 10; }
-#hud .panel { background: rgba(18,16,32,0.82); border: 1px solid rgba(160,150,220,0.25); border-radius: 10px; backdrop-filter: blur(6px); }
-#crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255,255,255,0.85); box-shadow: 0 0 6px rgba(255,255,255,0.6); }
-#levelinfo { position: absolute; top: 14px; left: 16px; padding: 8px 14px; font-size: 13px; }
-#levelinfo b { font-size: 16px; letter-spacing: 0.06em; }
-#levelinfo .tier { opacity: 0.75; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; }
-#shards { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display:flex; gap: 5px; }
-#shards .pip { width: 10px; height: 14px; clip-path: polygon(50% 0, 100% 30%, 80% 100%, 20% 100%, 0 30%); background: #3a3550; }
-#shards .pip.on { background: #ffd98a; box-shadow: 0 0 8px #ffd98a; }
-#roster { position: absolute; top: 14px; right: 16px; padding: 8px 12px; font-size: 13px; min-width: 150px; }
-#roster .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
-#roster .dot { width: 9px; height: 9px; border-radius: 50%; }
-#roster .hp { flex: 1; height: 4px; background: #2a2740; border-radius: 2px; overflow: hidden; }
-#roster .hp i { display: block; height: 100%; background: #a8f0c6; }
-#health { position: absolute; bottom: 22px; left: 20px; width: 230px; padding: 10px 14px; }
-#health .bar { height: 10px; background: #2a2740; border-radius: 5px; overflow: hidden; margin-top: 5px; }
-#health .bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg,#a8f0c6,#6ec6ff); transition: width 0.2s; }
-#health.low .bar i { background: #e0654a; }
-#devices { position: absolute; bottom: 22px; right: 20px; display: flex; gap: 8px; }
-#devices .slot { width: 74px; padding: 8px 6px; text-align: center; font-size: 10px; border-radius: 10px; background: rgba(18,16,32,0.82); border: 1px solid rgba(160,150,220,0.25); position: relative; overflow: hidden; }
-#devices .slot.eq { border-color: #ffd98a; box-shadow: 0 0 10px rgba(255,217,138,0.35); }
-#devices .slot .icon { font-size: 20px; }
-#devices .slot .cd { position: absolute; left: 0; bottom: 0; height: 3px; background: #6ec6ff; }
-#devices .slot .ch { opacity: 0.8; }
-#prompt { position: absolute; left: 50%; bottom: 130px; transform: translateX(-50%); padding: 8px 18px; font-size: 14px; display: none; }
-#prompt b { color: #ffd98a; }
-#toasts { position: absolute; left: 50%; top: 76px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; }
-#toasts .toast { padding: 8px 18px; font-size: 14px; border-radius: 8px; background: rgba(18,16,32,0.9); border: 1px solid rgba(160,150,220,0.3); animation: fadein 0.25s; }
-#toasts .toast.success { border-color: #a8f0c6; color: #cdf7e0; }
-#toasts .toast.warn { border-color: #e0654a; color: #f0b0a0; }
-@keyframes fadein { from { opacity: 0; transform: translateY(-6px); } }
-#beacons { position: absolute; left: 16px; top: 100px; display: flex; flex-direction: column; gap: 6px; max-width: 280px; }
-#beacons .b { padding: 8px 12px; font-size: 13px; pointer-events: auto; cursor: pointer; }
-#beacons .b:hover { border-color: #ffd98a; }
-#beacons .b .lvl { color: #ffd98a; font-weight: 600; }
-#vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s; box-shadow: inset 0 0 140px 60px rgba(224,101,74,0.55); }
-#downed { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; background: radial-gradient(ellipse, transparent 40%, rgba(30,8,10,0.7)); font-size: 22px; letter-spacing: 0.1em; }
-#downed .sub { font-size: 14px; opacity: 0.8; }
-#reviveBar { width: 260px; height: 8px; background: #2a2740; border-radius: 4px; overflow: hidden; display: none; position: absolute; left: 50%; bottom: 170px; transform: translateX(-50%); }
-#reviveBar i { display: block; height: 100%; background: #a8f0c6; width: 0; }
-.bigpanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(760px, 92vw); max-height: 84vh; overflow-y: auto; padding: 22px 26px; pointer-events: auto; display: none; }
-.bigpanel h2 { letter-spacing: 0.15em; font-weight: 300; margin-bottom: 12px; color: #ffd98a; }
-.bigpanel h3 { margin: 14px 0 8px; font-weight: 500; font-size: 14px; letter-spacing: 0.08em; opacity: 0.9; }
-.bigpanel .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 8px; }
-.bigpanel .card { padding: 10px; border: 1px solid rgba(160,150,220,0.25); border-radius: 8px; font-size: 12px; cursor: pointer; background: rgba(30,27,50,0.6); }
-.bigpanel .card:hover { border-color: #ffd98a; }
-.bigpanel .card.active { border-color: #ffd98a; box-shadow: 0 0 8px rgba(255,217,138,0.3); }
-.bigpanel .card.locked { opacity: 0.45; cursor: default; }
-.bigpanel .card b { display: block; margin-bottom: 4px; font-size: 13px; }
-.bigpanel .close { position: absolute; top: 14px; right: 18px; cursor: pointer; opacity: 0.7; font-size: 18px; }
-.bigpanel label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; font-size: 13px; gap: 16px; }
-.bigpanel input[type=range] { width: 220px; }
-.bigpanel button { pointer-events: auto; background: #2a2740; color: #e8e4f0; border: 1px solid rgba(160,150,220,0.4); border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
-.bigpanel button:hover { border-color: #ffd98a; }
-#intro { position: fixed; inset: 0; z-index: 20; pointer-events: auto; overflow: hidden; background: #14121f; opacity: 1; transition: opacity 0.7s ease; }
-#intro.leaving { opacity: 0; pointer-events: none; }
-#intro-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
-#intro .wrap { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 20px; }
-#intro h1 { font-weight: 200; letter-spacing: 0.5em; text-indent: 0.5em; font-size: clamp(36px, 6.5vw, 62px); color: #f0edfa;
-  text-shadow: 0 0 30px rgba(110,198,255,0.7), 0 0 80px rgba(255,158,203,0.35); animation: introGlow 5s ease-in-out infinite; }
-@keyframes introGlow { 50% { text-shadow: 0 0 44px rgba(110,198,255,0.95), 0 0 110px rgba(255,158,203,0.55); } }
-#intro .tag { font-size: 12px; letter-spacing: 0.42em; text-indent: 0.42em; text-transform: uppercase; opacity: 0.6; margin-top: -10px; }
-#intro .card { background: rgba(15,13,26,0.68); border: 1px solid rgba(160,150,220,0.3); border-radius: 16px;
-  backdrop-filter: blur(10px); padding: 24px 32px 22px; width: min(430px, 94vw); display: flex; flex-direction: column;
-  gap: 14px; box-shadow: 0 18px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.02) inset; }
-#intro .card .field-label { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.55; }
-#intro .wb { font-size: 12px; opacity: 0.65; text-align: center; margin-top: -4px; }
-#intro input { background: rgba(30,27,50,0.85); border: 1px solid rgba(160,150,220,0.4); color: #e8e4f0; padding: 11px 14px;
-  border-radius: 10px; font-size: 16px; text-align: center; outline: none; letter-spacing: 0.04em; transition: border-color 0.2s, box-shadow 0.2s; }
-#intro input:focus { border-color: var(--accent, #6ec6ff); box-shadow: 0 0 14px color-mix(in srgb, var(--accent, #6ec6ff) 40%, transparent); }
-#intro .accents { display: flex; gap: 12px; justify-content: center; padding: 2px 0; }
-#intro .sw { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
-#intro .sw:hover { transform: scale(1.14); }
-#intro .sw.sel { border-color: #fff; transform: scale(1.18); box-shadow: 0 0 12px var(--c); }
-#intro button#intro-go { background: linear-gradient(135deg, color-mix(in srgb, var(--accent, #6ec6ff) 26%, transparent), rgba(255,158,203,0.14));
-  border: 1px solid var(--accent, #6ec6ff); color: #fff; font-size: 15px; padding: 13px 0; width: 100%; border-radius: 10px;
-  cursor: pointer; letter-spacing: 0.32em; text-indent: 0.32em; transition: box-shadow 0.2s, transform 0.1s; }
-#intro button#intro-go:hover { box-shadow: 0 0 28px color-mix(in srgb, var(--accent, #6ec6ff) 55%, transparent); }
-#intro button#intro-go:active { transform: scale(0.985); }
-#intro .stats { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; opacity: 0.5; text-align: center; }
-#intro .keys { display: flex; flex-wrap: wrap; gap: 6px 10px; justify-content: center; max-width: 620px; font-size: 11px; opacity: 0.72; }
-#intro .keys span { white-space: nowrap; }
-#intro kbd { background: rgba(30,27,50,0.9); border: 1px solid rgba(160,150,220,0.35); border-bottom-width: 2px;
-  border-radius: 5px; padding: 1px 6px; font-family: inherit; font-size: 10px; color: #ffd98a; }
-#intro .share { font-size: 12px; opacity: 0.5; text-align: center; }
-#banner { position: absolute; left: 50%; top: 34%; transform: translateX(-50%); text-align: center; display: none; }
-#banner h2 { font-weight: 200; letter-spacing: 0.4em; font-size: 34px; color: #ffd98a; text-shadow: 0 0 24px rgba(255,217,138,0.7); }
-#banner p { opacity: 0.85; margin-top: 6px; }
-#hint { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); font-size: 13px; opacity: 0.8; padding: 6px 14px; display: none; }
-#gate { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); font-size: 14px; padding: 8px 18px; display: none; border-color: #ffd98a; }
-#gate svg { vertical-align: -3px; margin-right: 6px; color: #ffd98a; }
-#chatlog { position: absolute; left: 20px; bottom: 120px; width: 340px; max-height: 220px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; font-size: 13px; pointer-events: none; }
-#chatlog .line { padding: 4px 10px; border-radius: 8px; background: rgba(18,16,32,0.72); line-height: 1.35; transition: opacity 1s; word-wrap: break-word; }
-#chatlog .line .who { font-weight: 600; margin-right: 6px; }
-#chatlog .line.sys { color: #cfc6e8; font-style: italic; background: rgba(18,16,32,0.5); }
-#chatlog.dim .line { opacity: 0.25; }
-#chatinput { position: absolute; left: 20px; bottom: 92px; width: 340px; display: none; pointer-events: auto; }
-#chatinput input { width: 100%; box-sizing: border-box; background: rgba(18,16,32,0.95); border: 1px solid #6ec6ff; color: #e8e4f0; padding: 8px 12px; border-radius: 8px; font-size: 14px; outline: none; }
-#devices .slot svg { display: block; margin: 0 auto 2px; }
-.sk-branch { margin-bottom: 10px; }
-.sk-row { display: flex; align-items: center; gap: 0; margin: 8px 0; }
-.sk-node { width: 150px; padding: 9px 10px; border: 1px solid rgba(160,150,220,0.3); border-radius: 10px; font-size: 11px; cursor: pointer; background: rgba(30,27,50,0.6); position: relative; }
-.sk-node svg { display: block; margin-bottom: 4px; }
-.sk-node b { display: block; font-size: 12px; margin-bottom: 3px; }
-.sk-node .cost { position: absolute; top: 7px; right: 9px; font-size: 10px; opacity: 0.8; }
-.sk-node.owned { border-color: #a8f0c6; box-shadow: 0 0 8px rgba(168,240,198,0.25); }
-.sk-node.can { border-color: #ffd98a; box-shadow: 0 0 10px rgba(255,217,138,0.35); }
-.sk-node.locked { opacity: 0.42; cursor: default; }
-.sk-link { width: 34px; height: 2px; background: rgba(160,150,220,0.4); flex: 0 0 auto; }
-.sk-link.owned { background: #a8f0c6; box-shadow: 0 0 6px rgba(168,240,198,0.5); }
-`;
+/** accent choices = the server's player palette: the pick is your in-world colour AND the HUD theme */
+const ACCENT_NAMES = ['Cyan', 'Rose', 'Mint', 'Gold', 'Violet', 'Teal'];
+const ACCENTS: [string, string][] = PLAYER_ACCENTS.map((c, i) => [c, ACCENT_NAMES[i] ?? c]);
+const REVIVE_C = 2 * Math.PI * 27;
+const LEVELINFO_HOLD_MS = 8000;
 
+function lsGet(k: string): string | null { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* storage blocked */ } }
 
 export class Hud {
   private root: HTMLElement;
@@ -148,151 +46,270 @@ export class Hud {
   private skills: SkillId[] = [];
   private skillPoints = 0;
   private inventory: string[] = [];
-  private shardCount = 0;
+  private shardCount = -1;
+  private accent = '#6ec6ff';
+  private backdrop?: Backdrop;
   settings: HudSettings = {
-    sensitivity: Number(localStorage.getItem('t-sens') ?? 1),
-    master: Number(localStorage.getItem('t-master') ?? 0.8),
-    music: Number(localStorage.getItem('t-music') ?? 0.7),
-    sfx: Number(localStorage.getItem('t-sfx') ?? 0.9),
-    difficulty: (localStorage.getItem('t-diff') ?? 'normal') as 'normal' | 'story',
-    reduceMotion: localStorage.getItem('t-motion') === '1',
-    quality: (localStorage.getItem('t-quality') ?? 'medium') as 'low' | 'medium' | 'high',
+    sensitivity: Number(lsGet('t-sens') ?? 1),
+    master: Number(lsGet('t-master') ?? 0.8),
+    music: Number(lsGet('t-music') ?? 0.7),
+    sfx: Number(lsGet('t-sfx') ?? 0.9),
+    difficulty: (lsGet('t-diff') ?? 'normal') as 'normal' | 'story',
+    reduceMotion: lsGet('t-motion') === '1',
+    quality: (lsGet('t-quality') ?? 'medium') as 'low' | 'medium' | 'high',
   };
 
   constructor(cb: HudCallbacks) {
     this.cb = cb;
     const style = document.createElement('style');
-    style.textContent = CSS;
+    style.textContent = HUD_CSS;
     document.head.appendChild(style);
     this.root = document.createElement('div');
     this.root.id = 'hud';
     this.root.innerHTML = `
       <div id="vignette"></div>
-      <div id="crosshair"></div>
-      <div id="levelinfo" class="panel"><b id="li-name">…</b><div class="tier" id="li-tier"></div></div>
+      <div id="dmgdir"><i class="arc"></i><i class="arc"></i><i class="arc"></i></div>
+      <div id="letterbox"><i></i><i></i></div>
+      <div id="crosshair"><i class="t t-u"></i><i class="t t-d"></i><i class="t t-l"></i><i class="t t-r"></i><i class="c-dot"></i><div class="hm"><i></i><i></i><i></i><i></i></div></div>
+      <div id="levelinfo"><div class="tier" id="li-tier"></div><b id="li-name">…</b><div class="obj" id="li-obj"></div></div>
       <div id="shards"></div>
-      <div id="roster" class="panel"></div>
-      <div id="health" class="panel">HEALTH<div class="bar"><i></i></div></div>
+      <div id="shardcall"></div>
+      <div id="roster"></div>
+      <div id="health"><div class="hp-head"><span class="lbl">${icon('heart', 13)}VITALS</span><span class="num"><span id="hp-num">100</span><small>HP</small></span></div>
+        <div class="bar"><b></b><i></i><span class="seg"></span></div></div>
       <div id="devices"></div>
-      <div id="prompt" class="panel"></div>
+      <div id="prompt"></div>
       <div id="hint" class="panel"></div>
       <div id="gate" class="panel"></div>
       <div id="chatlog" class="dim"></div>
       <div id="chatinput"><input maxlength="200" placeholder="say something… (Enter to send, Esc to cancel)"/></div>
       <div id="toasts"></div>
       <div id="beacons"></div>
-      <div id="reviveBar"><i></i></div>
-      <div id="downed"><div>DOWNED</div><div class="sub" id="downed-sub"></div></div>
-      <div id="banner"><h2 id="banner-h"></h2><p id="banner-p"></p></div>
-      <div id="loadout" class="bigpanel panel"><span class="close" data-close="loadout">✕</span><h2>LOADOUT</h2><div id="lo-content"></div></div>
-      <div id="menu" class="bigpanel panel"><span class="close" data-close="menu">✕</span><h2>THRESHOLD</h2><div id="menu-content"></div></div>
+      <div id="downed"><div class="dn-t">${icon('downed', 30)}DOWNED</div><div class="sub" id="downed-sub"></div></div>
+      <div id="reviveBar"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="27" fill="none" stroke-width="3"/>
+        <circle class="fg" cx="32" cy="32" r="27" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${REVIVE_C.toFixed(2)}" stroke-dashoffset="${REVIVE_C.toFixed(2)}"/></svg>
+        <span class="rv-lbl">REVIVING</span></div>
+      <div id="levelcard"><div class="lc-world" id="lc-world"></div><div class="lc-line"></div><div class="lc-name" id="lc-name"></div><div class="lc-line"></div><div class="lc-sub" id="lc-sub"></div></div>
+      <div id="banner"><div class="bn-mark">${icon('threshold', 38)}</div><h2 id="banner-h"></h2><div class="lc-line"></div><p id="banner-p"></p></div>
+      <div id="scrim"></div>
+      <div id="loadout" class="bigpanel panel"><span class="close" data-close="loadout" title="Close (Esc)">✕</span><div class="ph"><h2>LOADOUT</h2><span class="sub">DEVICES · SKILLS · INVENTORY</span></div><div id="lo-content"></div></div>
+      <div id="menu" class="bigpanel panel"><span class="close" data-close="menu" title="Close (Esc)">✕</span><div class="ph"><h2>THRESHOLD</h2><span class="sub">PAUSED</span></div><div id="menu-content"></div></div>
+      <div id="tip"></div>
     `;
     document.body.appendChild(this.root);
     this.root.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
       if (t.dataset.close) this.hidePanel(t.dataset.close);
     });
+    const savedAcc = lsGet('t-accent');
+    this.setAccent(savedAcc && ACCENTS.some(([c]) => c === savedAcc) ? savedAcc : ACCENTS[0][0]);
+    this.applyMotion();
     this.buildIntro();
   }
 
+  // ---------- theming ----------
+  private setAccent(hex: string) {
+    if (!ACCENTS.some(([c]) => c === hex)) return;
+    this.accent = hex;
+    const n = parseInt(hex.slice(1), 16);
+    const s = document.documentElement.style;
+    s.setProperty('--acc', hex);
+    s.setProperty('--acc-rgb', `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`);
+    lsSet('t-accent', hex);
+    document.querySelectorAll<HTMLElement>('.sw').forEach((el) => el.classList.toggle('on', el.dataset.accent === hex));
+    this.backdrop?.setAccent(hex);
+  }
+  private swatches() {
+    return `<div class="swatches" role="radiogroup" aria-label="Accent colour">${ACCENTS.map(([c, n]) =>
+      `<button type="button" class="sw ${c === this.accent ? 'on' : ''}" data-accent="${c}" style="--c:${c}" title="${n}" aria-label="${n}"></button>`).join('')}</div>`;
+  }
+  private bindSwatches(scope: HTMLElement) {
+    scope.querySelectorAll<HTMLElement>('.sw').forEach((el) => el.addEventListener('click', () => this.setAccent(el.dataset.accent!)));
+  }
+  private applyMotion() {
+    const rm = this.settings.reduceMotion;
+    this.root.classList.toggle('rm', rm);
+    document.getElementById('intro')?.classList.toggle('rm', rm);
+  }
+
+  // ---------- title screen ----------
   private buildIntro() {
     const intro = document.createElement('div');
     intro.id = 'intro';
-    const saved = localStorage.getItem('threshold-name') ?? '';
-    const savedAccent = localStorage.getItem('t-accent') ?? PLAYER_ACCENTS[0];
-    const accent = PLAYER_ACCENTS.includes(savedAccent) ? savedAccent : PLAYER_ACCENTS[0];
-    intro.style.setProperty('--accent', accent);
+    intro.classList.toggle('rm', this.settings.reduceMotion);
+    const saved = lsGet('threshold-name') ?? '';
+    const keys: [string, string][] = [['WASD', 'move'], ['MOUSE', 'look'], ['SPACE', 'jump'], ['E', 'interact'], ['F', 'carry'],
+      ['LMB', 'device'], ['1-4', 'equip'], ['ENTER', 'chat'], ['MMB', 'ping'], ['Q', 'beacon'], ['L', 'loadout'], ['T', 'echo'], ['ESC', 'menu']];
     intro.innerHTML = `
       <canvas id="intro-bg"></canvas>
-      <div class="wrap">
-        <h1>THRESHOLD</h1>
-        <div class="tag">a cooperative puzzle-adventure</div>
-        <div class="card">
-          ${saved ? `<div class="wb">welcome back, <b style="color:var(--accent)">${saved.replace(/[<>&"]/g, '')}</b></div>` : ''}
-          <div class="field-label">call sign</div>
-          <input id="intro-name" maxlength="24" placeholder="your name" value="${saved.replace(/"/g, '')}" />
-          <div class="field-label">accent — your colour in the world</div>
-          <div class="accents">${PLAYER_ACCENTS.map((c) =>
-            `<div class="sw ${c === accent ? 'sel' : ''}" data-accent="${c}" style="background:${c};--c:${c}"></div>`).join('')}</div>
-          <button id="intro-go">STEP THROUGH</button>
-          <div class="stats">13 levels · 12 shards · 1–4 players · drop-in co-op</div>
+      <div class="in-wrap">
+        <div class="mark">${icon('threshold', 54)}</div>
+        <h1 aria-label="THRESHOLD">${[...'THRESHOLD'].map((ch, i) => `<span style="animation-delay:${(0.15 + i * 0.06).toFixed(2)}s">${ch}</span>`).join('')}</h1>
+        <div class="rule">A COOPERATIVE PUZZLE-ADVENTURE</div>
+        <p class="tag">Walk through a portal and think your way out — alone, or with whoever else steps through.
+        Share this page's URL to bring a friend into your world.</p>
+        <div class="in-card">
+          ${saved ? `<div class="wb">WELCOME BACK, <b>${esc(saved.slice(0, 24))}</b></div>` : ''}
+          <label class="fld"><span>CALLSIGN</span><input id="intro-name" maxlength="24" placeholder="your name" autocomplete="off" spellcheck="false" /></label>
+          <div class="fld"><span>ACCENT — YOUR COLOUR IN THE WORLD</span>${this.swatches()}</div>
+          <button id="intro-go">STEP THROUGH <span class="kc">↵</span></button>
         </div>
-        <div class="keys">
-          <span><kbd>WASD</kbd> move</span><span><kbd>SPACE</kbd> jump</span><span><kbd>E</kbd> interact</span>
-          <span><kbd>F</kbd> carry</span><span><kbd>LMB</kbd> device</span><span><kbd>1–4</kbd> equip</span>
-          <span><kbd>ENTER</kbd> chat</span><span><kbd>MMB</kbd> ping</span><span><kbd>Q</kbd> beacon</span>
-          <span><kbd>L</kbd> loadout</span><span><kbd>T</kbd> echo</span><span><kbd>ESC</kbd> menu</span>
-        </div>
-        <div class="share">share this page's URL to pull a friend into your Nexus</div>
+        <div class="keys">${keys.map(([k, v]) => `<span><span class="kc ghost">${k}</span>${v}</span>`).join('')}</div>
       </div>
+      <div class="foot">13 LEVELS · 12 SHARDS · 1–4 PLAYERS · DROP-IN CO-OP</div>
     `;
     document.body.appendChild(intro);
-    const stopBg = runIntroBackdrop(intro.querySelector('#intro-bg') as HTMLCanvasElement, this.settings.reduceMotion);
-
-    let chosen = accent;
-    intro.querySelectorAll<HTMLElement>('.sw').forEach((sw) => sw.addEventListener('click', () => {
-      chosen = sw.dataset.accent!;
-      localStorage.setItem('t-accent', chosen);
-      intro.style.setProperty('--accent', chosen);
-      intro.querySelectorAll('.sw').forEach((n) => n.classList.toggle('sel', n === sw));
-    }));
-
-    let leaving = false;
+    const nameInput = intro.querySelector('#intro-name') as HTMLInputElement;
+    nameInput.value = saved.slice(0, 24);      // value set as a property — never parsed as HTML
+    this.bindSwatches(intro);
+    this.backdrop = startBackdrop(intro.querySelector('#intro-bg') as HTMLCanvasElement, this.accent, this.settings.reduceMotion);
+    let gone = false;
     const go = () => {
-      if (leaving) return;
-      leaving = true;
-      const name = (intro.querySelector('#intro-name') as HTMLInputElement).value.trim() || 'Wanderer';
-      localStorage.setItem('threshold-name', name);
-      this.cb.onStart(name, chosen);            // boot the game behind the fade
-      intro.classList.add('leaving');
-      setTimeout(() => { stopBg(); intro.remove(); }, 750);
+      if (gone) return;
+      gone = true;
+      const name = nameInput.value.trim() || 'Wanderer';
+      lsSet('threshold-name', name);
+      this.cb.onStart(name, this.accent);        // boot the game behind the fade
+      intro.classList.add('out');
+      setTimeout(() => { this.backdrop?.stop(); this.backdrop = undefined; intro.remove(); }, this.settings.reduceMotion ? 0 : 720);
     };
     intro.querySelector('#intro-go')!.addEventListener('click', go);
-    (intro.querySelector('#intro-name') as HTMLInputElement).addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
-    setTimeout(() => (intro.querySelector('#intro-name') as HTMLInputElement).focus(), 50);
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    setTimeout(() => nameInput.focus(), 50);
   }
 
   private $(sel: string) { return this.root.querySelector(sel) as HTMLElement; }
+  /** restart a CSS animation by toggling a class */
+  private replay(el: Element, cls = 'on') { el.classList.remove(cls); void (el as HTMLElement).offsetWidth; el.classList.add(cls); }
 
   // ---------- live HUD ----------
+  private levelKey = '';
+  private liTimer?: ReturnType<typeof setTimeout>;
   setLevelInfo(name: string, world: string, tier: string, best?: number) {
     this.$('#li-name').textContent = name;
-    this.$('#li-tier').textContent = `${world}${tier ? ' · ' + tier : ''}${best ? ' · best ' + (best / 1000).toFixed(1) + 's' : ''}`;
+    this.$('#li-tier').textContent = `${world}${tier ? ' · ' + tier : ''}`;
+    this.$('#li-obj').textContent = best ? `Best ${(best / 1000).toFixed(1)}s` : '';
+    const li = this.$('#levelinfo');
+    li.classList.remove('faded');
+    clearTimeout(this.liTimer);
+    this.liTimer = setTimeout(() => li.classList.add('faded'), LEVELINFO_HOLD_MS);
+    const key = `${world}|${name}`;
+    if (key !== this.levelKey) {
+      this.levelKey = key;
+      this.$('#lc-world').textContent = world;
+      this.$('#lc-name').textContent = name;
+      this.$('#lc-sub').textContent = tier;
+      this.replay(this.$('#levelcard'));
+    }
   }
   setShards(count: number, total: number) {
-    this.shardCount = count;
     const el = this.$('#shards');
-    el.innerHTML = '';
-    for (let i = 0; i < total; i++) el.innerHTML += `<div class="pip ${i < count ? 'on' : ''}"></div>`;
+    if (el.querySelectorAll('.pip').length !== total) {
+      el.innerHTML = `${'<div class="pip"></div>'.repeat(total)}<span class="lbl"></span>`;
+    }
+    const pips = el.querySelectorAll('.pip');
+    pips.forEach((p, i) => p.classList.toggle('on', i < count));
+    (el.querySelector('.lbl') as HTMLElement).innerHTML = `<b>${count}</b> / ${total}`;
+    if (this.shardCount >= 0 && count > this.shardCount) {
+      for (let i = this.shardCount; i < count && i < pips.length; i++) this.replay(pips[i], 'gain');
+      const call = this.$('#shardcall');
+      call.textContent = `SHARD RECOVERED · ${count}/${total}`;
+      this.replay(call);
+    }
+    this.shardCount = count;
   }
   setHealth(hp: number, downed: boolean) {
     const el = this.$('#health');
-    el.classList.toggle('low', hp < 35);
-    (el.querySelector('i') as HTMLElement).style.width = `${Math.max(0, hp)}%`;
+    const v = Math.max(0, Math.min(100, hp));
+    const low = v < 35 && !downed;
+    el.classList.toggle('low', v < 35);
+    (el.querySelector('.bar i') as HTMLElement).style.width = `${v}%`;
+    (el.querySelector('.bar b') as HTMLElement).style.width = `${v}%`;
+    this.$('#hp-num').textContent = String(Math.round(v));
     this.$('#downed').style.display = downed ? 'flex' : 'none';
-    this.$('#vignette').style.opacity = downed ? '0.9' : hp < 35 ? '0.5' : '0';
+    this.$('#vignette').classList.toggle('low', low);
   }
   setDownedSub(text: string) { this.$('#downed-sub').textContent = text; }
-  damageFlash() {
+  /** red edge flash; `angle` (radians, 0 = ahead, +right) adds a direction arc toward the source */
+  private arcIdx = 0;
+  damageFlash(angle?: number) {
     const v = this.$('#vignette');
-    v.style.opacity = '0.8';
-    setTimeout(() => { v.style.opacity = '0'; }, 220);
+    v.classList.add('hit');
+    setTimeout(() => v.classList.remove('hit'), 180);
+    if (angle === undefined || !Number.isFinite(angle)) return;
+    const arcs = this.root.querySelectorAll<HTMLElement>('#dmgdir .arc');
+    const a = arcs[this.arcIdx++ % arcs.length];
+    a.style.transform = `rotate(${angle.toFixed(3)}rad)`;
+    this.replay(a);
   }
+  /** crosshair bloom on fire */
+  private fireTimer?: ReturnType<typeof setTimeout>;
+  fired() {
+    const c = this.$('#crosshair');
+    c.classList.add('fire');
+    clearTimeout(this.fireTimer);
+    this.fireTimer = setTimeout(() => c.classList.remove('fire'), 70);
+  }
+  /** confirmed hit on an enemy by our own shot; kill = it went down / shattered */
+  hitMarker(kill = false) {
+    const hm = this.$('#crosshair .hm');
+    hm.classList.toggle('kill', kill);
+    this.replay(hm);
+  }
+  private rosterKey = '';
   setRoster(players: { name: string; accent: string; hp: number; downed: boolean; self: boolean }[]) {
-    this.$('#roster').innerHTML = players.map((p) =>
-      `<div class="row"><span class="dot" style="background:${p.accent};${p.downed ? 'box-shadow:0 0 6px #e0654a' : ''}"></span>
-       <span style="flex:0 0 auto;${p.self ? 'color:#ffd98a' : ''}">${esc(p.name)}</span>
-       <span class="hp"><i style="width:${p.hp}%"></i></span></div>`).join('');
+    const el = this.$('#roster');
+    const key = players.map((p) => `${p.name}\u0000${p.accent}\u0000${p.self}`).join('\u0001');
+    if (key !== this.rosterKey) {
+      this.rosterKey = key;
+      el.innerHTML = players.map((p) =>
+        `<div class="row${p.self ? ' self' : ''}"><span class="dot" style="background:${safeColor(p.accent)};color:${safeColor(p.accent)}"></span>
+         <span class="nm">${esc(p.name)}</span><span class="hp"><i></i></span></div>`).join('');
+    }
+    const rows = el.querySelectorAll<HTMLElement>('.row');
+    players.forEach((p, i) => {
+      const r = rows[i];
+      if (!r) return;
+      r.classList.toggle('down', p.downed);
+      (r.querySelector('.hp i') as HTMLElement).style.width = `${Math.max(0, Math.min(100, p.hp))}%`;
+    });
   }
+  private devKey = '';
   setDevices(owned: DeviceId[], equipped: DeviceId, chargeOf: (d: DeviceId) => string, cooldownPct: (d: DeviceId) => number) {
     this.owned = owned; this.equipped = equipped;
-    this.$('#devices').innerHTML = owned.map((d, i) => `
-      <div class="slot ${d === equipped ? 'eq' : ''}">
-        ${icon(DEVICE_ICON[d], 22, DEVICES[d].color)}
-        <div>${DEVICES[d].name.split(' ')[DEVICES[d].name.split(' ').length - 1]}</div>
-        <div class="ch">${chargeOf(d)} <span style="opacity:0.5">[${i + 1}]</span></div>
-        <div class="cd" style="width:${cooldownPct(d) * 100}%"></div>
-      </div>`).join('');
+    const el = this.$('#devices');
+    const key = owned.join(',');
+    if (key !== this.devKey) {
+      this.devKey = key;
+      el.innerHTML = `<div class="dv-sel"></div>` + owned.map((d, i) => {
+        const words = DEVICES[d].name.split(' ');
+        return `<div class="slot" data-slot="${d}" style="--dc:${DEVICES[d].color}">
+          <span class="k">${i + 1}</span>
+          ${icon(DEVICE_ICON[d], 22, DEVICES[d].color)}
+          <div class="nm">${words[words.length - 1]}</div>
+          <div class="pips"></div>
+          <div class="cd"></div>
+        </div>`;
+      }).join('');
+    }
+    const idx = Math.max(0, owned.indexOf(equipped));
+    (el.querySelector('.dv-sel') as HTMLElement).style.transform = `translate(${idx * 5.3}em, -3px)`;
+    el.querySelectorAll<HTMLElement>('.slot').forEach((s) => {
+      const d = s.dataset.slot as DeviceId;
+      s.classList.toggle('eq', d === equipped);
+      const cd = cooldownPct(d);
+      (s.querySelector('.cd') as HTMLElement).style.width = `${(cd * 100).toFixed(1)}%`;
+      s.classList.toggle('cool', cd > 0.02);
+      const ch = chargeOf(d);
+      const pips = s.querySelector('.pips') as HTMLElement;
+      if (pips.dataset.ch !== ch) {
+        pips.dataset.ch = ch;
+        const m = /^(\d+)\/(\d+)$/.exec(ch);
+        pips.innerHTML = m
+          ? Array.from({ length: Number(m[2]) }, (_, i) => `<i class="${i < Number(m[1]) ? 'on' : ''}"></i>`).join('')
+          : '∞';
+      }
+    });
   }
 
   // ---------- chat ----------
@@ -306,7 +323,7 @@ export class Hud {
     line.className = `line${system ? ' sys' : ''}`;
     line.innerHTML = system
       ? esc(text)
-      : `<span class="who" style="color:${accent}">${esc(name)}</span>${esc(text)}`;
+      : `<span class="who" style="color:${safeColor(accent)}">${esc(name)}</span>${esc(text)}`;
     log.appendChild(line);
     while (log.children.length > 9) log.removeChild(log.firstChild!);
     log.classList.remove('dim');
@@ -344,11 +361,22 @@ export class Hud {
     el.style.display = text ? 'block' : 'none';
     if (text) el.innerHTML = `${icon('players', 16)}${esc(text)}`;
   }
+  /** `text` is trusted markup from main.ts ("<b>E</b> — label", label already escaped) */
+  private lastPrompt: string | null = null;
   prompt(text: string | null) {
+    if (text === this.lastPrompt) return;
+    this.lastPrompt = text;
     const el = this.$('#prompt');
+    this.root.classList.toggle('focus', !!text);
     if (!text) { el.style.display = 'none'; return; }
-    el.style.display = 'block';
-    el.innerHTML = text;
+    const m = /^<b>(.*?)<\/b>\s*[—–-]\s*(.*)$/.exec(text);
+    if (m) {
+      const words = m[1].trim().split(/\s+/);
+      const key = words.pop()!;
+      const pre = words.join(' ');
+      el.innerHTML = `<span class="kc">${key}</span><span class="pl">${pre ? `<em>${pre.toUpperCase()}</em>` : ''}${m[2]}</span>`;
+    } else el.innerHTML = `<span class="pl">${text}</span>`;
+    el.style.display = 'flex';
   }
   hint(text: string | null) {
     const el = this.$('#hint');
@@ -357,29 +385,39 @@ export class Hud {
   }
   toast(text: string, kind = 'info') {
     const el = document.createElement('div');
-    el.className = `toast ${kind}`;
+    el.className = `toast ${kind === 'success' || kind === 'warn' ? kind : 'info'}`;
     el.textContent = text;
     this.$('#toasts').appendChild(el);
     setTimeout(() => el.remove(), 4200);
   }
+  private bannerTimers: ReturnType<typeof setTimeout>[] = [];
   banner(title: string, sub: string) {
     this.$('#banner-h').textContent = title;
     this.$('#banner-p').textContent = sub;
-    this.$('#banner').style.display = 'block';
-    setTimeout(() => { this.$('#banner').style.display = 'none'; }, 4500);
+    const b = this.$('#banner'), lb = this.$('#letterbox');
+    this.bannerTimers.forEach(clearTimeout);
+    this.replay(b);
+    lb.classList.add('on');
+    this.bannerTimers = [
+      setTimeout(() => lb.classList.remove('on'), 3900),
+      setTimeout(() => b.classList.remove('on'), 4500),
+    ];
   }
   reviveProgress(pct: number | null) {
     const el = this.$('#reviveBar');
     el.style.display = pct === null ? 'none' : 'block';
-    if (pct !== null) (el.querySelector('i') as HTMLElement).style.width = `${pct * 100}%`;
+    if (pct !== null) {
+      const p = Math.max(0, Math.min(1, pct));
+      (el.querySelector('.fg') as SVGCircleElement).setAttribute('stroke-dashoffset', (REVIVE_C * (1 - p)).toFixed(2));
+    }
   }
   setBeacons(beacons: NonNullable<InstanceSnapshot['beacons']>, inLobby: boolean) {
     const el = this.$('#beacons');
     if (!inLobby || !beacons?.length) { el.innerHTML = ''; return; }
     el.innerHTML = beacons.map((b) => `
-      <div class="b panel" data-join="${b.instanceId}">
-        <span class="lvl">⚑ ${esc(b.levelName)}</span> needs a hand —
-        ${b.present} inside${b.needed ? `, wants ${b.needed} more` : ''}. <u>Click to jump in.</u>
+      <div class="b panel" data-join="${esc(b.instanceId)}">
+        <span class="lvl">${icon('beacon', 13)} ${esc(b.levelName)}</span> needs a hand —
+        ${Number(b.present)} inside${b.needed ? `, wants ${Number(b.needed)} more` : ''}. <u>Click to jump in.</u>
       </div>`).join('');
     el.querySelectorAll('[data-join]').forEach((n) =>
       n.addEventListener('click', () => this.cb.onJoinBeacon((n as HTMLElement).dataset.join!)));
@@ -387,217 +425,173 @@ export class Hud {
 
   // ---------- panels ----------
   panelOpen = false;
+  private openPanel(id: string) {
+    this.$(`#${id}`).style.display = 'block';
+    this.panelOpen = true;
+    this.root.classList.add('panel-open');
+  }
   showLoadout(profile: { devices: DeviceId[]; skills: SkillId[]; skillPoints: number; inventory: string[] }) {
     this.skills = profile.skills; this.skillPoints = profile.skillPoints; this.inventory = profile.inventory;
     const c = this.$('#lo-content');
-    // skill tree as a graph: prerequisite chains rendered with connector lines
+    const state = (id: SkillId) => {
+      const s = SKILLS[id];
+      if (this.skills.includes(id)) return 'owned';
+      return this.skillPoints >= s.cost && (!s.requires || this.skills.includes(s.requires)) ? 'can' : 'locked';
+    };
     const node = (id: SkillId) => {
       const s = SKILLS[id];
-      const ownedS = this.skills.includes(id);
-      const can = !ownedS && this.skillPoints >= s.cost && (!s.requires || this.skills.includes(s.requires));
-      return `<div class="sk-node ${ownedS ? 'owned' : can ? 'can' : 'locked'}" data-skill="${id}" title="${esc(s.description)}">
-        ${icon(SKILL_ICON[id], 20, ownedS ? '#a8f0c6' : can ? '#ffd98a' : '#8f89a8')}
-        <b>${s.name}</b>${s.description}
-        <span class="cost">${ownedS ? icon('check', 12, '#a8f0c6') : `${s.cost}pt`}</span>
+      const st = state(id);
+      const col = st === 'owned' ? '#a8f0c6' : st === 'can' ? '#ffd98a' : '#8f89a8';
+      return `<div class="sk-node ${st}" data-skill="${id}" tabindex="0" aria-label="${esc(s.name)}: ${esc(s.description)}">
+        <span class="hx">${icon(SKILL_ICON[id], 18, col)}</span>
+        <span style="min-width:0"><b>${esc(s.name)}</b><span class="cost">${st === 'owned' ? 'ACQUIRED' : `${s.cost} PT${s.cost > 1 ? 'S' : ''}`}</span></span>
       </div>`;
     };
     const chain = (ids: SkillId[]) => `<div class="sk-row">${ids.map((id, i) =>
       `${i > 0 ? `<div class="sk-link ${this.skills.includes(ids[i - 1]) ? 'owned' : ''}"></div>` : ''}${node(id)}`).join('')}</div>`;
     const branch = (label: string, chains: SkillId[][]) =>
-      `<div class="sk-branch"><div style="font-size:11px;opacity:0.6;margin-bottom:2px">${label}</div>${chains.map(chain).join('')}</div>`;
+      `<div class="sk-branch"><div class="bl">${label}</div>${chains.map(chain).join('')}</div>`;
+    const inv = this.inventory.map((i) => `<div class="card item"><div class="ct"><span class="ib" style="color:var(--gold)">${icon('gem', 14, '#ffd98a')}</span>${esc(i)}</div>carried item — find its socket</div>`);
+    for (let k = inv.length; k < 6; k++) inv.push(`<div class="card empty">${k === this.inventory.length && !this.inventory.length ? 'empty — explore for hidden secrets' : '—'}</div>`);
     c.innerHTML = `
-      <h3>DEVICES — click to equip</h3>
-      <div class="grid">${this.owned.map((d) => `
-        <div class="card ${d === this.equipped ? 'active' : ''}" data-dev="${d}">
-          <b style="color:${DEVICES[d].color}">${icon(DEVICE_ICON[d], 16, DEVICES[d].color)} ${DEVICES[d].name}</b>
-          ${DEVICES[d].puzzleUse}<br/><span style="opacity:0.7">${DEVICES[d].combatUse}</span>
+      <h3>DEVICES</h3>
+      <div class="lo-grid dev">${this.owned.map((d, i) => `
+        <div class="card ${d === this.equipped ? 'active' : ''}" data-dev="${d}" style="--dc:${DEVICES[d].color}" tabindex="0">
+          ${d === this.equipped ? '<span class="tag">EQUIPPED</span>' : `<span class="tag" style="color:var(--ink-3)">[${i + 1}]</span>`}
+          <div class="ct"><span class="ib" style="color:${DEVICES[d].color}">${icon(DEVICE_ICON[d], 16, DEVICES[d].color)}</span>${DEVICES[d].name}</div>
+          ${DEVICES[d].puzzleUse}<span class="cu">${DEVICES[d].combatUse}</span>
         </div>`).join('')}</div>
-      <h3>SKILLS — ${this.skillPoints} point${this.skillPoints === 1 ? '' : 's'} <button id="lo-respec" style="margin-left:12px">${icon('respec', 12)} respec (refund all)</button></h3>
-      ${branch('TRAVERSAL', [['double-jump', 'phase-sight'], ['quick-carry', 'echo-core']])}
-      ${branch('COMBAT', [['charged-pulse', 'overcharge'], ['dash', 'field-medic']])}
-      <h3>INVENTORY (${this.inventory.length}/6)</h3>
-      <div class="grid">${this.inventory.length ? this.inventory.map((i) => `<div class="card"><b>${icon('gem', 14, '#ffd98a')} ${esc(i)}</b>carried item — find its socket</div>`).join('') : '<div style="opacity:0.5;font-size:12px">empty — explore for hidden secrets</div>'}</div>
+      <h3>SKILL MATRIX <span class="lo-pts"><i></i>${this.skillPoints} POINT${this.skillPoints === 1 ? '' : 'S'}</span>
+        <button id="lo-respec" class="sm">${icon('respec', 12)} Respec</button></h3>
+      <div class="sk-wrap">
+        ${branch('TRAVERSAL', [['double-jump', 'phase-sight'], ['quick-carry', 'echo-core']])}
+        ${branch('COMBAT', [['charged-pulse', 'overcharge'], ['dash', 'field-medic']])}
+      </div>
+      <h3>INVENTORY · ${this.inventory.length}/6</h3>
+      <div class="lo-grid">${inv.join('')}</div>
     `;
     c.querySelectorAll('[data-dev]').forEach((n) => n.addEventListener('click', () => {
       this.cb.onEquip((n as HTMLElement).dataset.dev as DeviceId);
       this.hidePanel('loadout');
     }));
-    c.querySelectorAll('[data-skill]').forEach((n) => n.addEventListener('click', () => {
-      const id = (n as HTMLElement).dataset.skill as SkillId;
-      if (!this.skills.includes(id)) this.cb.onUnlockSkill(id);
-    }));
+    const tip = this.$('#tip');
+    c.querySelectorAll<HTMLElement>('[data-skill]').forEach((n) => {
+      const id = n.dataset.skill as SkillId;
+      n.addEventListener('click', () => { if (!this.skills.includes(id)) this.cb.onUnlockSkill(id); });
+      const show = () => {
+        const s = SKILLS[id], st = state(id);
+        const status = st === 'owned' ? '<span class="ts" style="color:var(--mint)">ACQUIRED</span>'
+          : st === 'can' ? `<span class="ts" style="color:var(--gold)">CLICK TO UNLOCK · ${s.cost} PT</span>`
+          : `<span class="ts" style="color:var(--ink-3)">${s.requires && !this.skills.includes(s.requires) ? `REQUIRES ${esc(SKILLS[s.requires].name.toUpperCase())}` : `NEEDS ${s.cost} PT`}</span>`;
+        tip.innerHTML = `<b>${esc(s.name)}</b>${esc(s.description)}${status}`;
+        const r = n.getBoundingClientRect();
+        const tw = tip.offsetWidth, th = tip.offsetHeight;
+        const x = Math.min(innerWidth - tw - 8, Math.max(8, r.left + r.width / 2 - tw / 2));
+        const y = r.top - th - 8 > 8 ? r.top - th - 8 : r.bottom + 8;
+        tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+        tip.classList.add('on');
+      };
+      n.addEventListener('mouseenter', show); n.addEventListener('focus', show);
+      n.addEventListener('mouseleave', () => tip.classList.remove('on'));
+      n.addEventListener('blur', () => tip.classList.remove('on'));
+    });
     c.querySelector('#lo-respec')?.addEventListener('click', () => this.cb.onRespec());
-    this.$('#loadout').style.display = 'block';
-    this.panelOpen = true;
+    this.openPanel('loadout');
   }
   showMenu(inLevel: boolean) {
     const c = this.$('#menu-content');
     const s = this.settings;
+    const range = (id: string, label: string, min: number, max: number, step: number, v: number) =>
+      `<div class="st-row"><span>${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}"/><output for="${id}"></output></div>`;
+    const seg = (id: string, v: string, opts: [string, string][]) =>
+      `<input type="hidden" id="${id}" value="${v}"/><div class="segc" data-seg="${id}">${opts.map(([o, l]) =>
+        `<button type="button" data-v="${o}" class="${o === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    const QNOTE: Record<string, string> = { low: 'Fastest — for integrated GPUs.', medium: 'Reflections and dynamic lights.', high: 'Full effects.' };
+    const DNOTE: Record<string, string> = { normal: 'Enemies hit as designed.', story: '60% less damage taken.' };
     c.innerHTML = `
-      <label>Mouse sensitivity <input type="range" id="st-sens" min="0.3" max="2.5" step="0.1" value="${s.sensitivity}"/></label>
-      <label>Master volume <input type="range" id="st-master" min="0" max="1" step="0.05" value="${s.master}"/></label>
-      <label>Music volume <input type="range" id="st-music" min="0" max="1" step="0.05" value="${s.music}"/></label>
-      <label>SFX volume <input type="range" id="st-sfx" min="0" max="1" step="0.05" value="${s.sfx}"/></label>
-      <label>Combat difficulty
-        <select id="st-diff" style="background:#221f38;color:#e8e4f0;border:1px solid #555;padding:4px 8px;border-radius:6px">
-          <option value="normal" ${s.difficulty === 'normal' ? 'selected' : ''}>Normal</option>
-          <option value="story" ${s.difficulty === 'story' ? 'selected' : ''}>Story (60% less damage)</option>
-        </select></label>
-      <label>Graphics quality
-        <select id="st-quality" style="background:#221f38;color:#e8e4f0;border:1px solid #555;padding:4px 8px;border-radius:6px">
-          <option value="low" ${s.quality === 'low' ? 'selected' : ''}>Low — fastest</option>
-          <option value="medium" ${s.quality === 'medium' ? 'selected' : ''}>Medium — reflections, lights</option>
-          <option value="high" ${s.quality === 'high' ? 'selected' : ''}>High — full effects</option>
-        </select></label>
-      <label>Reduce motion <input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''}/></label>
-      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-        <button id="mn-resume">Resume</button>
-        <button id="mn-invite">Copy invite link</button>
-        ${inLevel ? '<button id="mn-beacon">Raise help beacon</button><button id="mn-reset">Reset level</button><button id="mn-leave">Return to Nexus</button>' : ''}
+      <div class="mn-grid">
+        <div>
+          <h3>CONTROLS</h3>
+          ${range('st-sens', 'Mouse sensitivity', 0.3, 2.5, 0.1, s.sensitivity)}
+          <h3>AUDIO</h3>
+          ${range('st-master', 'Master volume', 0, 1, 0.05, s.master)}
+          ${range('st-music', 'Music', 0, 1, 0.05, s.music)}
+          ${range('st-sfx', 'Effects', 0, 1, 0.05, s.sfx)}
+          <h3>GAMEPLAY &amp; DISPLAY</h3>
+          <div class="st-row wide"><span>Combat difficulty</span><div>${seg('st-diff', s.difficulty, [['normal', 'Normal'], ['story', 'Story']])}</div><div class="st-note" id="st-diff-note">${DNOTE[s.difficulty]}</div></div>
+          <div class="st-row wide"><span>Graphics quality</span><div>${seg('st-quality', s.quality, [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</div><div class="st-note" id="st-quality-note">${QNOTE[s.quality]}</div></div>
+          <div class="st-row wide"><span>Reduce motion</span><label class="tgl"><input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''} aria-label="Reduce motion"/><span></span></label></div>
+        </div>
+        <div class="mn-actions">
+          <h3>SESSION</h3>
+          <button id="mn-resume" class="primary">${icon('resume', 14)} Resume</button>
+          <button id="mn-invite">${icon('link', 14)} Copy invite link</button>
+          ${inLevel ? `<div class="sep"></div>
+            <button id="mn-beacon">${icon('beacon', 14)} Raise help beacon</button>
+            <button id="mn-reset" class="danger">${icon('reset', 14)} Reset level</button>
+            <button id="mn-leave" class="danger">${icon('leave', 14)} Return to Nexus</button>` : ''}
+          <p class="mn-foot">Guest progress is saved in this browser. Every co-op level is beatable by two players with the starter Pulse — devices, items and skills open extra solo routes.</p>
+        </div>
       </div>
-      <p style="opacity:0.5;font-size:12px;margin-top:14px">Guest progress is saved in this browser. Every co-op level is beatable by two players with the starter Pulse — devices, items and skills open extra solo routes.</p>
     `;
+    const val = (id: string) => (c.querySelector(`#${id}`) as HTMLInputElement).value;
+    const paintRange = (r: HTMLInputElement) => {
+      const min = Number(r.min), max = Number(r.max), v = Number(r.value);
+      r.style.setProperty('--v', `${((v - min) / (max - min)) * 100}%`);
+      const out = r.parentElement!.querySelector('output');
+      if (out) out.textContent = r.id === 'st-sens' ? v.toFixed(1) : `${Math.round(v * 100)}`;
+    };
     const upd = () => {
-      s.sensitivity = Number((c.querySelector('#st-sens') as HTMLInputElement).value);
-      s.master = Number((c.querySelector('#st-master') as HTMLInputElement).value);
-      s.music = Number((c.querySelector('#st-music') as HTMLInputElement).value);
-      s.sfx = Number((c.querySelector('#st-sfx') as HTMLInputElement).value);
-      s.difficulty = (c.querySelector('#st-diff') as HTMLSelectElement).value as 'normal' | 'story';
-      s.quality = (c.querySelector('#st-quality') as HTMLSelectElement).value as 'low' | 'medium' | 'high';
+      s.sensitivity = Number(val('st-sens'));
+      s.master = Number(val('st-master'));
+      s.music = Number(val('st-music'));
+      s.sfx = Number(val('st-sfx'));
+      s.difficulty = val('st-diff') as 'normal' | 'story';
+      s.quality = val('st-quality') as 'low' | 'medium' | 'high';
       s.reduceMotion = (c.querySelector('#st-motion') as HTMLInputElement).checked;
-      localStorage.setItem('t-sens', String(s.sensitivity));
-      localStorage.setItem('t-master', String(s.master));
-      localStorage.setItem('t-music', String(s.music));
-      localStorage.setItem('t-sfx', String(s.sfx));
-      localStorage.setItem('t-diff', s.difficulty);
-      localStorage.setItem('t-motion', s.reduceMotion ? '1' : '0');
+      lsSet('t-sens', String(s.sensitivity));
+      lsSet('t-master', String(s.master));
+      lsSet('t-music', String(s.music));
+      lsSet('t-sfx', String(s.sfx));
+      lsSet('t-diff', s.difficulty);
+      lsSet('t-motion', s.reduceMotion ? '1' : '0');
+      this.applyMotion();
       this.cb.onSettings(s);
     };
-    c.querySelectorAll('input,select').forEach((n) => n.addEventListener('change', upd));
+    c.querySelectorAll<HTMLInputElement>('input[type=range]').forEach((r) => {
+      paintRange(r);
+      r.addEventListener('input', () => paintRange(r));
+    });
+    c.querySelectorAll<HTMLElement>('[data-seg]').forEach((g) => g.querySelectorAll<HTMLElement>('button').forEach((b) =>
+      b.addEventListener('click', () => {
+        const id = g.dataset.seg!;
+        (c.querySelector(`#${id}`) as HTMLInputElement).value = b.dataset.v!;
+        g.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        const note = c.querySelector(`#${id}-note`);
+        if (note) note.textContent = (id === 'st-quality' ? QNOTE : DNOTE)[b.dataset.v!] ?? '';
+        upd();
+      })));
+    c.querySelectorAll('input').forEach((n) => n.addEventListener('change', upd));
     c.querySelector('#mn-resume')!.addEventListener('click', () => this.hidePanel('menu'));
     c.querySelector('#mn-invite')!.addEventListener('click', () => {
-      navigator.clipboard.writeText(location.origin + location.pathname);
+      navigator.clipboard?.writeText(location.origin + location.pathname);
       this.toast('Invite link copied — anyone who opens it lands in the shared Nexus.', 'success');
     });
     c.querySelector('#mn-beacon')?.addEventListener('click', () => { this.cb.onBeacon(); this.hidePanel('menu'); });
     c.querySelector('#mn-reset')?.addEventListener('click', () => { this.cb.onReset(); this.hidePanel('menu'); });
     c.querySelector('#mn-leave')?.addEventListener('click', () => { this.cb.onLeaveLevel(); this.hidePanel('menu'); });
-    this.$('#menu').style.display = 'block';
-    this.panelOpen = true;
+    this.openPanel('menu');
   }
   hidePanel(id: string) {
     this.$(`#${id}`).style.display = 'none';
+    this.$('#tip').classList.remove('on');
     this.panelOpen = !!(this.root.querySelector('.bigpanel[style*="block"]'));
+    this.root.classList.toggle('panel-open', this.panelOpen);
     if (!this.panelOpen) dispatchEvent(new CustomEvent('hud-closed'));
   }
   hideAllPanels() { this.hidePanel('loadout'); this.hidePanel('menu'); }
 }
 
-function esc(s: string) { return s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]!)); }
-
-// ---------- title-screen backdrop ----------
-// A self-contained 2D-canvas vista of the game's world: parallax stars, aurora
-// bands, drifting islands with lit lamps, and a slow portal vortex behind the
-// title. No dependency on the renderer — it runs before the game boots.
-function runIntroBackdrop(canvas: HTMLCanvasElement, reduceMotion: boolean): () => void {
-  const ctx = canvas.getContext('2d')!;
-  let w = 0, h = 0, raf = 0;
-  const fit = () => { w = canvas.width = innerWidth; h = canvas.height = innerHeight; };
-  fit();
-  addEventListener('resize', fit);
-
-  const rnd = (a: number, b: number) => a + Math.random() * (b - a);
-  const stars = Array.from({ length: 150 }, () => ({
-    x: Math.random(), y: Math.random() * 0.85, r: rnd(0.4, 1.5), tw: rnd(0, Math.PI * 2), spd: rnd(0.2, 1),
-  }));
-  const islands = [
-    { x: 0.14, y: 0.68, s: 1.35, ph: 0.5 }, { x: 0.82, y: 0.6, s: 1.1, ph: 2.2 },
-    { x: 0.3, y: 0.84, s: 0.8, ph: 4.0 }, { x: 0.68, y: 0.87, s: 1.0, ph: 1.3 },
-    { x: 0.92, y: 0.82, s: 0.6, ph: 3.1 },
-  ];
-
-  const draw = (tms: number) => {
-    const t = tms / 1000;
-    // night-sky gradient
-    const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#191729');
-    sky.addColorStop(0.55, '#221f38');
-    sky.addColorStop(1, '#151222');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, h);
-    // stars
-    for (const s of stars) {
-      const a = 0.35 + Math.sin(t * s.spd + s.tw) * 0.3;
-      ctx.fillStyle = `rgba(220,225,255,${Math.max(0.08, a)})`;
-      ctx.fillRect(s.x * w, s.y * h, s.r, s.r);
-    }
-    // aurora bands
-    for (let b = 0; b < 3; b++) {
-      ctx.beginPath();
-      const baseY = h * (0.2 + b * 0.16);
-      ctx.moveTo(0, baseY);
-      for (let x = 0; x <= w; x += 24) {
-        ctx.lineTo(x, baseY + Math.sin(x * 0.0018 + t * 0.12 + b * 2.1) * 46 + Math.sin(x * 0.0007 - t * 0.07) * 70);
-      }
-      ctx.lineTo(w, h); ctx.lineTo(0, h);
-      ctx.closePath();
-      ctx.fillStyle = ['rgba(107,91,149,0.10)', 'rgba(110,198,255,0.05)', 'rgba(255,158,203,0.045)'][b];
-      ctx.fill();
-    }
-    // portal vortex behind the title (upper third)
-    const px = w / 2, py = h * 0.30, pr = Math.min(w, h) * 0.22;
-    const glow = ctx.createRadialGradient(px, py, pr * 0.1, px, py, pr * 1.5);
-    glow.addColorStop(0, 'rgba(110,198,255,0.16)');
-    glow.addColorStop(0.6, 'rgba(255,158,203,0.05)');
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(px - pr * 1.6, py - pr * 1.6, pr * 3.2, pr * 3.2);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let ring = 0; ring < 3; ring++) {
-      const rr = pr * (0.55 + ring * 0.22);
-      const rot = t * (0.1 + ring * 0.06) * (ring % 2 ? -1 : 1);
-      ctx.strokeStyle = ['rgba(110,198,255,0.4)', 'rgba(255,158,203,0.28)', 'rgba(201,168,255,0.22)'][ring];
-      ctx.lineWidth = 2.2 - ring * 0.5;
-      for (let i = 0; i < 5; i++) {
-        const a0 = rot + (i / 5) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.arc(px, py, rr, a0, a0 + Math.PI * 0.26);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-    // floating islands: slab + drift-rock cone + lamp
-    for (const is of islands) {
-      const bob = Math.sin(t * 0.4 + is.ph) * 6 * is.s;
-      const ix = is.x * w, iy = is.y * h + bob, sw = 130 * is.s;
-      ctx.fillStyle = '#211d33';
-      ctx.beginPath();
-      ctx.ellipse(ix, iy, sw, 16 * is.s, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(ix - sw * 0.7, iy + 6 * is.s);
-      ctx.lineTo(ix, iy + 95 * is.s);
-      ctx.lineTo(ix + sw * 0.7, iy + 6 * is.s);
-      ctx.closePath();
-      ctx.fillStyle = '#1b1830';
-      ctx.fill();
-      // glowing rim + lamp
-      ctx.strokeStyle = 'rgba(139,159,208,0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.ellipse(ix, iy - 3 * is.s, sw * 0.92, 12 * is.s, 0, Math.PI * 1.05, Math.PI * 1.95);
-      ctx.stroke();
-      const lampA = 0.5 + Math.sin(t * 1.3 + is.ph * 3) * 0.2;
-      ctx.fillStyle = `rgba(255,217,138,${lampA})`;
-      ctx.beginPath();
-      ctx.arc(ix + sw * 0.4, iy - 14 * is.s, 3 * is.s, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  };
-
-  if (reduceMotion) { draw(0); return () => removeEventListener('resize', fit); }
-  const loop = (tms: number) => { draw(tms); raf = requestAnimationFrame(loop); };
-  raf = requestAnimationFrame(loop);
-  return () => { cancelAnimationFrame(raf); removeEventListener('resize', fit); };
-}
+function esc(s: string) { return String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]!)); }
+/** colours arrive from the server; only let plain hex through into style attributes */
+function safeColor(c: string) { return /^#[0-9a-f]{3,8}$/i.test(c) ? c : '#6ec6ff'; }
