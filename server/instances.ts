@@ -6,6 +6,7 @@ import { DEVICES, DEVICE_COMBAT, STARTER_DEVICE, type DeviceId } from '../shared
 import { SKILLS, type SkillId } from '../shared/skills';
 import { DOWNED_BLEEDOUT_MS, HP_REGEN_DELAY_MS, HP_REGEN_PER_S, PLAYER_MAX_HP, REVIVE_MS, REVIVE_RANGE } from '../shared/enemies';
 import { PLAYER_ACCENTS } from '../shared/palette';
+import { MAX_CHAT_LEN, MAX_ECHO_POINTS, cleanName, hasKey, isVec3, sanitizeText, validateClientMsg } from '../shared/validate';
 import type { InteractableDef, LevelDef, PortalDef, Vec3 } from '../shared/level';
 import type { ClientMsg, InstanceSnapshot, PlayerSnap, ServerMsg } from '../shared/messages';
 import { buildColliders, footprintHits, groundHeight, pointNearBox, raycast, roundHalfExtent, segmentClear, v3, type AABB } from './physics';
@@ -19,8 +20,26 @@ const LOBBY_CAP = 24;
 const REAP_AFTER_MS = 60_000;
 const SLOT_HOLD_MS = 90_000;
 const WORLD_SHARD_GATES: Record<string, number> = { atrium: 0, vaults: 3, gardens: 6, observatory: 9 };
+/** Dev/test bypass: skips shard/world entry gates and the move speed budget so
+    headless bots (tools/playtest-*.ts) and the screenshot rig can noclip-teleport
+    straight into any level. Never set in production. */
+export const DEV_UNLOCK = process.env.THRESHOLD_DEV_UNLOCK === '1';
 
-export interface ClientLink { send(msg: ServerMsg): void }
+// move validation: client-reported movement accrues a distance allowance over
+// time (walk 6 m/s, dash 19.2 m/s for 180 ms, conveyors ~1 m/s, falls to 30 m/s)
+const MOVE_H_RATE = 10;      // m/s horizontal allowance (walk + conveyor + dash amortised)
+const MOVE_H_BURST = 14;     // m — absorbs a dash + ~1 s of bunched packets
+const MOVE_V_RATE = 32;      // m/s vertical (terminal fall speed 30)
+const MOVE_V_BURST = 14;
+const MAX_MOVE_STEP = 12;    // hard cap per message, dev mode included
+const BEACON_COOLDOWN_MS = 1500;
+const TELEMETRY_PER_MIN = 30;
+
+export interface ClientLink {
+  send(msg: ServerMsg): void;
+  /** close the underlying transport (token takeover) */
+  close?(code?: number, reason?: string): void;
+}
 
 interface Charge { n: number; lastRegen: number }
 
@@ -58,6 +77,16 @@ export class PlayerSession {
   lastToastAt = 0;
   lastChatAt = 0;
   lastPingAt = 0;
+  lastBeaconAt = 0;
+  /** telemetry token bucket */
+  telemetryTokens = TELEMETRY_PER_MIN;
+  telemetryRefillAt = Date.now();
+  /** move speed budget (metres available) and when it was last refilled */
+  moveBudgetH = MOVE_H_BURST;
+  moveBudgetV = MOVE_V_BURST;
+  moveBudgetAt = Date.now();
+  /** fractional damage carried between ticks (story-mode scaling of small DoT) */
+  damageCarry = 0;
   connected = true;
   disconnectedAt?: number;
 
@@ -121,7 +150,7 @@ export class LobbyInstance extends Instance {
   tick() {
     const nexus = getLevel('nexus');
     // fixed portals: walking into one enters that level
-    for (const p of this.players.values()) {
+    players: for (const p of [...this.players.values()]) {
       if (Date.now() < p.portalCooldownUntil) continue;
       for (const portal of nexus?.portals ?? []) {
         const d = v3.dist(p.pos, portal.pos);
@@ -136,7 +165,9 @@ export class LobbyInstance extends Instance {
             continue;
           }
           const target = portal.linkedTo.split(':')[0];
-          if (getLevel(target)) { this.mgr.enterLevel(p, target); return; }
+          // entering removes p from this lobby — move on to the next player, but
+          // never skip the others' checks or this tick's snapshot broadcast
+          if (getLevel(target)) { this.mgr.enterLevel(p, target); continue players; }
         }
       }
       // lobby has no fail state: catch falls
@@ -176,6 +207,8 @@ export class LevelInstance extends Instance {
   beacon = false;
   killY: number;
   entityPortalCd = new Map<string, number>();
+  /** pending auto-release timers for unlatched switches (cleared on reset/destroy) */
+  switchTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(id: string, level: LevelDef, private mgr: GameServer) {
     super(id);
@@ -186,7 +219,16 @@ export class LevelInstance extends Instance {
   }
   kind() { return 'level' as const; }
 
+  clearTimers() {
+    for (const t of this.switchTimers.values()) clearTimeout(t);
+    this.switchTimers.clear();
+  }
+
+  /** instance reaped — nothing scheduled may touch it afterwards */
+  destroy() { this.clearTimers(); }
+
   seed() {
+    this.clearTimers();
     this.states.clear(); this.inter.clear(); this.bodies.clear(); this.enemies.clear();
     this.placements = []; this.socketFilledBy.clear(); this.entityPortalCd.clear();
     this.solved = false; this.startedAt = Date.now();
@@ -268,7 +310,7 @@ export class LevelInstance extends Instance {
       pos = jitter(this.level.checkpoints[0]);
     }
     p.pos = pos; p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined; p.echoPath = undefined;
-    p.damagedInLevel = false;
+    p.damagedInLevel = false; p.damageCarry = 0;
     p.lastCheckpoint = -1; p.ignoreMovesUntil = Date.now() + 500; p.portalCooldownUntil = Date.now() + 1500;
     p.armedPortals.clear();
     if (this.level.grantsDevice && !p.profile.devices.includes(this.level.grantsDevice)) {
@@ -389,8 +431,8 @@ export class LevelInstance extends Instance {
   // ----- devices -----
   fire(p: PlayerSession, msg: Extract<ClientMsg, { t: 'fire' }>) {
     if (p.state === 'downed') return;
+    if (!hasKey(DEVICES, msg.device) || !p.profile.devices.includes(msg.device)) return;
     const dev = DEVICES[msg.device];
-    if (!dev || !p.profile.devices.includes(msg.device)) return;
     const now = Date.now();
     if (now - (p.lastFireAt.get(msg.device) ?? 0) < dev.cooldownMs * p.cooldownScale()) return;
     // charges
@@ -422,7 +464,13 @@ export class LevelInstance extends Instance {
           const st = this.states.get(it.id)!;
           if (it.latched === false) {
             this.setState(it.id, { on: true });
-            setTimeout(() => { this.setState(it.id, { on: false }); this.applyExprGeometry(); }, it.holdMs ?? 3000);
+            // re-pulsing extends the hold: restart the timer instead of stacking
+            clearTimeout(this.switchTimers.get(it.id));
+            this.switchTimers.set(it.id, setTimeout(() => {
+              this.switchTimers.delete(it.id);
+              this.setState(it.id, { on: false });
+              this.applyExprGeometry();
+            }, it.holdMs ?? 3000));
           } else this.setState(it.id, { on: !st.on });
           this.applyExprGeometry();
         }
@@ -469,8 +517,10 @@ export class LevelInstance extends Instance {
 
   tractorMsg(p: PlayerSession, active: boolean, targetId?: string, aim?: Vec3) {
     if (!active || p.state === 'downed') { p.tractor = undefined; return; }
-    if (!p.profile.devices.includes('tractor')) return;
-    if (!targetId || !aim) { p.tractor = undefined; return; }
+    if (!p.profile.devices.includes('tractor') || p.equipped !== 'tractor') { p.tractor = undefined; return; }
+    if (!targetId || !aim || !isVec3(aim)) { p.tractor = undefined; return; }
+    // the aim point is a spot along the player's view ray — keep it within beam reach
+    if (v3.dist(v3.add(p.pos, [0, 1.5, 0]), aim) > DEVICES.tractor.range + 4) { p.tractor = undefined; return; }
     const valid = this.bodies.has(targetId) || this.enemies.has(targetId);
     if (!valid) { p.tractor = undefined; return; }
     const tpos = this.bodies.get(targetId)?.pos ?? this.enemies.get(targetId)!.pos;
@@ -480,7 +530,10 @@ export class LevelInstance extends Instance {
 
   placePortal(p: PlayerSession, slot: 0 | 1, pos: Vec3, normal: Vec3) {
     if (!this.level.placeablePortals?.enabled) { p.toast('Portals find no purchase here.', 'warn'); return; }
-    if (!p.profile.devices.includes('portalgun')) return;
+    if (!p.profile.devices.includes('portalgun') || p.state === 'downed') return;
+    if (slot !== 0 && slot !== 1) return;
+    if (!isVec3(pos) || !isVec3(normal) || v3.len(normal) < 1e-6) return;
+    if (v3.dist(v3.add(p.pos, [0, 1.5, 0]), pos) > DEVICES.portalgun.range + 2) return;
     // validate: near a portalSurface collider
     const ok = this.colliders.some((c) => c.portalSurface && c.active && pointNearBox(c, pos, 0.4));
     if (!ok) return;
@@ -501,25 +554,50 @@ export class LevelInstance extends Instance {
 
   // ----- reset (softlock protection §19) -----
   reset(byPlayer?: PlayerSession) {
-    // refund socketed items to whoever slotted them (if present)
+    // refund socketed items to whoever slotted them (if present with room);
+    // otherwise the item goes back into the world rather than vanishing
+    const orphanSockets: string[] = [];
     for (const [socketId, playerId] of this.socketFilledBy) {
       const it = this.inter.get(socketId);
+      if (it?.type !== 'socket') continue;
       const owner = this.players.get(playerId);
-      if (it?.type === 'socket' && owner && owner.profile.inventory.length < 6) {
+      if (owner && owner.profile.inventory.length < 6) {
         owner.profile.inventory.push(it.accepts);
-        this.mgr.store.saveProfile(owner.profile);
+        try { this.mgr.store.saveProfile(owner.profile); } catch (e) { console.error('[reset] save failed', (e as Error).message); }
         owner.link.send({ t: 'inventory', v: 1, inventory: owner.profile.inventory });
+      } else {
+        orphanSockets.push(socketId);
       }
     }
-    // collectibles whose item is in someone's inventory stay collected
+    // a collectible stays collected only while someone here still holds its item:
+    // per item, keep as many collected as there are copies in inventories, so an
+    // unrefundable item's pickup respawns
+    const held = new Map<string, number>();
+    for (const pl of this.players.values()) for (const item of pl.profile.inventory) held.set(item, (held.get(item) ?? 0) + 1);
     const keptCollected = new Set<string>();
     for (const it of this.inter.values()) {
-      if (it.type === 'collectible' && [...this.players.values()].some((pl) => pl.profile.inventory.includes(it.grants)))
-        keptCollected.add(it.id);
+      if (it.type !== 'collectible') continue;
+      const n = held.get(it.grants) ?? 0;
+      if (n > 0) { keptCollected.add(it.id); held.set(it.grants, n - 1); }
     }
+    // an orphaned item with no pickup to respawn from stays seated in its socket
+    const keepFilled: string[] = [];
+    for (const socketId of orphanSockets) {
+      const it = this.inter.get(socketId);
+      if (it?.type !== 'socket') continue;
+      const hasPickup = [...this.inter.values()].some((c) => c.type === 'collectible' && c.grants === it.accepts);
+      if (!hasPickup) keepFilled.push(socketId);
+    }
+    const prevFilledBy = new Map(this.socketFilledBy);
     this.resetCount++;
     this.seed();
     for (const id of keptCollected) { const st = this.states.get(id); if (st) st.collected = true; }
+    for (const id of keepFilled) {
+      const st = this.states.get(id); if (st) st.filled = true;
+      const owner = prevFilledBy.get(id);
+      if (owner) this.socketFilledBy.set(id, owner);    // a later reset can still refund it
+    }
+    if (keepFilled.length) this.applyExprGeometry();
     for (const p of this.players.values()) {
       p.pos = jitter(this.level.spawns['entry']);
       p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.carrying = undefined; p.echo = undefined; p.echoPath = undefined;
@@ -634,8 +712,12 @@ export class LevelInstance extends Instance {
   damagePlayer(id: string, dmg: number, source: string) {
     const p = this.players.get(id);
     if (!p || p.state === 'downed') return;
-    const actual = Math.round(dmg * (p.difficulty === 'story' ? 0.4 : 1));
-    if (actual > 0) p.damagedInLevel = true;
+    // accumulate fractional damage so small per-tick DoT (e.g. story-mode 0.4 × 1)
+    // still lands instead of rounding to zero every tick
+    const scaled = dmg * (p.difficulty === 'story' ? 0.4 : 1) + p.damageCarry;
+    const actual = Math.floor(scaled);
+    p.damageCarry = scaled - actual;
+    if (dmg > 0) p.damagedInLevel = true;
     p.hp = Math.max(0, p.hp - actual);
     p.lastDamageAt = Date.now();
     this.broadcast({ t: 'hp', v: 1, id, hp: p.hp });
@@ -650,7 +732,7 @@ export class LevelInstance extends Instance {
   respawn(p: PlayerSession) {
     const cp = p.lastCheckpoint >= 0 ? this.level.checkpoints?.[p.lastCheckpoint] : undefined;
     p.pos = [...(cp ?? this.level.spawns['entry'])] as Vec3;
-    p.hp = PLAYER_MAX_HP; p.state = 'alive';
+    p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.damageCarry = 0;
     p.ignoreMovesUntil = Date.now() + 500;
     this.broadcast({ t: 'respawn', v: 1, id: p.id, p: p.pos });
     this.mgr.store.telemetry(p.profile.token, 'respawn', { level: this.level.id });
@@ -1003,39 +1085,45 @@ export class LevelInstance extends Instance {
       }
       const [target, spawnName] = portal.linkedTo.split(':');
       if (target === 'nexus') { this.mgr.toLobby(p); return; }
-      if (getLevel(target)) { this.mgr.enterLevel(p, target, spawnName); return; }
+      if (getLevel(target)) { this.mgr.enterLevel(p, target, spawnName, { viaPortal: true }); return; }
     }
   }
 
   onSolved(via: 'coop' | 'solo') {
     this.solved = true; this.solvedVia = via;
     const timeMs = Date.now() - this.startedAt;
-    const pz = this.level.puzzle!;
-    for (const p of this.players.values()) {
-      const firstClear = !p.profile.shards.includes(pz.shard);
-      if (firstClear) {
-        p.profile.shards.push(pz.shard);
-        p.profile.skillPoints += pz.skillPoints ?? 1;
-      }
-      const best = p.profile.bestTimes[this.level.id];
-      if (!best || timeMs < best) p.profile.bestTimes[this.level.id] = timeMs;
-      this.mgr.store.saveProfile(p.profile);
-      // style tags: bragging rights only — no power attached
-      const style: string[] = [];
-      if (!p.damagedInLevel) style.push('Untouched');
-      if (this.resetCount === 0) style.push('First Try');
-      if (timeMs < 120_000) style.push('Swift');
-      if (style.length === 3) style.length = 0, style.push('Flawless');
-      p.link.send({ t: 'solved', v: 1, levelId: this.level.id, via, timeMs, shard: pz.shard, skillPoints: firstClear ? (pz.skillPoints ?? 1) : 0, style });
-      p.link.send({ t: 'shards', v: 1, shards: p.profile.shards, unlockedWorlds: unlockedWorlds(p.profile) });
-      p.link.send({ t: 'skills', v: 1, skills: p.profile.skills, skillPoints: p.profile.skillPoints });
-      if (p.hasSkill('overcharge')) p.overchargeUntil = Date.now() + 10_000;
-      this.mgr.store.telemetry(p.profile.token, 'solved', { level: this.level.id, via, timeMs, present: this.players.size });
+    for (const p of [...this.players.values()]) {
+      // one player's failure (bad profile data, dead link) must never cost the others their shard
+      try { this.grantSolve(p, via, timeMs); } catch (e) { console.error(`[solved] ${this.level.id} ${p.id}:`, (e as Error).stack); }
     }
     this.beacon = false;
     this.updateBeacon();
     const names = this.present().map((p) => p.profile.name).join(', ');
     this.broadcast({ t: 'chat', v: 1, from: '', name: 'THRESHOLD', accent: '#ffd98a', text: `${names} crossed the Threshold — ${this.level.name} (${(timeMs / 1000).toFixed(1)}s)`, system: true });
+  }
+
+  private grantSolve(p: PlayerSession, via: 'coop' | 'solo', timeMs: number) {
+    const pz = this.level.puzzle!;
+    const firstClear = !p.profile.shards.includes(pz.shard);
+    if (firstClear) {
+      p.profile.shards.push(pz.shard);
+      p.profile.skillPoints += pz.skillPoints ?? 1;
+    }
+    const best = p.profile.bestTimes[this.level.id];
+    if (!best || timeMs < best) p.profile.bestTimes[this.level.id] = timeMs;
+    // progress is in memory either way; a failed write must not swallow the solve messages
+    try { this.mgr.store.saveProfile(p.profile); } catch (e) { console.error('[solved] save failed:', (e as Error).message); }
+    // style tags: bragging rights only — no power attached
+    const style: string[] = [];
+    if (!p.damagedInLevel) style.push('Untouched');
+    if (this.resetCount === 0) style.push('First Try');
+    if (timeMs < 120_000) style.push('Swift');
+    if (style.length === 3) style.length = 0, style.push('Flawless');
+    p.link.send({ t: 'solved', v: 1, levelId: this.level.id, via, timeMs, shard: pz.shard, skillPoints: firstClear ? (pz.skillPoints ?? 1) : 0, style });
+    p.link.send({ t: 'shards', v: 1, shards: p.profile.shards, unlockedWorlds: unlockedWorlds(p.profile) });
+    p.link.send({ t: 'skills', v: 1, skills: p.profile.skills, skillPoints: p.profile.skillPoints });
+    if (p.hasSkill('overcharge')) p.overchargeUntil = Date.now() + 10_000;
+    this.mgr.store.telemetry(p.profile.token, 'solved', { level: this.level.id, via, timeMs, present: this.players.size });
   }
 
   tickSnapshot(): InstanceSnapshot {
@@ -1083,7 +1171,7 @@ export class GameServer {
     for (const [id, inst] of this.levels) {
       try {
         if (inst.players.size > 0) inst.tick();
-        else if (now - inst.emptySince > REAP_AFTER_MS) this.levels.delete(id);
+        else if (now - inst.emptySince > REAP_AFTER_MS) { inst.destroy(); this.levels.delete(id); }
       } catch (e) {
         // one instance must never take down the tick loop for everyone
         console.error(`[tick] instance ${id} crashed:`, (e as Error).stack);
@@ -1106,26 +1194,55 @@ export class GameServer {
     if (changed) this.pushBeacons();
   }
 
-  connect(link: ClientLink, token?: string, name?: string): PlayerSession {
-    const profile = this.store.getOrCreateProfile(token);
-    // reconnection: same token within slot-hold window → resume session
-    const existing = this.byToken.get(profile.token);
-    if (existing && existing.disconnectedAt && Date.now() - existing.disconnectedAt < SLOT_HOLD_MS) {
-      existing.link = link;
-      existing.disconnectedAt = undefined;
-      existing.connected = true;
-      if (name) { existing.profile.name = name.slice(0, 24); this.store.saveProfile(existing.profile); }
-      return existing;
+  connect(link: ClientLink, token?: string, name?: unknown): PlayerSession {
+    const cleanedName = cleanName(name);
+    // same token already has a session (live socket, or ghost in the slot-hold window):
+    // take it over in place — keeps the in-level slot, and the single in-memory profile
+    // object means a stale copy can never overwrite newer progress
+    const existing = token ? this.byToken.get(token) : undefined;
+    if (existing) {
+      const held = existing.connected ||
+        (existing.disconnectedAt !== undefined && Date.now() - existing.disconnectedAt < SLOT_HOLD_MS);
+      if (held) {
+        this.attachLink(existing, link);
+        if (cleanedName) { existing.profile.name = cleanedName; this.safeSave(existing.profile); }
+        return existing;
+      }
+      this.disconnect(existing, true);
     }
-    if (existing) this.disconnect(existing, true);
+    const profile = existing?.profile ?? this.store.getOrCreateProfile(token);
     const id = `p${Math.random().toString(36).slice(2, 9)}`;
     const p = new PlayerSession(id, link, profile);
     if (!profile.accent) profile.accent = PLAYER_ACCENTS[this.sessions.size % PLAYER_ACCENTS.length];
-    if (name) profile.name = name.slice(0, 24);
-    this.store.saveProfile(profile);
+    if (cleanedName) profile.name = cleanedName;
+    this.safeSave(profile);
     this.sessions.set(id, p);
     this.byToken.set(profile.token, p);
     return p;
+  }
+
+  /** Point a session at a new transport. A still-live old socket is told why,
+      closed, and stripped of anything it was doing; its later messages and its
+      close event are ignored (index.ts checks session.link identity). */
+  private attachLink(p: PlayerSession, link: ClientLink) {
+    const old = p.link;
+    if (old !== link && p.connected) {
+      try {
+        old.send({ t: 'error', v: 1, code: 'session_replaced', message: 'This profile connected from another tab or device.' });
+        old.close?.(4001, 'session replaced');
+      } catch { /* already gone */ }
+    }
+    p.tractor = undefined;
+    p.reviveTargetId = undefined;
+    if (p.instance instanceof LevelInstance) p.instance.release(p);
+    p.link = link;
+    p.connected = true;
+    p.disconnectedAt = undefined;
+    p.ignoreMovesUntil = Date.now() + 500;
+  }
+
+  private safeSave(profile: Profile) {
+    try { this.store.saveProfile(profile); } catch (e) { console.error('[profile] save failed:', (e as Error).message); }
   }
 
   welcome(p: PlayerSession) {
@@ -1149,8 +1266,30 @@ export class GameServer {
         return;
       }
     }
-    if (target && this.levels.has(target)) { this.joinInstance(p, target); return; }
+    if (target && (this.levels.has(target) || target.startsWith('wait-') ||
+        [...this.levels.values()].some((i) => i.id === target))) {
+      this.joinInstance(p, target);
+      if (p.instance) return;
+    }
     this.toLobby(p);
+  }
+
+  /** Why `p` may not enter `levelId` from outside (menu, beacon, invite link), or
+      null if allowed. Mirrors the Nexus portal gates: a level is reachable only
+      through a Nexus portal whose shard gate (and world gate) the player meets. */
+  accessDenied(p: PlayerSession, levelId: string): string | null {
+    const def = getLevel(levelId);
+    if (!def || def.world === 'nexus') return 'That way is closed.';
+    if (DEV_UNLOCK) return null;
+    const gates = (getLevel('nexus')?.portals ?? [])
+      .filter((pt) => pt.linkedTo.split(':')[0] === levelId && !pt.requiresSolved)
+      .map((pt) => pt.requiresShards ?? 0);
+    if (!gates.length) return 'That way is closed.';
+    const worldGate = hasKey(WORLD_SHARD_GATES, def.world) ? WORLD_SHARD_GATES[def.world] : Infinity;
+    const need = Math.max(worldGate, Math.min(...gates));
+    const have = p.profile.shards.length;
+    if (have < need) return `Sealed — needs ${need} shard${need === 1 ? '' : 's'} (you have ${have}).`;
+    return null;
   }
 
   toLobby(p: PlayerSession) {
@@ -1174,9 +1313,15 @@ export class GameServer {
     lobby.broadcast({ t: 'peer_joined', v: 1, player: p.snap() }, p.id);
   }
 
-  enterLevel(p: PlayerSession, levelId: string, spawnName = 'entry') {
+  /** `viaPortal`: entry through a fixed in-level portal, whose own conditions
+      (requiresSolved) were already checked — skips the Nexus shard gate. */
+  enterLevel(p: PlayerSession, levelId: string, spawnName = 'entry', opts: { viaPortal?: boolean } = {}) {
     const def = getLevel(levelId);
-    if (!def) { p.toast('That way is closed.', 'warn'); return; }
+    if (!def || def.world === 'nexus') { p.toast('That way is closed.', 'warn'); return; }
+    if (!opts.viaPortal) {
+      const why = this.accessDenied(p, levelId);
+      if (why) { p.toast(why, 'warn'); p.link.send({ t: 'error', v: 1, code: 'sealed', message: why }); return; }
+    }
     const inst = this.levels.get(levelId);
     // co-op entry gate (1.1): a min>=2 level opens only when enough players gather
     // at its threshold — unless someone is already inside to join
@@ -1236,6 +1381,9 @@ export class GameServer {
     let inst = this.levels.get(key);
     if (!inst) inst = [...this.levels.values()].find((i) => i.id === key);
     if (!inst) { this.toLobby(p); return; }
+    if (p.instance === inst) return;
+    const why = this.accessDenied(p, inst.level.id);
+    if (why) { p.toast(why, 'warn'); p.link.send({ t: 'error', v: 1, code: 'sealed', message: why }); return; }
     if (inst.present().length === 0 && inst.level.players.min >= 2) {
       this.enterLevel(p, inst.level.id);        // empty gated level → same queue rules
       return;
@@ -1280,7 +1428,9 @@ export class GameServer {
     p.reviveTargetId = undefined;
     if (p.instance instanceof LevelInstance) p.instance.release(p);
     if (immediate) {
+      this.dequeue(p);
       p.instance?.removePlayer(p);
+      p.instance = undefined;
       this.sessions.delete(p.id);
       this.byToken.delete(p.profile.token);
       return;
@@ -1295,31 +1445,64 @@ export class GameServer {
     }, SLOT_HOLD_MS);
   }
 
+  /** transport closed — ignored if the session has since moved to a newer link */
+  disconnectLink(p: PlayerSession, link: ClientLink) {
+    if (p.link !== link || !p.connected) return;
+    this.disconnect(p);
+  }
+
   // ---------- message dispatch ----------
   handle(p: PlayerSession, msg: ClientMsg) {
+    if (!validateClientMsg(msg)) return;       // index.ts validates too; keep dispatch safe on its own
     const inst = p.instance;
     switch (msg.t) {
       case 'move': {
-        if (Date.now() < p.ignoreMovesUntil) break;
-        const d = v3.dist(p.pos, msg.p);
-        if (d > 12) {
-          // teleport sanity: reject AND correct, so a desynced client snaps back
-          // instead of being silently stuck reporting unreachable positions
-          p.link.send({ t: 'respawn', v: 1, id: p.id, p: p.pos });
+        const now = Date.now();
+        if (now < p.ignoreMovesUntil) {
+          // server just placed the player (spawn/respawn/portal): restart the budget from there
+          p.moveBudgetH = MOVE_H_BURST; p.moveBudgetV = MOVE_V_BURST; p.moveBudgetAt = now;
           break;
         }
-        p.pos = msg.p; p.yaw = msg.yaw; p.pitch = msg.pitch; p.anim = msg.anim ?? 0;
+        // speed budget: allowance accrues with elapsed time (capped at a burst),
+        // each move spends what it travelled — rather than a flat 12 m per message
+        const el = Math.max(0, now - p.moveBudgetAt) / 1000;
+        p.moveBudgetAt = now;
+        p.moveBudgetH = Math.min(MOVE_H_BURST, p.moveBudgetH + el * MOVE_H_RATE);
+        p.moveBudgetV = Math.min(MOVE_V_BURST, p.moveBudgetV + el * MOVE_V_RATE);
+        const dh = Math.hypot(msg.p[0] - p.pos[0], msg.p[2] - p.pos[2]);
+        const dv = Math.abs(msg.p[1] - p.pos[1]);
+        const tooFar = Math.hypot(dh, dv) > MAX_MOVE_STEP ||
+          (!DEV_UNLOCK && (dh > p.moveBudgetH + 0.05 || dv > p.moveBudgetV + 0.05));
+        if (tooFar) {
+          // teleport/speed sanity: reject AND correct, so a desynced client snaps back
+          // instead of being silently stuck reporting unreachable positions; briefly
+          // ignore in-flight moves so one desync doesn't trigger a correction storm
+          p.link.send({ t: 'respawn', v: 1, id: p.id, p: p.pos });
+          p.ignoreMovesUntil = now + 200;
+          break;
+        }
+        if (!DEV_UNLOCK) { p.moveBudgetH -= dh; p.moveBudgetV -= dv; }
+        p.pos = [msg.p[0], msg.p[1], msg.p[2]];
+        p.yaw = msg.yaw % (Math.PI * 2);
+        p.pitch = Math.max(-1.6, Math.min(1.6, msg.pitch));
+        p.anim = msg.anim ?? 0;
         break;
       }
       case 'enter_level': this.enterLevel(p, msg.level); break;
       case 'join_instance': this.joinInstance(p, msg.instanceId); break;
       case 'leave_level': this.toLobby(p); break;
-      case 'raise_beacon':
-        if (inst instanceof LevelInstance) { inst.beacon = true; this.pushBeacons(); p.toast('Beacon raised — the Nexus can see you need a hand.', 'success'); }
+      case 'raise_beacon': case 'lower_beacon': {
+        if (!(inst instanceof LevelInstance)) break;
+        const now = Date.now();
+        if (now - p.lastBeaconAt < BEACON_COOLDOWN_MS) break;   // each toggle re-broadcasts to every lobby
+        const raise = msg.t === 'raise_beacon';
+        if (inst.beacon === raise) break;
+        p.lastBeaconAt = now;
+        inst.beacon = raise;
+        this.pushBeacons();
+        if (raise) p.toast('Beacon raised — the Nexus can see you need a hand.', 'success');
         break;
-      case 'lower_beacon':
-        if (inst instanceof LevelInstance) { inst.beacon = false; this.pushBeacons(); }
-        break;
+      }
       case 'interact': if (inst instanceof LevelInstance) inst.interact(p, msg.target); break;
       case 'grab': if (inst instanceof LevelInstance) inst.grab(p, msg.target); break;
       case 'release': if (inst instanceof LevelInstance) inst.release(p); break;
@@ -1327,14 +1510,19 @@ export class GameServer {
       case 'tractor': if (inst instanceof LevelInstance) inst.tractorMsg(p, msg.active, msg.targetId, msg.aim); break;
       case 'place_portal': if (inst instanceof LevelInstance) inst.placePortal(p, msg.slot, msg.pos, msg.normal); break;
       case 'equip':
-        if (p.profile.devices.includes(msg.device)) p.equipped = msg.device;
+        if (hasKey(DEVICES, msg.device) && p.profile.devices.includes(msg.device)) {
+          p.equipped = msg.device;
+          if (msg.device !== 'tractor') p.tractor = undefined;
+        }
         break;
       case 'pickup': if (inst instanceof LevelInstance) inst.pickup(p, msg.itemId); break;
       case 'use_item': if (inst instanceof LevelInstance) inst.useItem(p, msg.item, msg.socketId); break;
       case 'unlock_skill': {
+        if (!hasKey(SKILLS, msg.skill)) break;          // rejects "constructor", "__proto__", …
         const def = SKILLS[msg.skill];
-        if (!def || p.profile.skills.includes(msg.skill)) break;
+        if (p.profile.skills.includes(msg.skill)) break;
         if (def.requires && !p.profile.skills.includes(def.requires)) break;
+        if (!Number.isFinite(def.cost) || def.cost < 0 || !Number.isFinite(p.profile.skillPoints)) break;
         if (p.profile.skillPoints < def.cost) break;
         p.profile.skillPoints -= def.cost;
         p.profile.skills.push(msg.skill);
@@ -1343,7 +1531,7 @@ export class GameServer {
         break;
       }
       case 'respec': {
-        const refund = p.profile.skills.reduce((s, id) => s + (SKILLS[id]?.cost ?? 0), 0);
+        const refund = p.profile.skills.reduce((s, id) => s + (hasKey(SKILLS, id) ? SKILLS[id].cost : 0), 0);
         p.profile.skillPoints += refund;
         p.profile.skills = [];
         this.store.saveProfile(p.profile);
@@ -1357,7 +1545,7 @@ export class GameServer {
         if (!p.hasSkill('echo-core')) break;
         if (msg.place) {
           // a recorded path replays as a moving echo; a bare place holds position
-          const path = (msg.path ?? []).slice(0, 84).filter((pt) =>
+          const path = (msg.path ?? []).slice(0, MAX_ECHO_POINTS).filter((pt) =>
             Array.isArray(pt) && pt.length === 3 && pt.every((n) => Number.isFinite(n)) &&
             v3.dist(pt, p.pos) < 60);
           p.echoPath = path.length >= 2 ? (path as Vec3[]) : undefined;
@@ -1370,8 +1558,8 @@ export class GameServer {
       case 'chat': {
         const now = Date.now();
         if (now - p.lastChatAt < 700) break;
-        // strip control chars; client escapes HTML on render
-        const text = msg.text.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 200);
+        // strip control/zero-width chars; client escapes HTML on render
+        const text = sanitizeText(msg.text, MAX_CHAT_LEN);
         if (!text) break;
         p.lastChatAt = now;
         p.instance?.broadcast({ t: 'chat', v: 1, from: p.id, name: p.profile.name, accent: p.accent, text });
@@ -1386,12 +1574,25 @@ export class GameServer {
         break;
       }
       case 'set_opts': if (msg.difficulty) p.difficulty = msg.difficulty; break;
-      case 'set_name':
-        p.profile.name = msg.name.slice(0, 24) || p.profile.name;
+      case 'set_name': {
+        const name = cleanName(msg.name);
+        if (!name) { p.toast('That name can\'t be used.', 'warn'); break; }
+        p.profile.name = name;
         if (msg.accent && PLAYER_ACCENTS.includes(msg.accent)) p.profile.accent = msg.accent;
-        this.store.saveProfile(p.profile);
+        this.safeSave(p.profile);
         break;
-      case 'telemetry': this.store.telemetry(p.profile.token, msg.name, msg.payload ?? {}); break;
+      }
+      case 'telemetry': {
+        // whitelisted + size-capped by validateClientMsg; rate-limited here, and
+        // namespaced so a client can't forge server events like "solved"
+        const now = Date.now();
+        p.telemetryTokens = Math.min(TELEMETRY_PER_MIN, p.telemetryTokens + ((now - p.telemetryRefillAt) / 60_000) * TELEMETRY_PER_MIN);
+        p.telemetryRefillAt = now;
+        if (p.telemetryTokens < 1) break;
+        p.telemetryTokens -= 1;
+        this.store.telemetry(p.profile.token, `client:${msg.name}`, msg.payload ?? {});
+        break;
+      }
     }
   }
 }

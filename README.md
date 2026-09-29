@@ -33,6 +33,14 @@ npm run validate:content       # level format + design-invariant validation
 npx tsx tools/playtest-bot.ts  # headless protocol bots: solo solve, co-op solve, down/revive
 ```
 
+The playtest bots (`tools/playtest-bot.ts`, `tools/playtest-proving.ts`) and the
+screenshot rig (`tools/shots.ts`) need a server started with
+`THRESHOLD_DEV_UNLOCK=1` — e.g. `PORT=8080 THRESHOLD_DEV_UNLOCK=1 npx tsx server/index.ts`.
+The flag skips the shard/world entry gates (fresh bot profiles have no shards)
+and the per-player move speed budget (bots noclip in big hops; the 12 m
+per-message hard cap still applies). Bots take `WS_URL=ws://host:port/ws`.
+**Never set it in production.**
+
 ## How to play
 
 | Input | Action |
