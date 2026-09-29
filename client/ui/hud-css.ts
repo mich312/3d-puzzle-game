@@ -229,7 +229,7 @@ export const HUD_CSS = `
 .bigpanel .close { position: absolute; top: 1.1em; right: 1.2em; cursor: pointer; width: 2em; height: 2em; display: flex; align-items: center; justify-content: center; color: var(--ink-2); border: 1px solid var(--line); border-radius: 3px; transition: color 0.2s, border-color 0.2s; font-size: 0.9em; }
 .bigpanel .close:hover { color: var(--ink); border-color: var(--acc); }
 .bigpanel button { pointer-events: auto; font: inherit; font-family: var(--f-disp); font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.88em;
-  background: rgba(255,255,255,0.04); color: var(--ink); border: 1px solid var(--line-2); border-radius: 3px; padding: 0.6em 1.1em; cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s; display: inline-flex; align-items: center; gap: 0.5em; }
+  background: rgba(255,255,255,0.04); color: var(--ink); border: 1px solid var(--line-2); border-radius: 3px; padding: 0.6em 1.1em; cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s; display: inline-flex; align-items: center; gap: 0.5em; white-space: nowrap; }
 .bigpanel button:hover { border-color: var(--acc); background: rgba(var(--acc-rgb),0.1); }
 .bigpanel button:focus-visible, .bigpanel input:focus-visible, .sw:focus-visible, #intro button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .bigpanel button.primary { background: rgba(var(--acc-rgb),0.16); border-color: var(--acc); color: #fff; }
@@ -331,7 +331,7 @@ export const HUD_CSS = `
 #intro h1 span { display: inline-block; animation: letterIn 1s var(--ease) both; }
 @keyframes letterIn { from { opacity: 0; transform: translateY(0.35em); filter: blur(6px); } }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
-#intro .rule { display: flex; align-items: center; gap: 1em; width: 100%; max-width: 30em; font-family: var(--f-disp); font-weight: 600; letter-spacing: 0.4em; font-size: 0.78em; color: var(--acc); animation: rise 1s var(--ease) 0.6s both; }
+#intro .rule { display: flex; align-items: center; gap: 1em; width: 100%; max-width: 34em; white-space: nowrap; font-family: var(--f-disp); font-weight: 600; letter-spacing: 0.4em; font-size: 0.78em; color: var(--acc); animation: rise 1s var(--ease) 0.6s both; }
 #intro .rule::before, #intro .rule::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--acc-rgb),0.6)); }
 #intro .rule::after { background: linear-gradient(90deg, rgba(var(--acc-rgb),0.6), transparent); }
 #intro p.tag { color: var(--ink-2); max-width: 33em; line-height: 1.6; font-size: 0.95em; margin: 1.3em 0 1.6em; animation: rise 1s var(--ease) 0.75s both; }
@@ -341,7 +341,7 @@ export const HUD_CSS = `
 #intro .wb { font-family: var(--f-disp); font-weight: 600; font-size: 0.8em; letter-spacing: 0.24em; color: var(--ink-3); text-align: left; }
 #intro .wb b { color: var(--acc); font-weight: 700; letter-spacing: 0.08em; }
 #intro .fld { display: flex; flex-direction: column; gap: 0.45em; text-align: left; }
-#intro .fld > span { font-family: var(--f-disp); font-weight: 700; font-size: 0.75em; letter-spacing: 0.3em; color: var(--ink-3); }
+#intro .fld > span { font-family: var(--f-disp); font-weight: 700; font-size: 0.75em; letter-spacing: 0.22em; color: var(--ink-3); }
 #intro input { background: rgba(4,5,12,0.6); border: 1px solid var(--line-2); color: var(--ink); padding: 0.7em 0.9em; border-radius: 3px; font: inherit; font-size: 1.05em; outline: none; transition: border-color 0.2s, box-shadow 0.2s; user-select: text; }
 #intro input:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(var(--acc-rgb),0.18); }
 #intro .swatches { justify-content: flex-start; }
