@@ -61,8 +61,8 @@ export const WORLD_PALETTES: Record<string, WorldPalette> = {
   gardens: {
     sky: '#2e2138', fog: '#5c4a68', fogDensity: 0.018, key: '#ffd9a0', keyIntensity: 2.4, hemiSky: '#a5799a', hemiGround: '#43364e', ambient: 0.14,
     exposure: 1.0, envIntensity: 1.05, sunAz: 210, sunEl: 26,
-    skyTop: '#1a1230', skyGlow: '#f0a07a', voidColor: '#140c1a', nebulaA: '#c46a8e', nebulaB: '#f0b070', stars: 0.35,
-    fogBase: -3, fogFalloff: 0.12, fogFloor: 0.1, inscatter: 0.8,
+    skyTop: '#1a1230', skyGlow: '#e88a9a', voidColor: '#140c1a', nebulaA: '#c46a8e', nebulaB: '#f0b070', stars: 0.45,
+    fogBase: -3, fogFalloff: 0.13, fogFloor: 0.1, inscatter: 0.4,
     gradeShadows: '#2e1a34', gradeHighlights: '#fff0d8', saturation: 1.1, contrast: 1.05,
   },
   observatory: {

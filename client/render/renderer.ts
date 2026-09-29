@@ -75,6 +75,7 @@ export class Renderer {
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.toneMapping = THREE.NoToneMapping;   // tone mapping lives in GradePass
+    this.gl.info.autoReset = false;
     this.canvas = this.gl.domElement;
     container.appendChild(this.canvas);
 
@@ -91,6 +92,9 @@ export class Renderer {
     this.env = new WorldEnvironment(this.gl);
     this.lights = new DynamicLights(this.scene, this.q.lightBudget);
     this.buildComposer();
+
+    // dev/test-rig hook: lets tools/ drive setQuality() and read stats at runtime
+    (window as unknown as Record<string, unknown>).__renderer = this;
 
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
@@ -316,5 +320,14 @@ export class Renderer {
     this.lights.update(dt, cameraPos);
   }
 
-  render() { this.composer.render(); }
+  render() {
+    this.gl.info.reset();   // count every pass of the frame, not just the last one
+    this.composer.render();
+  }
+
+  /** draw-call / triangle / program counts for the last frame (perf checks) */
+  stats() {
+    const i = this.gl.info;
+    return { calls: i.render.calls, triangles: i.render.triangles, programs: i.programs?.length ?? 0, geometries: i.memory.geometries, textures: i.memory.textures };
+  }
 }
