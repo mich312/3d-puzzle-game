@@ -179,7 +179,7 @@ function handleMsg(msg: ServerMsg) {
       lastCheckpoint = -1;
       levelDef = s.level ?? null;
       if (!levelDef) break;
-      world = new World(renderer.scene, levelDef, s.states, renderer.lights);
+      world = new World(renderer.scene, levelDef, s.states, renderer.lights, renderer.quality);
       world.playersPresent = s.players.length;
       world.solved = !!s.solved;
       renderer.setWorld(levelDef.world, world.heroFloor());

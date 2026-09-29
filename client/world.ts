@@ -5,8 +5,13 @@ import * as THREE from 'three';
 import type { InteractableDef, LevelDef, Vec3 } from '../shared/level';
 import { evalExpr } from '../shared/expr';
 import { buildColliders, raycast, type AABB } from '../shared/collision';
-import { getMaterial, applyWorldUV } from './render/materials';
+import { getMaterial, setMaterialTier } from './render/materials';
 import { makePortalVortex, type PortalVortex } from './render/portalMaterial';
+import { StaticBatcher, addDetails, pieceOf, pieceGeometry, pieceMatrix, pieceMaterial, pieceLook, type Piece, type Tier } from './render/levelMesh';
+import { finalize } from './render/geometry';
+import { buildDressing, type Dressing, type KeepOut } from './render/props';
+import { makeHazardMaterial, makeBeltMaterial, makeForceField, type FxMaterial, type ForceField } from './render/fxMaterials';
+import * as Models from './render/interactables';
 import { PALETTE } from '../shared/palette';
 import { Interpolator } from './interp';
 import type { DynamicLights, LightHandle } from './render/lights';
@@ -41,8 +46,26 @@ export function textSprite(text: string, color = '#ffffff', size = 0.5): THREE.S
   return sp;
 }
 
-interface DoorVis { mesh: THREE.Mesh; baseY: number; height: number; t: number; open: boolean }
-interface ActiveVis { mesh: THREE.Mesh; expr: string; on: boolean; t: number }
+interface DoorVis { mesh: THREE.Object3D; baseY: number; height: number; t: number; open: boolean; seam?: THREE.MeshStandardMaterial }
+/** activeWhen geometry: `fade` applies the 0..1 presence (own material — see build()) */
+interface ActiveVis { mesh: THREE.Object3D; expr: string; on: boolean; t: number; fade(t: number): void; field?: ForceField }
+type Quality = Tier;
+
+/** quality tier fallback when the caller doesn't pass one (mirrors the renderer's saved pick) */
+function readQuality(): Quality {
+  try {
+    const q = localStorage.getItem('t-quality');
+    if (q === 'low' || q === 'medium' || q === 'high') return q;
+  } catch { /* storage blocked */ }
+  return 'medium';
+}
+
+/** activeWhen boxes that read as barriers (thin, tall, glowing) render as force fields */
+function isBarrier(g: LevelDef['geometry'][number]): boolean {
+  if (g.shape !== 'box' || !g.activeWhen) return false;
+  const minH = Math.min(g.size[0], g.size[2]), maxH = Math.max(g.size[0], g.size[2]);
+  return g.size[1] >= 1.8 && minH <= 0.7 && maxH >= 1.5 && (g.material === 'crystal' || !!g.emissive);
+}
 
 export class World {
   group = new THREE.Group();
@@ -68,7 +91,10 @@ export class World {
   private beamPool: THREE.Mesh[] = [];
   private beamMats = new Map<string, THREE.MeshBasicMaterial>();
   private static beamGeo = markShared(new THREE.CylinderGeometry(0.05, 0.05, 1, 6));
-  private hazardMats = new Map<string, THREE.MeshStandardMaterial>();
+  private hazardFx = new Map<string, FxMaterial[]>();
+  private fxTickers: { fx: FxMaterial; frozen: () => boolean }[] = [];
+  private dressing?: Dressing;
+  private quality: Quality;
   private placedGroup = new THREE.Group();
   private placedVis = new Map<string, THREE.Group>();
   private placedLights = new Map<string, LightHandle>();
@@ -80,13 +106,16 @@ export class World {
   private bodyColliders = new Map<string, AABB>();
   private staticMeshes: THREE.Mesh[] = [];
   private checkpointRings: THREE.Mesh[] = [];
+  private plateGlow = new Map<string, THREE.MeshStandardMaterial>();
   private spinners: { mesh: THREE.Mesh; rate: number }[] = [];
   private trophyGroup?: THREE.Group;
   private cullAcc = 0;
   private time = 0;
 
-  constructor(private scene: THREE.Scene, level: LevelDef, states: Record<string, IState> | undefined, private lights: DynamicLights) {
+  constructor(private scene: THREE.Scene, level: LevelDef, states: Record<string, IState> | undefined, private lights: DynamicLights, quality?: Quality) {
     this.level = level;
+    this.quality = quality ?? readQuality();
+    setMaterialTier(this.quality);
     this.colliders = buildColliders(level);
     if (states) for (const [id, st] of Object.entries(states)) this.states.set(id, { ...st });
     for (const e of level.enemies ?? []) this.enemyIds.add(e.id);
@@ -98,6 +127,8 @@ export class World {
 
   dispose() {
     this.scene.remove(this.group);
+    // instanced props own per-instance GPU buffers that geometry.dispose() doesn't free
+    this.group.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose(); });
     disposeObject(this.group);
     for (const { lh } of this.portalVis.values()) this.lights.unregister(lh);
     for (const lh of this.interLights.values()) this.lights.unregister(lh);
@@ -124,93 +155,128 @@ export class World {
 
   // ---------- construction ----------
   private build() {
+    const q = this.quality;
+    const pieces = this.level.geometry.map((g, i) => pieceOf(g, i));
+    const statics: Piece[] = [];
+    const batch = new StaticBatcher(40);
     this.level.geometry.forEach((g, i) => {
-      // cap emissive so set-piece crystals glow without blowing out the bloom pass
-      const mat = getMaterial(g.material, g.color, g.emissive, Math.min(g.emissiveIntensity ?? 1, 1.5));
-      let geo: THREE.BufferGeometry;
-      if (g.shape === 'cylinder') geo = new THREE.CylinderGeometry(g.size[0], g.size[0], g.size[1], 24);
-      else { geo = new THREE.BoxGeometry(...g.size); applyWorldUV(geo, g.size); }
-      const mesh = new THREE.Mesh(geo, mat);
+      if (g.door || g.activeWhen || (g.spin && g.collider === false)) this.buildDynamicPiece(g, pieceMaterial(g));
+      else {
+        // static: bevelled, baked to world space, merged per look/cell
+        const geo = finalize(pieceGeometry(g, q));
+        geo.applyMatrix4(pieceMatrix(g));
+        batch.add(geo, pieceLook(g), g.size[1] > 0.2, new THREE.Vector3(...g.pos));
+        statics.push(pieces[i]);
+      }
+    });
+    this.finishBuild(pieces, statics, batch);
+  }
+
+  /** doors, activeWhen pieces and spinning decor keep their own objects */
+  private buildDynamicPiece(g: LevelDef['geometry'][number], mat: THREE.MeshStandardMaterial) {
+    const q = this.quality;
+    if (g.door) {
+      const { group, seam } = Models.doorModel(g, mat);
+      Models.compact(group);
+      group.position.set(...g.pos);
+      if (g.rotY) group.rotation.y = g.rotY;
+      this.group.add(group);
+      this.doors.push({ mesh: group, baseY: g.pos[1], height: g.size[1], t: 0, open: false, seam });
+      return;
+    }
+    if (g.activeWhen) {
+      if (isBarrier(g)) {
+        const field = makeForceField(g.emissive ?? g.color ?? PALETTE.portalA, g.size);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(...g.size), field.material);
+        mesh.position.set(...g.pos);
+        if (g.rotY) mesh.rotation.y = g.rotY;
+        mesh.renderOrder = 2;
+        this.group.add(mesh);
+        this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1, field, fade: (t) => field.setFade(t) });
+        return;
+      }
+      // own material: the fade writes opacity, and cached materials are shared by
+      // every mesh with the same look (fading one barrier would hide the others)
+      const own = mat.clone();
+      own.onBeforeCompile = mat.onBeforeCompile;     // keep the shared surface layer (same program)
+      const mesh = new THREE.Mesh(finalize(pieceGeometry(g, q)), own);
       mesh.position.set(...g.pos);
       if (g.rotY) mesh.rotation.y = g.rotY;
-      mesh.castShadow = g.size[1] > 0.2;
-      mesh.receiveShadow = true;
+      mesh.castShadow = g.size[1] > 0.2; mesh.receiveShadow = true;
       this.group.add(mesh);
-      if (g.spin && g.collider === false) this.spinners.push({ mesh, rate: g.spin });
-      if (g.door) this.doors.push({ mesh, baseY: g.pos[1], height: g.size[1], t: 0, open: false });
-      else if (g.activeWhen) {
-        // own material: the fade writes opacity, and cached materials are shared by
-        // every mesh with the same look (fading one barrier would hide the others)
-        mesh.material = mat.clone();
-        this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1 });
-      }
-      else this.staticMeshes.push(mesh);
-    });
+      this.actives.push({
+        mesh, expr: g.activeWhen, on: true, t: 1,
+        fade: (t) => { own.transparent = t < 0.99; own.opacity = t; own.depthWrite = t > 0.5; },
+      });
+      return;
+    }
+    if (g.spin && g.collider === false) {
+      const mesh = new THREE.Mesh(finalize(pieceGeometry(g, q)), mat);
+      mesh.position.set(...g.pos);
+      if (g.rotY) mesh.rotation.y = g.rotY;
+      mesh.castShadow = g.size[1] > 0.2; mesh.receiveShadow = true;
+      this.group.add(mesh);
+      this.spinners.push({ mesh, rate: g.spin });
+      return;
+    }
+  }
+
+  private finishBuild(pieces: Piece[], statics: Piece[], batch: StaticBatcher) {
+    const q = this.quality;
+    // keep-out zones for detailing / dressing
+    const keep: KeepOut[] = [];
+    for (const it of this.level.interactables ?? []) {
+      const r = it.type === 'hazard' ? Math.max(it.size[0], it.size[2]) / 2 + 1.2 : it.type === 'scale' ? (it.span ?? 3) / 2 + 1.8 : 1.5;
+      keep.push({ p: it.pos, r });
+    }
+    for (const sp of Object.values(this.level.spawns)) keep.push({ p: sp, r: 1.8 });
+    for (const cp of this.level.checkpoints ?? []) keep.push({ p: cp, r: 1.5 });
+    for (const pt of this.level.portals ?? []) keep.push({ p: pt.pos, r: 2.6 });
+    for (const g of this.level.geometry) if (g.door || g.activeWhen) keep.push({ p: g.pos, r: Math.max(g.size[0], g.size[2]) / 2 + 1.2 });
+    addDetails(this.level, q, pieces, statics, batch, keep.map((k) => k.p));
+    this.staticMeshes = batch.flush(this.group);
+
     for (const it of this.level.interactables ?? []) this.buildInteractable(it);
     for (const p of this.level.portals ?? []) this.buildPortal(p);
     for (const cp of this.level.checkpoints ?? []) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 32),
-        new THREE.MeshStandardMaterial({ color: PALETTE.success, emissive: PALETTE.success, emissiveIntensity: 0.4, transparent: true, opacity: 0.5 }));
-      ring.rotation.x = -Math.PI / 2;
+      const ring = Models.compact(Models.checkpointModel()) as THREE.Mesh;
       ring.position.set(cp[0], cp[1] - 0.85, cp[2]);
       this.checkpointRings.push(ring);
       this.group.add(ring);
     }
+    this.dressing = buildDressing(this.level, q, pieces, statics, keep);
+    this.group.add(this.dressing.group);
+  }
+
+  /** mesh / triangle counts under the world group — for perf reports */
+  stats() {
+    let meshes = 0, tris = 0;
+    this.group.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      meshes++;
+      const g = m.geometry;
+      const n = (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+      tris += n * ((m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1);
+    });
+    return { meshes, tris: Math.round(tris), staticBatches: this.staticMeshes.length };
   }
 
   private buildInteractable(it: InteractableDef) {
-    const g = new THREE.Group();
-    g.position.set(...(it as { pos: Vec3 }).pos);
-    const accent = getMaterial('accent', undefined, PALETTE.interactable, 0.7);
+    let g = new THREE.Group();
     switch (it.type) {
       case 'plate': {
-        const size = it.size ?? [2.4, 0.4, 2.4];
-        const base = new THREE.Mesh(new THREE.BoxGeometry(size[0] + 0.4, 0.12, size[2] + 0.4), getMaterial('metal'));
-        base.position.y = 0.06;
-        const top = new THREE.Mesh(new THREE.BoxGeometry(size[0], 0.16, size[2]), accent);
-        top.position.y = 0.2; top.name = 'top';
-        g.add(base, top);
+        g = Models.plateModel(it.size ?? [2.4, 0.4, 2.4]);
+        const gl = g.getObjectByName('glow');
+        if (gl) this.plateGlow.set(it.id, gl.userData.mat as THREE.MeshStandardMaterial);
         break;
       }
-      case 'lever': case 'rotator': {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 1.1, 12), getMaterial('metal'));
-        post.position.y = 0.55;
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), accent);
-        handle.position.set(0, 1.0, 0); handle.name = 'handle';
-        handle.geometry.translate(0, 0.35, 0);
-        g.add(post, handle);
-        if (it.type === 'rotator') {
-          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 8, 24), accent);
-          ring.rotation.x = -Math.PI / 2; ring.position.y = 0.1; ring.name = 'ring';
-          g.add(ring);
-        }
-        break;
-      }
-      case 'switch': {
-        const plateM = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.14, 16),
-          new THREE.MeshStandardMaterial({ color: PALETTE.interactable, emissive: PALETTE.interactable, emissiveIntensity: 0.3 }));
-        plateM.rotation.x = Math.PI / 2; plateM.name = 'eye';
-        g.add(plateM);
-        break;
-      }
+      case 'lever': g = Models.leverModel(false, it.states ?? 2); break;
+      case 'rotator': g = Models.leverModel(true, it.states); break;
+      case 'switch': g = Models.switchModel(); break;
       case 'carryable': {
         const heavy = it.mass === 'heavy';
-        const s = heavy ? 1.1 : 0.6;
-        const mesh = heavy
-          ? new THREE.Mesh(new THREE.BoxGeometry(s, s, s), getMaterial('stone', '#b8b2c8', PALETTE.interactable, 0.12))
-          : new THREE.Mesh(new THREE.BoxGeometry(s, s, s), getMaterial('crystal', undefined, PALETTE.interactable, 0.35));
-        mesh.castShadow = true; mesh.name = 'body';
-        // rune-etched edge frame + a slow-pulsing core so crates read as artefacts
-        const edges = new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(s * 1.02, s * 1.02, s * 1.02)),
-          new THREE.LineBasicMaterial({ color: PALETTE.interactable, transparent: true, opacity: heavy ? 0.9 : 0.75 }));
-        edges.name = 'edges';
-        mesh.add(edges);
-        const core = new THREE.Mesh(new THREE.OctahedronGeometry(s * 0.22),
-          new THREE.MeshStandardMaterial({ color: PALETTE.interactable, emissive: PALETTE.interactable, emissiveIntensity: 1.6 }));
-        core.name = 'core';
-        mesh.add(core);
-        g.add(mesh);
+        g = Models.crateModel(heavy, it.kind?.startsWith('prism') ? 'prism' : undefined);
         // solid to the local player: matches the server body half-extents
         const half = heavy ? 0.55 : 0.3;
         this.bodyColliders.set(it.id, {
@@ -221,110 +287,59 @@ export class World {
         break;
       }
       case 'collectible': {
-        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.32),
-          new THREE.MeshStandardMaterial({ color: PALETTE.interactable, emissive: PALETTE.interactable, emissiveIntensity: 1.4 }));
-        gem.name = 'gem';
-        g.add(gem);
+        g = Models.collectibleModel();
         const lh = this.lights.register(PALETTE.interactable, { intensity: 1.2, range: 6, priority: 1 });
         lh.pos.set(it.pos[0], it.pos[1] + 0.4, it.pos[2]);
         this.interLights.set(it.id, lh);
         break;
       }
-      case 'socket': {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.08, 8, 24), accent);
-        ring.rotation.x = -Math.PI / 2; ring.position.y = 0.1;
-        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.3),
-          new THREE.MeshStandardMaterial({ color: PALETTE.success, emissive: PALETTE.success, emissiveIntensity: 1.4 }));
-        gem.position.y = 0.5; gem.name = 'gem'; gem.visible = false;
-        g.add(ring, gem);
-        break;
-      }
-      case 'emitter': {
-        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 12),
-          new THREE.MeshStandardMaterial({ color: PALETTE.portalA, emissive: PALETTE.portalA, emissiveIntensity: 1.5 }));
-        const d = new THREE.Vector3(...it.dir).normalize();
-        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
-        g.add(cone);
-        break;
-      }
+      case 'socket': g = Models.socketModel(); break;
+      case 'emitter': g = Models.emitterModel(it.dir, it.color ?? PALETTE.portalA); break;
       case 'receiver': {
-        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 12),
-          new THREE.MeshStandardMaterial({ color: '#666a88', emissive: '#222436', emissiveIntensity: 1 }));
-        orb.name = 'orb';
-        g.add(orb);
+        g = Models.receiverModel();
         const lh = this.lights.register(PALETTE.portalA, { intensity: 0, range: 7, priority: 2 });
         lh.pos.set(it.pos[0], it.pos[1], it.pos[2]);
         this.interLights.set(it.id, lh);
         break;
       }
       case 'hazard': {
-        const conveyor = it.kind === 'conveyor';
-        const mat = new THREE.MeshStandardMaterial({
-          color: it.kind === 'void' ? '#2a1020' : conveyor ? '#8fb4ff' : '#cfe8ff',
-          emissive: it.kind === 'void' ? PALETTE.hostile : conveyor ? '#7ea8ff' : '#9fdcff',
-          emissiveIntensity: it.kind === 'void' ? 0.5 : 0.35,
-          transparent: true, opacity: it.kind === 'void' ? 0.55 : conveyor ? 0.25 : 0.35,
-          depthWrite: false,
-        });
-        this.hazardMats.set(it.id, mat);
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(...it.size), mat);
-        mesh.name = 'field';
-        g.add(mesh);
-        // conveyors show chevrons drifting along the flow
-        if (conveyor && it.dir) {
-          const d = new THREE.Vector3(it.dir[0], 0, it.dir[2]).normalize();
-          for (let i = 0; i < 4; i++) {
-            const chev = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 4),
-              new THREE.MeshStandardMaterial({ color: '#dce8ff', emissive: '#9fc2ff', emissiveIntensity: 1.2 }));
-            chev.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
-            chev.name = `chev${i}`;
-            g.add(chev);
-          }
+        const fx = makeHazardMaterial(it.kind, it.size, it.dir);
+        const vol = new THREE.Mesh(new THREE.BoxGeometry(...it.size), fx.material);
+        vol.name = 'field'; vol.renderOrder = 1;
+        g.add(vol);
+        const list: FxMaterial[] = [fx];
+        if (it.kind === 'conveyor' && it.dir) {
+          // scrolling belt on the floor of the volume; the shader flows along +uv.x
+          const alongX = Math.abs(it.dir[0]) >= Math.abs(it.dir[2]);
+          const len = alongX ? it.size[0] : it.size[2], wid = alongX ? it.size[2] : it.size[0];
+          const belt = makeBeltMaterial(it.dir, len);
+          const plane = new THREE.Mesh(new THREE.PlaneGeometry(len, wid), belt.material);
+          const flow = new THREE.Vector3(it.dir[0], 0, it.dir[2]).normalize();
+          // plane: +uv.x = local +x; lay flat, then yaw local +x onto the flow direction
+          plane.rotation.set(-Math.PI / 2, 0, 0);
+          const yaw = new THREE.Group();
+          yaw.rotation.y = Math.atan2(-flow.z, flow.x);
+          yaw.position.y = -it.size[1] / 2 + 0.02;
+          yaw.add(plane);
+          g.add(yaw);
+          list.push(belt);
         }
+        this.hazardFx.set(it.id, list);
+        const id = it.id;
+        for (const f of list) this.fxTickers.push({ fx: f, frozen: () => !!this.states.get(id)?.frozen });
         break;
       }
-      case 'scale': {
-        // balance beam: fulcrum post, tilting beam, a pan hanging off each end
-        const span = it.span ?? 3.0;
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.2, 10), getMaterial('metal', '#cfcce0'));
-        post.position.y = 0.6;
-        const arm = new THREE.Group(); arm.name = 'arm'; arm.position.y = 1.25;
-        if (it.rotY) arm.rotation.y = it.rotY;
-        const beam = new THREE.Mesh(new THREE.BoxGeometry(span + 0.6, 0.12, 0.24), getMaterial('metal', '#cfcce0'));
-        const pivot = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), accent);
-        arm.add(beam, pivot);
-        for (const side of [-1, 1] as const) {
-          const pan = new THREE.Group(); pan.name = side < 0 ? 'panL' : 'panR';
-          pan.position.x = side * span / 2;
-          const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 6), getMaterial('metal'));
-          chain.position.y = -0.5;
-          const dish = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.0, 0.14, 18), accent);
-          dish.position.y = -1.05;
-          pan.add(chain, dish);
-          arm.add(pan);
-        }
-        g.add(post, arm);
-        break;
-      }
+      case 'scale': g = Models.scaleModel(it.span ?? 3.0, it.rotY); break;
       case 'resonator': {
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 1.7, 8), getMaterial('stone'));
-        pillar.position.y = 0.85; pillar.castShadow = true;
-        // the chime crystal: dark until sounded, numbered by stacked notches
-        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.3),
-          new THREE.MeshStandardMaterial({ color: '#6a648a', emissive: '#2a2740', emissiveIntensity: 1 }));
-        gem.position.y = 2.0; gem.name = 'gem';
-        for (let i = 0; i <= it.order; i++) {
-          const notch = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.1), accent);
-          notch.position.set(0, 0.35 + i * 0.18, -0.34);
-          g.add(notch);
-        }
-        g.add(pillar, gem);
+        g = Models.resonatorModel(it.order);
         const lh = this.lights.register(PALETTE.interactable, { intensity: 0, range: 6, priority: 1 });
         lh.pos.set(it.pos[0], it.pos[1] + 2.0, it.pos[2]);
         this.interLights.set(it.id, lh);
         break;
       }
     }
+    Models.compact(g);
+    g.position.set(...(it as { pos: Vec3 }).pos);
     this.interVis.set(it.id, g);
     this.group.add(g);
   }
@@ -338,38 +353,49 @@ export class World {
     const dx = entry[0] - def.pos[0], dz = entry[2] - def.pos[2];
     g.rotation.y = def.rotY ?? (Math.hypot(dx, dz) > 0.5 ? Math.atan2(dx, dz) : 0);
 
-    // the gate: swirling vortex framed by counter-rotating rings + orbiting shards
+    // the gate: vortex window in a dark metal frame, a thin hot inner ring,
+    // keystones and orbiting shards (small accents carry the bloom, not the disc)
     const gate = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.085, 12, 48),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.8, metalness: 0.4, roughness: 0.3 }));
-    const ringInner = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.032, 8, 40),
-      new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: 2.6 }));
+    const frameMat = new THREE.MeshStandardMaterial({ color: '#3c3854', emissive: color, emissiveIntensity: 0.25, metalness: 0.85, roughness: 0.32 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.17, 0.11, 16, 64), frameMat);
+    ring.castShadow = true;
+    const ringInner = new THREE.Mesh(new THREE.TorusGeometry(1.03, 0.026, 8, 64),
+      new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: 2.2 }));
     const vortex = makePortalVortex(color);
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.04, 40), vortex.material);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.04, 48), vortex.material);
+    const keyMat = getMaterial('accent', '#c9c2e8');
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const key = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.34, 0.3), keyMat);
+      key.position.set(Math.cos(a) * 1.2, Math.sin(a) * 1.2, 0);
+      key.rotation.z = a - Math.PI / 2;
+      key.castShadow = true;
+      ring.add(key);
+    }
     const orbit = new THREE.Group();
+    const shardMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.0 });
     for (let i = 0; i < 6; i++) {
-      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.09),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.2 }));
+      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.08), shardMat);
       const a = (i / 6) * Math.PI * 2;
-      shard.position.set(Math.cos(a) * 1.34, Math.sin(a) * 1.34, 0);
+      shard.position.set(Math.cos(a) * 1.42, Math.sin(a) * 1.42, 0);
       shard.rotation.set(a, a * 1.7, 0);
       orbit.add(shard);
     }
+    Models.compact(ring); Models.compact(orbit);
     gate.add(ring, ringInner, disc, orbit);
     g.add(gate);
 
     // anchor pad on the ground below the gate (gates float ~1.3m over the floor)
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.62, 0.07, 28),
-      getMaterial('metal', '#4d4870', color, 0.18));
-    pad.position.y = -1.28;
-    const padRing = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.045, 8, 40),
+    const pad = new THREE.Mesh(finalize(Models.padGeometry()), getMaterial('metal', '#4d4870'));
+    pad.position.y = -1.3; pad.receiveShadow = true;
+    const padRing = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.035, 8, 48),
       new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.3 }));
-    padRing.rotation.x = -Math.PI / 2; padRing.position.y = -1.22; padRing.name = 'padRing';
+    padRing.rotation.x = -Math.PI / 2; padRing.position.y = -1.215; padRing.name = 'padRing';
     g.add(pad, padRing);
 
     // volumetric-ish light cone rising from the portal (fake god-ray)
     const cone = new THREE.Mesh(new THREE.ConeGeometry(1.05, 3.2, 20, 1, true),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.05, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
     cone.position.y = 1.6; cone.name = 'cone';
     g.add(cone);
     if (def.label) {
@@ -411,11 +437,11 @@ export class World {
   updatePortalLocks(shardCount: number) {
     for (const { ring, ringInner, orbit, lh, def, group } of this.portalVis.values()) {
       const locked = (def.requiresShards ?? 0) > shardCount || (def.requiresSolved === true && !this.solved);
-      (ring.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.15 : 1.8;
-      (ringInner.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.1 : 2.6;
+      (ring.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.03 : 0.25;
+      (ringInner.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.12 : 2.2;
       orbit.visible = !locked;
       const cone = group.getObjectByName('cone') as THREE.Mesh | undefined;
-      if (cone) (cone.material as THREE.MeshBasicMaterial).opacity = locked ? 0.01 : 0.07;
+      if (cone) (cone.material as THREE.MeshBasicMaterial).opacity = locked ? 0.01 : 0.05;
       const padRing = group.getObjectByName('padRing') as THREE.Mesh | undefined;
       if (padRing) (padRing.material as THREE.MeshStandardMaterial).emissiveIntensity = locked ? 0.2 : 1.3;
       lh.intensity = locked ? 0.25 : 2.2;
@@ -425,7 +451,7 @@ export class World {
 
   /** hero floor for planar reflections — only the grand social/finale spaces */
   heroFloor(): HeroFloor | undefined {
-    if (this.level.world === 'nexus') return { y: 0, size: 30, tint: '#6a6490', shape: 'circle' };
+    if (this.level.world === 'nexus') return { y: 0.08, size: 30, tint: '#6a6490', shape: 'circle' };
     if (this.level.id === 'observatory-02') return { y: 0, size: 34, tint: '#544e86', shape: 'circle' };
     if (this.level.world === 'observatory') return { y: 0, size: 30, tint: '#4a4478', shape: 'plane' };
     return undefined;
@@ -497,11 +523,11 @@ export class World {
       }
       const color = p.slot === 0 ? PALETTE.portalA : PALETTE.portalB;
       const g = new THREE.Group();
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.075, 10, 36),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2, metalness: 0.4, roughness: 0.3 }));
-      const ringInner = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.026, 8, 32),
-        new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: 2.6 }));
-      const vortex = makePortalVortex(color, { intensity: 1.15 });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.07, 12, 48),
+        new THREE.MeshStandardMaterial({ color: '#3c3854', emissive: color, emissiveIntensity: 0.6, metalness: 0.85, roughness: 0.3 }));
+      const ringInner = new THREE.Mesh(new THREE.TorusGeometry(0.76, 0.022, 8, 48),
+        new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: color, emissiveIntensity: 2.2 }));
+      const vortex = makePortalVortex(color, { intensity: 1.05 });
       const disc = new THREE.Mesh(new THREE.CircleGeometry(0.78, 32), vortex.material);
       g.add(ring, ringInner, disc);
       g.userData.vortex = vortex;
@@ -535,15 +561,18 @@ export class World {
   update(dt: number, viewer?: THREE.Vector3) {
     this.time += dt;
     // big open worlds: cull static meshes beyond fog reach (checked ~2x/sec)
-    if (viewer && this.staticMeshes.length > 220) {
+    if (viewer && this.staticMeshes.length > 60) {
       this.cullAcc += dt;
       if (this.cullAcc > 0.45) {
         this.cullAcc = 0;
         for (const m of this.staticMeshes) {
-          m.visible = m.position.distanceTo(viewer) < 150;
+          const bs = m.geometry.boundingSphere;
+          m.visible = !bs || bs.center.distanceTo(viewer) - bs.radius < 150;
         }
       }
     }
+    this.dressing?.update(dt);
+    for (const f of this.fxTickers) f.fx.tick(dt, f.frozen());
     // carryables: sample interpolators every frame + tumble with velocity
     for (const [id, interp] of this.bodyInterp) {
       const vis = this.interVis.get(id);
@@ -574,14 +603,18 @@ export class World {
       const e = d.t * d.t * (3 - 2 * d.t);
       d.mesh.position.y = d.baseY - e * (d.height - 0.08);
       d.mesh.visible = d.t < 0.98;
+      if (d.seam) {
+        // energy seam: cyan while sealed, flares mint as it unlocks
+        d.seam.emissive.set(d.open ? PALETTE.success : PALETTE.portalA);
+        d.seam.emissiveIntensity = d.open ? 2.2 : 1.4 + Math.sin(this.time * 2.4 + d.baseY) * 0.25;
+      }
     }
     // activeWhen fade/scale
     for (const a of this.actives) {
       a.t = THREE.MathUtils.clamp(a.t + (a.on ? dt : -dt) * 2.5, 0, 1);
       a.mesh.visible = a.t > 0.02;
-      const m = a.mesh.material as THREE.MeshStandardMaterial;
-      m.transparent = a.t < 0.99;
-      m.opacity = a.t;
+      a.fade(a.t);
+      a.field?.tick(dt, false);
     }
     // interactable animations
     for (const it of this.level.interactables ?? []) {
@@ -592,15 +625,20 @@ export class World {
         case 'carryable': {
           const core = vis.getObjectByName('core') as THREE.Mesh | undefined;
           if (core) {
-            core.rotation.y += dt * 1.2;
+            const held = !!this.bodyHeld.get(it.id);
             (core.material as THREE.MeshStandardMaterial).emissiveIntensity =
-              1.3 + Math.sin(this.time * 2.6 + it.pos[0]) * 0.5;
+              (held ? 2.4 : 1.6) + Math.sin(this.time * 2.6 + it.pos[0]) * 0.4;
           }
           break;
         }
         case 'plate': {
           const top = vis.getObjectByName('top');
           if (top) top.position.y = THREE.MathUtils.lerp(top.position.y, st.pressed ? 0.08 : 0.2, dt * 10);
+          const gm = this.plateGlow.get(it.id);
+          if (gm) {
+            gm.emissive.set(st.pressed ? PALETTE.success : PALETTE.interactable);
+            gm.emissiveIntensity = st.pressed ? 2.4 : 1.2 + Math.sin(this.time * 2 + it.pos[2]) * 0.2;
+          }
           break;
         }
         case 'lever': {
@@ -616,7 +654,7 @@ export class World {
         }
         case 'switch': {
           const eye = vis.getObjectByName('eye') as THREE.Mesh | undefined;
-          if (eye) (eye.material as THREE.MeshStandardMaterial).emissiveIntensity = st.on ? 2.2 : 0.3;
+          if (eye) (eye.material as THREE.MeshStandardMaterial).emissiveIntensity = st.on ? 2.6 : 0.3;
           break;
         }
         case 'collectible': {
@@ -629,7 +667,8 @@ export class World {
             // hidden items are a faint glimmer without Phase Sight, unmissable with it
             const dim = it.hidden && !this.phaseSight;
             gem.scale.setScalar(dim ? 0.45 : 1);
-            (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = dim ? 0.35 : 1.4;
+            if (gem.children[0]) gem.children[0].visible = !dim;   // halo only when seen
+            (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = dim ? 0.35 : 2.2;
           }
           const clh = this.interLights.get(it.id);
           if (clh) clh.intensity = collected ? 0 : (it.hidden && !this.phaseSight) ? 0.15 : 1.2;
@@ -645,34 +684,10 @@ export class World {
           if (orb) {
             const m = orb.material as THREE.MeshStandardMaterial;
             m.emissive.set(st.lit ? (it.accepts ?? PALETTE.portalA) : '#222436');
-            m.emissiveIntensity = st.lit ? 2.4 : 1;
+            m.emissiveIntensity = st.lit ? 2.6 : 1;
           }
           const rlh = this.interLights.get(it.id);
           if (rlh) rlh.intensity = st.lit ? 2.2 : 0;
-          break;
-        }
-        case 'hazard': {
-          const mat = this.hazardMats.get(it.id);
-          if (mat) {
-            if (st.frozen) { mat.emissive.set('#bfe8ff'); mat.opacity = 0.85; mat.emissiveIntensity = 0.5; }
-            else if (it.kind === 'void') { mat.emissive.set(PALETTE.hostile); mat.opacity = 0.5 + Math.sin(this.time * 3) * 0.08; }
-            else if (it.kind === 'conveyor') { mat.emissive.set('#7ea8ff'); mat.opacity = 0.22 + Math.sin(this.time * 4) * 0.05; }
-            else { mat.emissive.set('#9fdcff'); mat.opacity = 0.3 + Math.sin(this.time * 5 + it.pos[0]) * 0.08; mat.emissiveIntensity = 0.35; }
-          }
-          // conveyor chevrons drift with the flow (freeze pins them mid-run)
-          if (it.kind === 'conveyor' && it.dir) {
-            const d = new THREE.Vector3(it.dir[0], 0, it.dir[2]);
-            const speed = d.length() || 1;
-            const along = Math.max(Math.abs(it.dir[0]) > Math.abs(it.dir[2]) ? it.size[0] : it.size[2], 1);
-            const dn = d.clone().normalize();
-            for (let i = 0; i < 4; i++) {
-              const chev = vis.getObjectByName(`chev${i}`);
-              if (!chev) break;
-              const phase = st.frozen ? (i / 4) * along : ((this.time * speed + (i / 4) * along) % along);
-              chev.position.copy(dn.clone().multiplyScalar(phase - along / 2));
-              chev.position.y = -it.size[1] / 2 + 0.3;
-            }
-          }
           break;
         }
         case 'scale': {
@@ -691,7 +706,7 @@ export class World {
           if (gem) {
             const m = gem.material as THREE.MeshStandardMaterial;
             m.emissive.set(st.lit ? PALETTE.interactable : '#2a2740');
-            m.emissiveIntensity = st.lit ? 2.2 : 1;
+            m.emissiveIntensity = st.lit ? 2.6 : 1;
             gem.rotation.y += dt * (st.lit ? 2.4 : 0.4);
           }
           const rlh = this.interLights.get(it.id);
@@ -730,7 +745,7 @@ export class World {
       const vortex = vis.userData.vortex as PortalVortex | undefined;
       vortex?.tick(dt, 1);
       const spin = vis.userData.spin as THREE.Object3D[] | undefined;
-      if (spin) { spin[0].rotation.z += dt * 0.9; spin[1].rotation.z -= dt * 1.6; }
+      if (spin) { spin[0].rotation.z += dt * 0.5; spin[1].rotation.z -= dt * 1.6; }
     }
   }
 
