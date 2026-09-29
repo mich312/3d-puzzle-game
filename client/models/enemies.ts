@@ -5,9 +5,9 @@
 // the snapshot state: idle life, chase lean, telegraph wind-up, strike, hit flash,
 // stagger, frost shell while frozen, and a shader noise-dissolve with a burning
 // edge on death (icy edge when shattered).
+import { crateModel, compact as compactModel } from '../render/interactables';
 import * as THREE from 'three';
 import { markShared } from '../render/dispose';
-import { getMaterial } from '../render/materials';
 import { PALETTE } from '../../shared/palette';
 import {
   M, PartSet, lathe, roundedBox, roundedOutline, plate, capsule, cyl, torus, sphere,
@@ -464,13 +464,9 @@ export class EnemyModel {
       this.group.add(this.shield);
     }
     if (this.type === 'mimic') {
-      // exact replica of a light carryable crate (world.ts) for the disguise
+      // exact replica of a light carryable crate — the same builder World uses
       const d = new THREE.Group();
-      const box = new THREE.Mesh(sharedCrateGeo(), getMaterial('crystal', undefined, PALETTE.interactable, 0.35));
-      box.castShadow = true;
-      const edges = new THREE.LineSegments(sharedCrateEdges(), sharedMat('mimic-edges', () => new THREE.LineBasicMaterial({ color: PALETTE.interactable, transparent: true, opacity: 0.75 })));
-      const coreM = new THREE.Mesh(sharedMimicCore(), sharedMat('mimic-core', () => new THREE.MeshStandardMaterial({ color: PALETTE.interactable, emissive: PALETTE.interactable, emissiveIntensity: 1.6 })));
-      box.add(edges, coreM);
+      const box = compactModel(crateModel(false));
       box.position.y = 0.3;
       d.add(box);
       d.visible = false;
@@ -577,10 +573,6 @@ const easeStrike = (s: number) => s <= 0 ? 0 : Math.sin(Math.min(1, (1 - s) * 3.
 
 let _shieldGeo: THREE.BufferGeometry | undefined;
 function sharedShieldGeo() { return (_shieldGeo ??= markShared(new THREE.SphereGeometry(1, 32, 20))); }
-let _crateGeo: THREE.BufferGeometry | undefined, _crateEdges: THREE.BufferGeometry | undefined, _mimicCore: THREE.BufferGeometry | undefined;
-function sharedCrateGeo() { return (_crateGeo ??= markShared(new THREE.BoxGeometry(0.6, 0.6, 0.6))); }
-function sharedCrateEdges() { return (_crateEdges ??= markShared(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.612, 0.612, 0.612)))); }
-function sharedMimicCore() { return (_mimicCore ??= markShared(new THREE.OctahedronGeometry(0.132))); }
 
 // ======================= animation =======================
 interface Ctx {
