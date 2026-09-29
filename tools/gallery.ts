@@ -1,6 +1,6 @@
 // Standalone model gallery (dev only): renders the avatar, every enemy archetype and
 // each first-person device without a server, under the game's lighting look
-// (PMREM RoomEnvironment IBL + key light + ACES + threshold bloom). Views:
+// (PMREM RoomEnvironment IBL + key light + AgX GradePass + 0.85 soft-knee bloom). Views:
 //   ?view=avatar            idle / walk / run / jump / downed / carry + echo hologram (&close=1 zooms)
 //   ?view=enemy&type=drifter idle / telegraph / frozen / dying (any archetype)
 //   ?view=devices           the four viewmodel devices in a 2x2 grid
@@ -11,7 +11,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GradePass } from '../client/render/post/gradePass';
 import { buildAvatar, AvatarAnimator, type LocoInput } from '../client/models/avatar';
 import { setModelQuality, holoMat, type ModelTier } from '../client/models/common';
 import type { EnemyAnim } from '../client/models/enemies';
@@ -28,8 +28,7 @@ gl.setSize(W, H);
 gl.setPixelRatio(1);
 gl.shadowMap.enabled = true;
 gl.shadowMap.type = THREE.PCFSoftShadowMap;
-gl.toneMapping = THREE.ACESFilmicToneMapping;
-gl.toneMappingExposure = 1.0;
+gl.toneMapping = THREE.NoToneMapping;   // AgX + grade live in GradePass, as in-game
 document.body.appendChild(gl.domElement);
 
 const scene = new THREE.Scene();
@@ -199,8 +198,13 @@ else avatarView();
 
 const composer = new EffectComposer(gl);
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), 0.55, 0.45, 1.0));
-composer.addPass(new OutputPass());
+const composerRT = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType });
+composer.renderTarget1.dispose(); composer.renderTarget2.dispose();
+composer.reset(composerRT);
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.7, 0.5, 0.85);
+(bloom.highPassUniforms as Record<string, THREE.IUniform>).smoothWidth.value = 0.5;
+composer.addPass(bloom);
+composer.addPass(new GradePass({ aberration: false, grain: 0, vignette: 0.2 }));
 
 // deterministic simulation to SIM_T, then render (and keep animating for live viewing)
 const STEP = 1 / 60;

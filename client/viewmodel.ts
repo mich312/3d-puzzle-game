@@ -67,6 +67,8 @@ export class Viewmodel {
     this.group.position.copy(BASE);
     this.group.scale.setScalar(SCALE);
     this.group.rotation.set(0.04, 0.13, 0);
+    // build every device up front so the first swap to each doesn't hitch on geometry
+    for (const d of ['freeze', 'tractor', 'portalgun'] as DeviceId[]) this.ensure(d);
     this.current = this.ensure('pulse');
     this.current.group.visible = true;
     this.hands.setSupport(this.current.support);

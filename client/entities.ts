@@ -288,7 +288,13 @@ export class Enemies {
   private map = new Map<string, EnemyVis>();
   private time = 0;
   private tractored?: string;
-  constructor(private scene: THREE.Scene, private lights: DynamicLights) {}
+  constructor(private scene: THREE.Scene, private lights: DynamicLights) {
+    // test-rig hook (?debugents): lets screenshot scripts frame enemies
+    if (typeof location !== 'undefined' && /[?&]debugents\b/.test(location.search)) {
+      (window as unknown as Record<string, unknown>).__thresholdEnemies = () =>
+        [...this.map.entries()].map(([id, v]) => ({ id, type: v.model.type, p: v.group.position.toArray(), dead: v.dead }));
+    }
+  }
 
   sync(snaps: EnemySnap[]) {
     const seen = new Set<string>();
