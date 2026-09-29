@@ -4,7 +4,7 @@ import { disposeObject } from './render/dispose';
 import { Renderer } from './render/renderer';
 import { World } from './world';
 import { PlayerController } from './player';
-import { Peers, Enemies, Echoes, Pings } from './entities';
+import { Peers, Enemies, Echoes, Pings, setModelQuality } from './entities';
 import { Viewmodel } from './viewmodel';
 import { Particles } from './particles';
 import { Projectiles } from './projectiles';
@@ -78,6 +78,7 @@ function applySettings() {
     renderer.reduceMotion = s.reduceMotion;
     if (s.quality !== renderer.quality) {
       renderer.setQuality(s.quality);
+      setModelQuality(s.quality);
       projectiles?.setQuality(renderer.q.projectileLights);
     }
   }
@@ -87,6 +88,7 @@ function applySettings() {
 function start(name: string) {
   started = true;
   renderer = new Renderer(document.getElementById('app')!);
+  setModelQuality(renderer.quality);
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
   controller = new PlayerController(() => world?.playerColliders() ?? []);
   controller.attach(renderer.canvas);
@@ -240,6 +242,7 @@ function handleMsg(msg: ServerMsg) {
     case 'enemy_event': {
       const pos = enemies.positionOf(msg.id);
       const at = pos ? { pos: [pos.x, pos.y, pos.z] as Vec3 } : undefined;
+      enemies.event(msg.id, msg.ev, msg.data);
       if (msg.ev === 'telegraph') { enemies.telegraph(msg.id, (msg.data?.ms as number) ?? 900); audio.play('telegraph', at); }
       else if (msg.ev === 'attack') audio.play('enemy-attack', at);
       else if (msg.ev === 'down') { audio.play('enemy-down', at); if (pos) particles.burst(pos, PALETTE.hostile, 20, 4, 0.9); }
@@ -575,6 +578,7 @@ function placePortal(slot: 0 | 1) {
     origin[2] + dir[2] * hit.dist + hit.normal[2] * 0.08];
   net.send({ t: 'place_portal', v: 1, slot, pos, normal: hit.normal });
   rig.tracer(origin, pos, slot === 0 ? PALETTE.portalA : PALETTE.portalB, 0.03);
+  viewmodel.kick(slot);
 }
 
 // interact / revive / grab targeting
@@ -701,7 +705,12 @@ function loop(t: number) {
   // viewmodel + particles
   viewmodel.setDevice(rig.equipped);
   const movingNow = Math.abs(controller.vel.x) + Math.abs(controller.vel.z) > 0.5;
-  viewmodel.update(dt, movingNow, controller.onGround);
+  viewmodel.setAccent(profile.accent);
+  enemies.setTractored(rig.tractorActive ? rig.tractorTarget : undefined);
+  viewmodel.update(dt, movingNow, controller.onGround, {
+    charge: chargeHeld ? Math.min(1, (performance.now() - rig.chargeStart) / 600) : 0,
+    tractor: rig.tractorActive, speed: Math.hypot(controller.vel.x, controller.vel.z),
+  });
   renderer.tick(dt, renderer.camera.position);
   if (levelDef && renderer.q.ambientParticles) {
     particles.ambient(levelDef.world, controller.pos, dt);
