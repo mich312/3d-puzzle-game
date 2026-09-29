@@ -78,7 +78,8 @@ async function main() {
       }, [ap[0], ap[1], ap[2], yaw] as const);
       await sleep(2500);
       const file = join(OUT, `${level}-${label}.png`);
-      await a.screenshot({ path: file });
+      // software GL on the high tier can take well over the 30 s default per frame
+      await a.screenshot({ path: file, timeout: 180_000 });
       console.log('saved', file);
     }
     if (level !== 'nexus') {
