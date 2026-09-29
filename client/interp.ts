@@ -8,6 +8,9 @@ import type { Vec3 } from '../shared/level';
 const RENDER_DELAY_MS = 120;
 const MAX_EXTRAPOLATE_MS = 200;
 const HISTORY_MS = 1000;
+// snapshots that arrive in a burst after a stall are ~0 ms apart; deriving velocity
+// from them would extrapolate at thousands of m/s
+const MIN_SEGMENT_MS = 30;
 
 interface Snap {
   t: number;
@@ -49,7 +52,7 @@ export class Interpolator {
       const newest = this.buf[this.buf.length - 1];
       const prev = this.buf[this.buf.length - 2];
       if (prev && newest.t > prev.t) {
-        const dtSeg = (newest.t - prev.t) / 1000;
+        const dtSeg = Math.max(MIN_SEGMENT_MS, newest.t - prev.t) / 1000;
         this.velocity.copy(newest.p).sub(prev.p).divideScalar(dtSeg);
         const ahead = Math.min(MAX_EXTRAPOLATE_MS, target - newest.t) / 1000;
         out.copy(newest.p).addScaledVector(this.velocity, Math.max(0, ahead));
@@ -59,9 +62,11 @@ export class Interpolator {
       }
       return { yaw: newest.yaw };
     }
-    const f = (target - a.t) / (b.t - a.t);
+    // target older than all history (new entity / just teleported): hold the oldest
+    // snapshot rather than extrapolating backwards
+    const f = THREE.MathUtils.clamp((target - a.t) / (b.t - a.t), 0, 1);
     out.copy(a.p).lerp(b.p, f);
-    this.velocity.copy(b.p).sub(a.p).divideScalar((b.t - a.t) / 1000);
+    this.velocity.copy(b.p).sub(a.p).divideScalar(Math.max(MIN_SEGMENT_MS, b.t - a.t) / 1000);
     // shortest-arc yaw lerp
     let dy = b.yaw - a.yaw;
     dy = ((dy + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;

@@ -45,7 +45,7 @@ export class PlayerController {
     });
     document.addEventListener('keyup', (e) => this.keys.delete(e.code));
     document.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement !== canvas) return;
+      if (document.pointerLockElement !== canvas || this.frozen) return;
       this.yaw -= e.movementX * 0.0022 * this.sensitivity;
       this.pitch = THREE.MathUtils.clamp(this.pitch - e.movementY * 0.0022 * this.sensitivity, -1.45, 1.45);
     });

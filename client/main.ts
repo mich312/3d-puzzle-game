@@ -1,9 +1,10 @@
 // THRESHOLD client entry: wires renderer, world, controller, net, HUD, audio.
 import * as THREE from 'three';
+import { disposeObject } from './render/dispose';
 import { Renderer } from './render/renderer';
 import { World } from './world';
 import { PlayerController } from './player';
-import { Peers, Enemies, Echoes, Pings } from './entities';
+import { Peers, Enemies, Echoes, Pings, setModelQuality } from './entities';
 import { Viewmodel } from './viewmodel';
 import { Particles } from './particles';
 import { Projectiles } from './projectiles';
@@ -77,8 +78,11 @@ function applySettings() {
     renderer.reduceMotion = s.reduceMotion;
     if (s.quality !== renderer.quality) {
       renderer.setQuality(s.quality);
+      setModelQuality(s.quality);
       projectiles?.setQuality(renderer.q.projectileLights);
+      particles?.setQuality(renderer.q);
     }
+    particles?.setReduceMotion(s.reduceMotion);
   }
   net?.send({ t: 'set_opts', v: 1, difficulty: s.difficulty });
 }
@@ -86,20 +90,22 @@ function applySettings() {
 function start(name: string) {
   started = true;
   renderer = new Renderer(document.getElementById('app')!);
+  setModelQuality(renderer.quality);
   hud.settings.quality = renderer.quality;   // reflect the auto-detected tier in settings
   controller = new PlayerController(() => world?.playerColliders() ?? []);
   controller.attach(renderer.canvas);
   peers = new Peers(renderer.scene, () => playerId, renderer.lights);
   enemies = new Enemies(renderer.scene, renderer.lights);
   echoes = new Echoes(renderer.scene);
-  pings = new Pings(renderer.scene);
-  particles = new Particles(renderer.scene);
+  pings = new Pings(renderer.scene, renderer.lights);
+  particles = new Particles(renderer.scene, renderer.lights);
+  particles.setQuality(renderer.q);
   projectiles = new Projectiles(renderer.scene, particles, renderer.lights);
   projectiles.setQuality(renderer.q.projectileLights);
   viewmodel = new Viewmodel(renderer.camera);
   renderer.scene.add(renderer.camera);       // camera must be in-scene to carry the viewmodel
   hud.bindChat((text) => net.send({ t: 'chat', v: 1, text }));
-  rig = new DeviceRig(renderer.scene);
+  rig = new DeviceRig(renderer.scene, particles);
   audio.init();
   net = new Net();
   net.onMessage(handleMsg);
@@ -110,11 +116,31 @@ function start(name: string) {
   requestAnimationFrame(loop);
   // dev console hook (also used by the visual test rig)
   (window as unknown as Record<string, unknown>).__threshold = {
+    hud,                                       // HUD feedback states for the screenshot rig
     enterLevel: (id: string) => net.send({ t: 'enter_level', v: 1, level: id }),
     leave: () => net.send({ t: 'leave_level', v: 1 }),
     pos: () => [controller.pos.x, controller.pos.y, controller.pos.z],
     warp: (x: number, y: number, z: number) => controller.teleport([x, y, z]),
     look: (yaw: number, pitch = 0) => { controller.yaw = yaw; controller.pitch = pitch; },
+    // VFX debug: fire the equipped-style device locally, or play a named effect
+    // a few metres in front of the camera (visual test rig only)
+    fire: (dev: DeviceId = 'pulse') => { rig.owned.includes(dev) || rig.owned.push(dev); fireDevice(dev, false); },
+    vfx: (name: string, dist = 4) => {
+      const f = controller.forward(), e = controller.eye();
+      const p = e.clone().addScaledVector(f, dist);
+      const fx = particles.fx as unknown as Record<string, (...a: unknown[]) => void>;
+      const back = f.clone().negate();
+      if (name === 'impact' || name === 'frostBurst') fx[name](p, back, name === 'impact' ? DEVICES.pulse.color : DEVICES.freeze.color);
+      else if (name === 'portalPlaced') fx[name](p, back, PALETTE.portalA);
+      else if (name === 'portalTraverse') fx[name](p, PALETTE.portalB);
+      else if (name === 'landing') fx[name](controller.pos, 1);
+      else if (name === 'tractor') {
+        const m = viewmodel.muzzle(new THREE.Vector3());
+        const to = p.clone().add(new THREE.Vector3(1.5, -0.8, 0));
+        let n = 0;
+        const h = setInterval(() => { rig.tractorBeam('debug', viewmodel.muzzle(m), controller.forward(), to, DEVICES.tractor.color, 0.016); if (++n > 400) clearInterval(h); }, 16);
+      } else fx[name]?.(p);
+    },
   };
 }
 
@@ -142,20 +168,25 @@ function handleMsg(msg: ServerMsg) {
     }
     case 'joined': {
       const s = msg.snapshot;
+      resetLocalActions();
       world?.dispose();
       enemies.clear();
       peers.clear();
       echoes.clear();
       projectiles.clear();
+      particles.clear();
+      rig.clearVfx();
+      lastCheckpoint = -1;
       levelDef = s.level ?? null;
       if (!levelDef) break;
-      world = new World(renderer.scene, levelDef, s.states, renderer.lights);
+      world = new World(renderer.scene, levelDef, s.states, renderer.lights, renderer.quality);
       world.playersPresent = s.players.length;
       world.solved = !!s.solved;
       renderer.setWorld(levelDef.world, world.heroFloor());
       if (levelDef.fog) renderer.setFog(levelDef.fog.color, levelDef.fog.density);
       audio.setWorld(levelDef.world);
       controller.teleport(msg.spawn, msg.spawnYaw);
+      particles.fx.arrival(msg.spawn, PALETTE.portalA);
       controller.frozen = false;
       selfDowned = false; selfHp = 100;
       hud.setHealth(100, false);
@@ -233,16 +264,23 @@ function handleMsg(msg: ServerMsg) {
       if (!prev.filled && msg.state.filled) audio.play('socket');
       if (!prev.frozen && msg.state.frozen) audio.play('frozen');
       if (!prev.lit && msg.state.lit) audio.play('socket');   // resonators + receivers chime
+      if (!prev.collected && msg.state.collected) {
+        const vis = world.interactableAt(msg.id);
+        if (vis) particles.fx.pickup(vis.position);
+      }
       break;
     }
     case 'enemy_event': {
+      if (lastShot && msg.id === lastShot.id && performance.now() - lastShot.t < 1500 && msg.ev !== 'telegraph' && msg.ev !== 'attack' && msg.ev !== 'spawn')
+        hud.hitMarker(msg.ev === 'down' || msg.ev === 'shatter');
       const pos = enemies.positionOf(msg.id);
       const at = pos ? { pos: [pos.x, pos.y, pos.z] as Vec3 } : undefined;
+      enemies.event(msg.id, msg.ev, msg.data);
       if (msg.ev === 'telegraph') { enemies.telegraph(msg.id, (msg.data?.ms as number) ?? 900); audio.play('telegraph', at); }
       else if (msg.ev === 'attack') audio.play('enemy-attack', at);
-      else if (msg.ev === 'down') { audio.play('enemy-down', at); if (pos) particles.burst(pos, PALETTE.hostile, 20, 4, 0.9); }
-      else if (msg.ev === 'shatter') { audio.play('shatter', at); if (pos) particles.burst(pos, '#bfe8ff', 30, 5.5, 1.1); }
-      else if (msg.ev === 'frozen') { audio.play('frozen', at); if (pos) particles.burst(pos, '#9fdcff', 12, 2, 0.7); }
+      else if (msg.ev === 'down') { audio.play('enemy-down', at); if (pos) particles.fx.enemyDeath([pos.x, pos.y + 0.9, pos.z], PALETTE.hostile); }
+      else if (msg.ev === 'shatter') { audio.play('shatter', at); if (pos) particles.fx.shatter([pos.x, pos.y + 0.9, pos.z]); }
+      else if (msg.ev === 'frozen') { audio.play('frozen', at); if (pos) particles.fx.frozen([pos.x, pos.y + 0.9, pos.z]); }
       else if (msg.ev === 'hit') {
         audio.play('hit', at);
         if (msg.data?.blocked && performance.now() - blockedHintAt > 12000) {
@@ -261,26 +299,33 @@ function handleMsg(msg: ServerMsg) {
         msg.origin[1] + msg.dir[1] * DEVICES[msg.device].range,
         msg.origin[2] + msg.dir[2] * DEVICES[msg.device].range];
       if (msg.device === 'pulse' || msg.device === 'freeze')
-        projectiles.fire(muzzle, end, DEVICES[msg.device].color, { speed: msg.device === 'freeze' ? 52 : 72 });
+        projectiles.fire(muzzle, end, DEVICES[msg.device].color, { speed: msg.device === 'freeze' ? 52 : 72, kind: msg.device });
       else
         rig.tracer(muzzle, end, DEVICES[msg.device].color);
       audio.play(msg.device === 'freeze' ? 'fire-freeze' : 'fire-pulse', { pos: msg.origin });
       break;
     }
-    case 'portal_placed': audio.play('portal-place', { pos: msg.placement.pos }); break;
+    case 'portal_placed':
+      audio.play('portal-place', { pos: msg.placement.pos });
+      particles.fx.portalPlaced(msg.placement.pos, msg.placement.normal, msg.placement.slot === 0 ? PALETTE.portalA : PALETTE.portalB);
+      break;
     case 'portal_traverse':
       if (msg.player === playerId) { controller.teleport(msg.to); }
+      if (msg.player === playerId) particles.fx.arrival(msg.to, PALETTE.portalA);
+      else particles.fx.portalTraverse([msg.to[0], msg.to[1] + 1, msg.to[2]], PALETTE.portalA);
       audio.play('portal-traverse', { pos: msg.to });
       break;
     case 'hp': {
       if (msg.id === playerId) {
-        if (msg.hp < selfHp) { hud.damageFlash(); audio.play('hurt'); }
+        if (msg.hp < selfHp) { hud.damageFlash(damageAngle()); audio.play('hurt'); }
         selfHp = msg.hp;
         hud.setHealth(selfHp, selfDowned);
       }
       break;
     }
     case 'downed': {
+      const dp = msg.id === playerId ? controller.pos : peers.positionOf(msg.id);
+      if (dp) particles.fx.downed(dp);
       if (msg.id === playerId) {
         selfDowned = true; controller.frozen = true;
         hud.setHealth(0, true);
@@ -292,7 +337,7 @@ function handleMsg(msg: ServerMsg) {
     case 'revived': {
       if (msg.id === playerId) { selfDowned = false; controller.frozen = false; selfHp = 60; hud.setHealth(60, false); audio.play('revived'); }
       const rp = msg.id === playerId ? controller.pos : peers.positionOf(msg.id);
-      if (rp) particles.burst([rp.x, rp.y + 1, rp.z], PALETTE.success, 18, 2.5, 1.2);
+      if (rp) particles.fx.revive(rp, PALETTE.success);
       hud.reviveProgress(null);
       break;
     }
@@ -333,6 +378,11 @@ function handleMsg(msg: ServerMsg) {
       break;
     }
     case 'shards': {
+      if (msg.shards.length > profile.shards.length) {
+        const f = controller.forward();
+        const e = controller.eye();
+        particles.fx.shardGained([e.x + f.x * 2.5, e.y + f.y * 2.5, e.z + f.z * 2.5]);
+      }
       profile.shards = msg.shards;
       hud.setShards(msg.shards.length, TOTAL_SHARDS);
       world?.updatePortalLocks(msg.shards.length);
@@ -387,6 +437,9 @@ function bindInput() {
 
   document.addEventListener('keydown', (e) => {
     if (hud.chatOpen) return;
+    // OS key auto-repeat would re-send one-shot actions ~30x/s: holding E restarted the
+    // revive timer every repeat (revives never finished) and flip-flopped levers/grabs
+    if (e.repeat) return;
     if (e.code === 'Enter' && started && !hud.panelOpen) { hud.openChat(); e.preventDefault(); return; }
     if (hud.panelOpen && e.code !== 'Escape') return;
     switch (e.code) {
@@ -410,7 +463,7 @@ function bindInput() {
     }
   });
   document.addEventListener('keyup', (e) => {
-    if (e.code === 'KeyE' && revivingId) { net.send({ t: 'revive_cancel', v: 1 }); revivingId = null; }
+    if (e.code === 'KeyE') cancelRevive();
     if (e.code === 'KeyV' && world) world.phaseSight = false;
   });
 
@@ -420,12 +473,15 @@ function bindInput() {
     else if (e.button === 1) { e.preventDefault(); onPing(); }
     else if (e.button === 2) onSecondaryDown();
   });
-  canvas.addEventListener('mouseup', (e) => {
+  // document-level: releasing over the menu (after Esc unlocks the pointer) must still
+  // end a held tractor/charge
+  document.addEventListener('mouseup', (e) => {
     if (e.button === 0) onPrimaryUp();
   });
+  addEventListener('blur', () => { onPrimaryUp(); cancelRevive(); });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('wheel', (e) => {
-    if (document.pointerLockElement !== canvas || rig.owned.length < 2) return;
+    if (document.pointerLockElement !== canvas || rig.owned.length < 2 || hud.chatOpen || hud.panelOpen) return;
     const i = rig.owned.indexOf(rig.equipped);
     const next = rig.owned[(i + (e.deltaY > 0 ? 1 : rig.owned.length - 1)) % rig.owned.length];
     rig.equipped = next;
@@ -477,6 +533,26 @@ function pickBodyOnRay(range: number): { id: string; point: Vec3 } | null {
 }
 
 let chargeHeld = false;
+let lastShot: { id: string; t: number } | null = null;   // for server-confirmed hit markers
+/** screen angle (0 = ahead, +right) toward the nearest aggroed enemy, for the damage-direction arc */
+function damageAngle(): number | undefined {
+  const p = controller.pos;
+  let best: THREE.Vector3 | undefined, bd = Infinity;
+  for (const e of enemies.aggroPositions()) { const d = e.distanceToSquared(p); if (d < bd) { bd = d; best = e; } }
+  if (!best) return undefined;
+  const dx = best.x - p.x, dz = best.z - p.z, y = controller.yaw;
+  return Math.atan2(dx * Math.cos(y) - dz * Math.sin(y), -dx * Math.sin(y) - dz * Math.cos(y));
+}
+function cancelRevive() {
+  if (revivingId) { net.send({ t: 'revive_cancel', v: 1 }); revivingId = null; }
+}
+/** drop every held/in-progress local action — on level change, reconnect or reset */
+function resetLocalActions() {
+  chargeHeld = false;
+  if (rig.tractorActive) { rig.tractorActive = false; rig.tractorTarget = undefined; }
+  revivingId = null;
+  carryingLocal = null;
+}
 function onPrimaryDown() {
   const dev = rig.equipped;
   if (dev === 'pulse' && profile.skills.includes('charged-pulse')) {
@@ -517,6 +593,8 @@ function fireDevice(dev: DeviceId, charged: boolean) {
     case 'pulse': case 'freeze': {
       rig.markFired(dev);
       const enemy = pickEnemyOnRay(DEVICES[dev].range);
+      hud.fired();
+      if (enemy) lastShot = { id: enemy.id, t: performance.now() };
       const wall = world?.raycastWalls(origin, dir, DEVICES[dev].range);
       const end: Vec3 = enemy?.point ?? (wall
         ? [origin[0] + dir[0] * wall.dist, origin[1] + dir[1] * wall.dist, origin[2] + dir[2] * wall.dist]
@@ -526,6 +604,7 @@ function fireDevice(dev: DeviceId, charged: boolean) {
       projectiles.fire(muzzle, end, DEVICES[dev].color, {
         speed: dev === 'freeze' ? 52 : 72,
         scale: dev === 'freeze' ? 1.3 : 1,
+        kind: dev,
       });
       viewmodel.kick();
       audio.play(dev === 'freeze' ? 'fire-freeze' : 'fire-pulse');
@@ -556,7 +635,9 @@ function placePortal(slot: 0 | 1) {
     origin[1] + dir[1] * hit.dist + hit.normal[1] * 0.08,
     origin[2] + dir[2] * hit.dist + hit.normal[2] * 0.08];
   net.send({ t: 'place_portal', v: 1, slot, pos, normal: hit.normal });
-  rig.tracer(origin, pos, slot === 0 ? PALETTE.portalA : PALETTE.portalB, 0.03);
+  const pm = viewmodel.muzzle(new THREE.Vector3());
+  rig.tracer([pm.x, pm.y, pm.z], pos, slot === 0 ? PALETTE.portalA : PALETTE.portalB, 0.03, 220);
+  viewmodel.kick(slot);
 }
 
 // interact / revive / grab targeting
@@ -668,8 +749,11 @@ function loop(t: number) {
       origin[1] + dir[1] * rig.tractorDist,
       origin[2] + dir[2] * rig.tractorDist];
     net.send({ t: 'tractor', v: 1, active: true, targetId: rig.tractorTarget, aim: aimPoint });
+  }
+  if (rig.tractorActive && rig.tractorTarget) {
+    // continuous curved beam, re-aimed every frame (replaces the 100ms tracer spam)
     const tp = enemies.positionOf(rig.tractorTarget) ?? world?.interactableAt(rig.tractorTarget)?.position;
-    if (tp) rig.tracer(origin, [tp.x, tp.y, tp.z], DEVICES.tractor.color, 0.03, 120);
+    if (tp) rig.tractorBeam('local', viewmodel.muzzle(tractorFrom), controller.forward(), tp, DEVICES.tractor.color, dt);
   }
 
   // world + entities
@@ -678,12 +762,18 @@ function loop(t: number) {
   enemies.update(dt);
   pings.update(dt);
   projectiles.update(dt);
-  rig.update();
+  rig.update(dt);
+  landingAndCheckpointFx();
 
   // viewmodel + particles
   viewmodel.setDevice(rig.equipped);
   const movingNow = Math.abs(controller.vel.x) + Math.abs(controller.vel.z) > 0.5;
-  viewmodel.update(dt, movingNow, controller.onGround);
+  viewmodel.setAccent(profile.accent);
+  enemies.setTractored(rig.tractorActive ? rig.tractorTarget : undefined);
+  viewmodel.update(dt, movingNow, controller.onGround, {
+    charge: chargeHeld ? Math.min(1, (performance.now() - rig.chargeStart) / 600) : 0,
+    tractor: rig.tractorActive, speed: Math.hypot(controller.vel.x, controller.vel.z),
+  });
   renderer.tick(dt, renderer.camera.position);
   if (levelDef && renderer.q.ambientParticles) {
     particles.ambient(levelDef.world, controller.pos, dt);
@@ -739,7 +829,7 @@ let circuitNext = -1;         // -1 idle, 0..n racing
 let circuitStart = 0;
 
 function setupCircuit() {
-  if (circuitGroup) { renderer.scene.remove(circuitGroup); circuitGroup = null; circuitRings = []; }
+  if (circuitGroup) { renderer.scene.remove(circuitGroup); disposeObject(circuitGroup); circuitGroup = null; circuitRings = []; }
   circuitNext = -1;
   if (levelDef?.world !== 'nexus') return;
   circuitGroup = new THREE.Group();
@@ -785,6 +875,30 @@ function updateCircuit(t: number) {
     m.emissiveIntensity = THREE.MathUtils.lerp(m.emissiveIntensity, active ? 2.2 : 0.35, 0.1);
     m.opacity = active ? 0.9 : 0.5;
     circuitRings[i].rotation.y += active ? 0.03 : 0.006;
+  }
+}
+
+// VFX hooks driven by the local controller: landing dust and checkpoint rings
+const tractorFrom = new THREE.Vector3();
+let wasGrounded = true;
+let airVy = 0;
+let lastCheckpoint = -1;
+function landingAndCheckpointFx() {
+  if (!controller.onGround) airVy = Math.min(airVy, controller.vel.y);
+  else {
+    if (!wasGrounded && airVy < -5) particles.fx.landing(controller.pos, (-airVy - 5) / 9);
+    airVy = 0;
+  }
+  wasGrounded = controller.onGround;
+  const cps = levelDef?.checkpoints;
+  if (cps && !selfDowned) {
+    for (let i = lastCheckpoint + 1; i < cps.length; i++) {
+      const c = cps[i];
+      if (Math.hypot(c[0] - controller.pos.x, c[1] - controller.pos.y, c[2] - controller.pos.z) < 3.5) {
+        lastCheckpoint = i;
+        particles.fx.checkpoint(c);
+      }
+    }
   }
 }
 
