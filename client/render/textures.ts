@@ -352,7 +352,7 @@ function accent(n: number, f: Fields) {
     const v = y / n;
     for (let x = 0; x < n; x++) {
       const u = x / n, i = y * n + x;
-      const cu = fract(u * 8), cv = fract(v * 8);              // 50 cm motif
+      const cu = fract(u * 4), cv = fract(v * 4);              // 1 m motif
       const diamond = Math.abs(cu - 0.5) + Math.abs(cv - 0.5);
       const line = Math.min(Math.abs(diamond - 0.46), Math.min(cu, 1 - cu, cv, 1 - cv) * 2);
       const groove = sstep(0.004, 0.018, line);
@@ -364,7 +364,7 @@ function accent(n: number, f: Fields) {
       f.ao[i] = 0.55 + 0.45 * groove;
       f.rough[i] = 0.32 + brushed * 0.12 + (1 - groove) * 0.3;
       f.metal[i] = groove > 0.5 ? 1 : 0.6;
-      f.glow![i] = 0.22 + (1 - groove) * 0.78;
+      f.glow![i] = 0.4 + (1 - groove) * 0.6;
     }
   }
 }

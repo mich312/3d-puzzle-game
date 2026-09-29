@@ -180,7 +180,7 @@ export function makeForceField(color: string, size: Vec3Like): ForceField {
         // face-plane coords in metres: pick the two axes of the box face we're on
         vec3 an = abs(vWNrm);
         vec2 fp = an.x > 0.5 ? vLocal.zy : an.z > 0.5 ? vLocal.xy : vLocal.xz;
-        vec2 half = an.x > 0.5 ? uSize.zy * 0.5 : an.z > 0.5 ? uSize.xy * 0.5 : uSize.xz * 0.5;
+        vec2 hs = an.x > 0.5 ? uSize.zy * 0.5 : an.z > 0.5 ? uSize.xy * 0.5 : uSize.xz * 0.5;
         // hex lattice
         vec2 g = fp * 3.2;
         vec2 r = vec2(1.0, 1.7320508);
@@ -192,7 +192,7 @@ export function makeForceField(color: string, size: Vec3Like): ForceField {
         float sh = vn3(vec3(fp * 1.5, uTime * 0.6));
         float scan = smoothstep(0.08, 0.0, abs(fract(fp.y * 0.25 - uTime * 0.35) - 0.5) - 0.42);
         // bright rim where the field meets its frame
-        vec2 dEdge = half - abs(fp);
+        vec2 dEdge = hs - abs(fp);
         float rim = smoothstep(0.12, 0.0, min(dEdge.x, dEdge.y));
         vec3 V = normalize(cameraPosition - vWPos);
         float fres = pow(1.0 - abs(dot(V, vWNrm)), 2.0);

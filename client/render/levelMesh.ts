@@ -24,7 +24,7 @@ const TRIM: Record<string, string> = {
   nexus: '#8c86b0', atrium: '#9aa8c8', vaults: '#6e76a0', gardens: '#b39063', observatory: '#c9a55a',
 };
 const ROCK: Record<string, string> = {
-  nexus: '#6a6484', atrium: '#646e8e', vaults: '#4a4668', gardens: '#806870', observatory: '#4a4668',
+  nexus: '#8a84a6', atrium: '#8490b0', vaults: '#66628a', gardens: '#a48a90', observatory: '#64608a',
 };
 
 export interface Piece {

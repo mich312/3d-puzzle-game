@@ -127,6 +127,8 @@ export class World {
 
   dispose() {
     this.scene.remove(this.group);
+    // instanced props own per-instance GPU buffers that geometry.dispose() doesn't free
+    this.group.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose(); });
     disposeObject(this.group);
     for (const { lh } of this.portalVis.values()) this.lights.unregister(lh);
     for (const lh of this.interLights.values()) this.lights.unregister(lh);
@@ -182,6 +184,7 @@ export class World {
         // own material: the fade writes opacity, and cached materials are shared by
         // every mesh with the same look (fading one barrier would hide the others)
         const own = mat.clone();
+        own.onBeforeCompile = mat.onBeforeCompile;     // keep the shared surface layer (same program)
         const mesh = new THREE.Mesh(finalize(pieceGeometry(g, q)), own);
         mesh.position.set(...g.pos);
         if (g.rotY) mesh.rotation.y = g.rotY;
@@ -652,6 +655,7 @@ export class World {
             // hidden items are a faint glimmer without Phase Sight, unmissable with it
             const dim = it.hidden && !this.phaseSight;
             gem.scale.setScalar(dim ? 0.45 : 1);
+            if (gem.children[0]) gem.children[0].visible = !dim;   // halo only when seen
             (gem.material as THREE.MeshStandardMaterial).emissiveIntensity = dim ? 0.35 : 1.4;
           }
           const clh = this.interLights.get(it.id);
