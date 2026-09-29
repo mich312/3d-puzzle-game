@@ -3,12 +3,15 @@
 //   1. solo player solves atrium-01 (lever → pulse switch → kill drifter → shard)
 //   2. two players solve atrium-02 (simultaneity plates) with base gear
 //   3. down/revive round-trip
-// Usage: npx tsx tools/playtest-bot.ts [ws://localhost:8080/ws]
+// Usage: THRESHOLD_DEV_UNLOCK=1 PORT=8080 npx tsx server/index.ts &
+//        npx tsx tools/playtest-bot.ts [ws://localhost:8080/ws]   (or WS_URL=…)
+// The server must run with THRESHOLD_DEV_UNLOCK=1: fresh bot profiles have no
+// shards, and bots noclip-walk faster than the move speed budget allows.
 import WebSocket from 'ws';
 import type { ClientMsg, ServerMsg, InstanceSnapshot } from '../shared/messages';
 import type { Vec3 } from '../shared/level';
 
-const URL = process.argv[2] ?? 'ws://localhost:8080/ws';
+const URL = process.argv[2] ?? process.env.WS_URL ?? 'ws://localhost:8080/ws';
 let failures = 0;
 
 class Bot {
@@ -449,6 +452,7 @@ async function clearEnemies(bots: Bot[]): Promise<boolean> {
       if (d > 12 || Math.abs(shooter.pos[1] - e.p[1]) > 2)
         await shooter.walkTo([e.p[0] + (dx / d) * 8, e.p[1] + 0.2, e.p[2] + (dz / d) * 8]);
       if (e.type === 'colossus' && bots[1]) {
+        bots[1].send({ t: 'equip', v: 1, device: 'tractor' });   // server requires the beam in hand
         bots[1].send({ t: 'tractor', v: 1, active: true, targetId: e.id, aim: [e.p[0], e.p[1], e.p[2] - 2] });
         await sleep(150);
       }

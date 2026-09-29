@@ -6,7 +6,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { loadContent, watchContent } from './content';
 import { openStore } from './persistence';
 import { GameServer, type ClientLink } from './instances';
-import type { ClientMsg, ServerMsg } from '../shared/messages';
+import type { ServerMsg } from '../shared/messages';
+import { validateClientMsg } from '../shared/validate';
 
 const PORT = Number(process.env.PORT ?? 80);
 const CLIENT_DIR = join(import.meta.dirname, '..', 'dist', 'client');
@@ -51,32 +52,62 @@ const http = createServer((req, res) => {
   res.end(readFileSync(path));
 });
 
-const wss = new WebSocketServer({ server: http, path: '/ws' });
+// 16 KiB is ~10x the largest legitimate client message (an 84-point echo path)
+const MAX_PAYLOAD = 16 * 1024;
+// per-socket token bucket: the client streams ~15 moves/s + ~10 tractor/s plus
+// bursts of input; anything far beyond that is dropped, sustained abuse closes
+const MSG_RATE = 60;          // tokens per second
+const MSG_BURST = 120;
+const MAX_DROPS = 600;        // dropped messages before the socket is closed
+
+const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: MAX_PAYLOAD });
 
 wss.on('connection', (ws: WebSocket) => {
   let session: ReturnType<GameServer['connect']> | null = null;
+  let helloSeen = false;
+  let tokens = MSG_BURST;
+  let lastRefill = Date.now();
+  let drops = 0;
   const link: ClientLink = {
     send(msg: ServerMsg) {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
     },
+    close(code = 4000, reason = 'replaced') {
+      try { ws.close(code, reason); } catch { /* already closing */ }
+    },
   };
   ws.on('message', (raw) => {
-    let msg: ClientMsg;
+    const now = Date.now();
+    tokens = Math.min(MSG_BURST, tokens + ((now - lastRefill) / 1000) * MSG_RATE);
+    lastRefill = now;
+    if (tokens < 1) {
+      if (++drops > MAX_DROPS) { console.warn('[ws] closing flooding socket'); ws.close(1008, 'rate limit'); }
+      return;
+    }
+    tokens -= 1;
+    let msg: unknown;
     try { msg = JSON.parse(String(raw)); } catch { return; }
-    if (!msg || msg.v !== 1) { link.send({ t: 'error', v: 1, code: 'bad_version', message: 'protocol mismatch — refresh the page' }); return; }
+    if (!msg || typeof msg !== 'object' || (msg as { v?: unknown }).v !== 1) {
+      link.send({ t: 'error', v: 1, code: 'bad_version', message: 'protocol mismatch — refresh the page' });
+      return;
+    }
+    if (!validateClientMsg(msg)) return;          // malformed / unknown message: drop silently
     try {
       if (msg.t === 'hello') {
+        if (helloSeen) return;                    // one session per socket — a second hello would leak a ghost
+        helloSeen = true;
         session = game.connect(link, msg.token, msg.name);
         game.welcome(session);
         game.place(session, msg.target);
         return;
       }
-      if (session) game.handle(session, msg);
+      // a socket whose token was taken over by a newer connection no longer drives the session
+      if (session && session.link === link) game.handle(session, msg);
     } catch (e) {
       console.error('[dispatch]', (e as Error).stack);
     }
   });
-  ws.on('close', () => { if (session) game.disconnect(session); });
+  ws.on('close', () => { if (session) game.disconnectLink(session, link); });
   ws.on('error', () => { /* handled by close */ });
 });
 

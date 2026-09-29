@@ -73,7 +73,9 @@ export function openStore(dataDir = join(import.meta.dirname, '..', 'data')): St
       return p;
     },
     saveProfile(p: Profile) {
-      updStmt.run(p.name, p.accent, JSON.stringify(p.shards), p.skillPoints,
+      // coerce defensively: a bad field must never make the UPDATE throw mid-game
+      const skillPoints = Number.isFinite(p.skillPoints) ? Math.max(0, Math.floor(p.skillPoints)) : 0;
+      updStmt.run(String(p.name ?? '').slice(0, 64), String(p.accent ?? ''), JSON.stringify(p.shards), skillPoints,
         JSON.stringify(p.skills), JSON.stringify(p.devices), JSON.stringify(p.inventory),
         JSON.stringify(p.bestTimes), Date.now(), p.token);
     },
