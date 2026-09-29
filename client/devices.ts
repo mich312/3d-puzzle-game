@@ -54,7 +54,7 @@ export class DeviceRig {
     if (def.charges === 0) return '∞';
     return `${this.charges.get(d)?.n ?? 0}/${def.charges}`;
   }
-  update() {
+  update(dt = 1 / 60) {
     const now = performance.now();
     for (const [id, c] of this.charges) {
       const def = DEVICES[id];
@@ -62,9 +62,14 @@ export class DeviceRig {
     }
     for (let i = this.tracers.length - 1; i >= 0; i--) {
       const t = this.tracers[i];
-      t.ttl -= 16;
+      t.ttl -= dt * 1000;
       (t.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, t.ttl / t.max) * 0.85;
-      if (t.ttl <= 0) { this.group.remove(t.mesh); this.tracers.splice(i, 1); }
+      if (t.ttl <= 0) {
+        this.group.remove(t.mesh);
+        t.mesh.geometry.dispose();
+        (t.mesh.material as THREE.Material).dispose();
+        this.tracers.splice(i, 1);
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 // Remote player avatars, enemies, and their VFX (telegraph flash, freeze tint,
 // downed beacons). All positions come from server snapshots and are interpolated.
 import * as THREE from 'three';
+import { disposeObject } from './render/dispose';
 import type { EnemySnap, PlayerSnap } from '../shared/messages';
 import { PALETTE } from '../shared/palette';
 import { textSprite } from './world';
@@ -145,7 +146,7 @@ class PeerAvatar {
     this.interp.push(snap.p, snap.yaw);
   }
 
-  dispose() { this.lights.unregister(this.dl); }
+  dispose() { this.lights.unregister(this.dl); disposeObject(this.group); }
 
   apply(snap: PlayerSnap) {
     this.interp.push(snap.p, snap.yaw);
@@ -157,7 +158,7 @@ class PeerAvatar {
   }
 
   say(text: string) {
-    if (this.bubble) this.group.remove(this.bubble);
+    if (this.bubble) { this.group.remove(this.bubble); disposeObject(this.bubble); }
     this.bubble = bubbleSprite(text);
     this.bubble.position.y = 2.6;
     this.group.add(this.bubble);
@@ -204,6 +205,7 @@ class PeerAvatar {
     if (this.downed) this.dl.pos.copy(this.group.position).setY(this.group.position.y + 0.5);
     if (this.bubble && performance.now() > this.bubbleUntil) {
       this.group.remove(this.bubble);
+      disposeObject(this.bubble);
       this.bubble = undefined;
     }
   }
@@ -306,8 +308,8 @@ export class Peers {
 
 // ---------- ping markers ("look here") ----------
 export class Pings {
-  private list: { group: THREE.Group; until: number; ring: THREE.Mesh }[] = [];
-  constructor(private scene: THREE.Scene) {}
+  private list: { group: THREE.Group; until: number; ring: THREE.Mesh; lh: LightHandle }[] = [];
+  constructor(private scene: THREE.Scene, private lights: DynamicLights) {}
   add(pos: [number, number, number], accent: string) {
     const g = new THREE.Group();
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 8, 28),
@@ -316,19 +318,22 @@ export class Pings {
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.16, 5, 8, 1, true),
       new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
     beam.position.y = 2.5;
-    const light = new THREE.PointLight(accent, 2, 8);
-    light.position.y = 1;
-    g.add(ring, beam, light);
+    // pooled light: adding a real PointLight changes the light count, which forces
+    // three to recompile every lit material (a visible hitch per ping)
+    const lh = this.lights.register(accent, { intensity: 2, range: 8, priority: 3 });
+    lh.pos.set(pos[0], pos[1] + 1, pos[2]);
+    g.add(ring, beam);
     g.position.set(...pos);
     this.scene.add(g);
-    this.list.push({ group: g, until: performance.now() + 4000, ring });
+    this.list.push({ group: g, until: performance.now() + 4000, ring, lh });
   }
   update(dt: number) {
     const now = performance.now();
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
       const left = (p.until - now) / 4000;
-      if (left <= 0) { this.scene.remove(p.group); this.list.splice(i, 1); continue; }
+      if (left <= 0) { this.drop(p); this.list.splice(i, 1); continue; }
+      p.lh.intensity = 2 * Math.min(1, left * 2);
       p.ring.scale.setScalar(1 + Math.sin(now * 0.008) * 0.18);
       p.group.children.forEach((c) => {
         const m = (c as THREE.Mesh).material as THREE.Material & { opacity?: number };
@@ -336,7 +341,10 @@ export class Pings {
       });
     }
   }
-  clear() { for (const p of this.list) this.scene.remove(p.group); this.list.length = 0; }
+  private drop(p: { group: THREE.Group; lh: LightHandle }) {
+    this.scene.remove(p.group); disposeObject(p.group); this.lights.unregister(p.lh);
+  }
+  clear() { for (const p of this.list) this.drop(p); this.list.length = 0; }
 }
 
 // ---------- echo ghosts (Echo Core skill) ----------
@@ -361,10 +369,10 @@ export class Echoes {
       m.position.set(s.echo[0], s.echo[1] + 0.85, s.echo[2]);
     }
     for (const [id, m] of this.map) {
-      if (!seen.has(id)) { this.scene.remove(m); this.map.delete(id); }
+      if (!seen.has(id)) { this.scene.remove(m); disposeObject(m); this.map.delete(id); }
     }
   }
-  clear() { for (const [id, m] of this.map) { this.scene.remove(m); this.map.delete(id); } }
+  clear() { for (const [id, m] of this.map) { this.scene.remove(m); disposeObject(m); this.map.delete(id); } }
 }
 
 // ---------- enemies ----------
@@ -545,7 +553,7 @@ class EnemyVis {
     this.interp.push(snap.p, snap.yaw);
   }
 
-  dispose() { this.lights.unregister(this.lh); }
+  dispose() { this.lights.unregister(this.lh); disposeObject(this.group); }
 
   apply(snap: EnemySnap) {
     this.interp.push(snap.p, snap.yaw);

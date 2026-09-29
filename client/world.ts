@@ -11,6 +11,7 @@ import { PALETTE } from '../shared/palette';
 import { Interpolator } from './interp';
 import type { DynamicLights, LightHandle } from './render/lights';
 import type { HeroFloor } from './render/renderer';
+import { disposeObject, markShared } from './render/dispose';
 
 export type IState = Record<string, number | boolean>;
 
@@ -64,6 +65,9 @@ export class World {
   }>();
   private interLights = new Map<string, LightHandle>();
   private beamGroup = new THREE.Group();
+  private beamPool: THREE.Mesh[] = [];
+  private beamMats = new Map<string, THREE.MeshBasicMaterial>();
+  private static beamGeo = markShared(new THREE.CylinderGeometry(0.05, 0.05, 1, 6));
   private hazardMats = new Map<string, THREE.MeshStandardMaterial>();
   private placedGroup = new THREE.Group();
   private placedVis = new Map<string, THREE.Group>();
@@ -94,6 +98,7 @@ export class World {
 
   dispose() {
     this.scene.remove(this.group);
+    disposeObject(this.group);
     for (const { lh } of this.portalVis.values()) this.lights.unregister(lh);
     for (const lh of this.interLights.values()) this.lights.unregister(lh);
     for (const lh of this.placedLights.values()) this.lights.unregister(lh);
@@ -133,7 +138,12 @@ export class World {
       this.group.add(mesh);
       if (g.spin && g.collider === false) this.spinners.push({ mesh, rate: g.spin });
       if (g.door) this.doors.push({ mesh, baseY: g.pos[1], height: g.size[1], t: 0, open: false });
-      else if (g.activeWhen) this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1 });
+      else if (g.activeWhen) {
+        // own material: the fade writes opacity, and cached materials are shared by
+        // every mesh with the same look (fading one barrier would hide the others)
+        mesh.material = mat.clone();
+        this.actives.push({ mesh, expr: g.activeWhen, on: true, t: 1 });
+      }
       else this.staticMeshes.push(mesh);
     });
     for (const it of this.level.interactables ?? []) this.buildInteractable(it);
@@ -444,7 +454,7 @@ export class World {
   /** shard trophies ringing the Nexus pedestal — one gold crystal per shard earned */
   setTrophies(count: number) {
     if (this.level.world !== 'nexus') return;
-    if (this.trophyGroup) this.group.remove(this.trophyGroup);
+    if (this.trophyGroup) { this.group.remove(this.trophyGroup); disposeObject(this.trophyGroup); }
     this.trophyGroup = new THREE.Group();
     const n = Math.min(count, 12);
     for (let i = 0; i < n; i++) {
@@ -471,6 +481,8 @@ export class World {
     for (const [key, vis] of this.placedVis) {
       if (!want.has(key)) {
         this.placedGroup.remove(vis);
+        disposeObject(vis);
+        (vis.userData.vortex as PortalVortex | undefined)?.material.dispose();
         this.placedVis.delete(key);
         const lh = this.placedLights.get(key);
         if (lh) { this.lights.unregister(lh); this.placedLights.delete(key); }
@@ -723,21 +735,27 @@ export class World {
   }
 
   private updateBeams() {
-    this.beamGroup.clear();
+    // runs every frame: reuse pooled meshes rather than allocating GPU buffers
+    let used = 0;
+    const up = new THREE.Vector3(0, 1, 0);
     const emitters = (this.level.interactables ?? []).filter((i): i is Extract<InteractableDef, { type: 'emitter' }> => i.type === 'emitter');
-    if (!emitters.length) return;
     const receivers = (this.level.interactables ?? []).filter((i): i is Extract<InteractableDef, { type: 'receiver' }> => i.type === 'receiver');
     const addSegment = (a: THREE.Vector3, b: THREE.Vector3, mat: THREE.Material) => {
       const len = a.distanceTo(b);
       if (len < 0.05) return;
-      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, len, 6), mat);
+      let cyl = this.beamPool[used];
+      if (!cyl) { cyl = new THREE.Mesh(World.beamGeo, mat); this.beamPool.push(cyl); this.beamGroup.add(cyl); }
+      used++;
+      cyl.material = mat;
+      cyl.visible = true;
+      cyl.scale.set(1, len, 1);
       cyl.position.copy(a).lerp(b, 0.5);
-      cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-      this.beamGroup.add(cyl);
+      cyl.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
     };
     for (const em of emitters) {
       const color = em.color ?? PALETTE.portalA;
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+      let mat = this.beamMats.get(color);
+      if (!mat) { mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 }); this.beamMats.set(color, mat); }
       const matches = (r: { accepts?: string }) => !r.accepts || !em.color || em.color === r.accepts;
       const o = new THREE.Vector3(...em.pos);
       const d = new THREE.Vector3(...em.dir).normalize();
@@ -765,5 +783,6 @@ export class World {
         }
       }
     }
+    for (let i = used; i < this.beamPool.length; i++) this.beamPool[i].visible = false;
   }
 }

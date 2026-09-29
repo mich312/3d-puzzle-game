@@ -1,5 +1,6 @@
 // THRESHOLD client entry: wires renderer, world, controller, net, HUD, audio.
 import * as THREE from 'three';
+import { disposeObject } from './render/dispose';
 import { Renderer } from './render/renderer';
 import { World } from './world';
 import { PlayerController } from './player';
@@ -92,7 +93,7 @@ function start(name: string) {
   peers = new Peers(renderer.scene, () => playerId, renderer.lights);
   enemies = new Enemies(renderer.scene, renderer.lights);
   echoes = new Echoes(renderer.scene);
-  pings = new Pings(renderer.scene);
+  pings = new Pings(renderer.scene, renderer.lights);
   particles = new Particles(renderer.scene);
   projectiles = new Projectiles(renderer.scene, particles, renderer.lights);
   projectiles.setQuality(renderer.q.projectileLights);
@@ -142,6 +143,7 @@ function handleMsg(msg: ServerMsg) {
     }
     case 'joined': {
       const s = msg.snapshot;
+      resetLocalActions();
       world?.dispose();
       enemies.clear();
       peers.clear();
@@ -387,6 +389,9 @@ function bindInput() {
 
   document.addEventListener('keydown', (e) => {
     if (hud.chatOpen) return;
+    // OS key auto-repeat would re-send one-shot actions ~30x/s: holding E restarted the
+    // revive timer every repeat (revives never finished) and flip-flopped levers/grabs
+    if (e.repeat) return;
     if (e.code === 'Enter' && started && !hud.panelOpen) { hud.openChat(); e.preventDefault(); return; }
     if (hud.panelOpen && e.code !== 'Escape') return;
     switch (e.code) {
@@ -410,7 +415,7 @@ function bindInput() {
     }
   });
   document.addEventListener('keyup', (e) => {
-    if (e.code === 'KeyE' && revivingId) { net.send({ t: 'revive_cancel', v: 1 }); revivingId = null; }
+    if (e.code === 'KeyE') cancelRevive();
     if (e.code === 'KeyV' && world) world.phaseSight = false;
   });
 
@@ -420,12 +425,15 @@ function bindInput() {
     else if (e.button === 1) { e.preventDefault(); onPing(); }
     else if (e.button === 2) onSecondaryDown();
   });
-  canvas.addEventListener('mouseup', (e) => {
+  // document-level: releasing over the menu (after Esc unlocks the pointer) must still
+  // end a held tractor/charge
+  document.addEventListener('mouseup', (e) => {
     if (e.button === 0) onPrimaryUp();
   });
+  addEventListener('blur', () => { onPrimaryUp(); cancelRevive(); });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   addEventListener('wheel', (e) => {
-    if (document.pointerLockElement !== canvas || rig.owned.length < 2) return;
+    if (document.pointerLockElement !== canvas || rig.owned.length < 2 || hud.chatOpen || hud.panelOpen) return;
     const i = rig.owned.indexOf(rig.equipped);
     const next = rig.owned[(i + (e.deltaY > 0 ? 1 : rig.owned.length - 1)) % rig.owned.length];
     rig.equipped = next;
@@ -477,6 +485,16 @@ function pickBodyOnRay(range: number): { id: string; point: Vec3 } | null {
 }
 
 let chargeHeld = false;
+function cancelRevive() {
+  if (revivingId) { net.send({ t: 'revive_cancel', v: 1 }); revivingId = null; }
+}
+/** drop every held/in-progress local action — on level change, reconnect or reset */
+function resetLocalActions() {
+  chargeHeld = false;
+  if (rig.tractorActive) { rig.tractorActive = false; rig.tractorTarget = undefined; }
+  revivingId = null;
+  carryingLocal = null;
+}
 function onPrimaryDown() {
   const dev = rig.equipped;
   if (dev === 'pulse' && profile.skills.includes('charged-pulse')) {
@@ -678,7 +696,7 @@ function loop(t: number) {
   enemies.update(dt);
   pings.update(dt);
   projectiles.update(dt);
-  rig.update();
+  rig.update(dt);
 
   // viewmodel + particles
   viewmodel.setDevice(rig.equipped);
@@ -739,7 +757,7 @@ let circuitNext = -1;         // -1 idle, 0..n racing
 let circuitStart = 0;
 
 function setupCircuit() {
-  if (circuitGroup) { renderer.scene.remove(circuitGroup); circuitGroup = null; circuitRings = []; }
+  if (circuitGroup) { renderer.scene.remove(circuitGroup); disposeObject(circuitGroup); circuitGroup = null; circuitRings = []; }
   circuitNext = -1;
   if (levelDef?.world !== 'nexus') return;
   circuitGroup = new THREE.Group();

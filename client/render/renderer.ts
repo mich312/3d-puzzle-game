@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { WORLD_PALETTES } from '../../shared/palette';
 import { makeSky } from './sky';
+import { disposeObject } from './dispose';
 import { DynamicLights } from './lights';
 import { makeReflectiveFloor, type ReflectiveFloor } from './reflector';
 import { QUALITY, autoQuality, type QualityTier, type QualitySpec } from './quality';
@@ -69,6 +70,7 @@ export class Renderer {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.gl.setSize(innerWidth, innerHeight);
+      this.composer.setPixelRatio(this.gl.getPixelRatio());
       this.composer.setSize(innerWidth, innerHeight);
     });
   }
@@ -79,6 +81,9 @@ export class Renderer {
     this.q = QUALITY[tier];
     localStorage.setItem('t-quality', tier);
     this.gl.setPixelRatio(Math.min(devicePixelRatio, this.q.pixelRatioCap));
+    // the composer caches the pixel ratio it was built with; keep its targets in step
+    this.composer.setPixelRatio(this.gl.getPixelRatio());
+    this.composer.setSize(innerWidth, innerHeight);
     this.key.shadow.mapSize.set(this.q.shadowMap, this.q.shadowMap);
     this.key.shadow.map?.dispose();
     this.key.shadow.map = null as unknown as THREE.WebGLRenderTarget;
@@ -93,7 +98,7 @@ export class Renderer {
     const p = WORLD_PALETTES[world] ?? WORLD_PALETTES.nexus;
     this.scene.background = new THREE.Color(p.sky);
     this.scene.fog = new THREE.FogExp2(p.fog, p.fogDensity);
-    if (this.sky) this.scene.remove(this.sky);
+    if (this.sky) { this.scene.remove(this.sky); disposeObject(this.sky); }
     this.sky = makeSky(world);
     this.scene.add(this.sky);
     this.hemi.color.set(p.hemiSky);

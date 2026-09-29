@@ -2,6 +2,7 @@
 // tiling *material* normals — stone grain, brushed metal, worn wood — no asset files.
 import * as THREE from 'three';
 import type { MaterialRole } from '../../shared/level';
+import { markShared } from './dispose';
 
 const cache = new Map<string, THREE.MeshStandardMaterial>();
 const texCache = new Map<string, { map: THREE.Texture; normal: THREE.Texture; rough: THREE.Texture }>();
@@ -143,6 +144,7 @@ function buildTextures(role: MaterialRole) {
     const t = new THREE.CanvasTexture(canvas);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    markShared(t);
     t.anisotropy = 16;                 // max the GPU allows (three clamps to hw limit)
     t.minFilter = THREE.LinearMipmapLinearFilter;
     t.generateMipmaps = true;
@@ -175,7 +177,7 @@ export function getMaterial(role: MaterialRole, colorOverride?: string, emissive
     mat.emissiveIntensity = emissiveIntensity;
   }
   if (role === 'crystal') { mat.transparent = true; mat.opacity = 0.92; }
-  cache.set(key, mat);
+  cache.set(key, markShared(mat));
   return mat;
 }
 

@@ -3,6 +3,12 @@ import type { ClientMsg, ServerMsg } from '../shared/messages';
 
 type Handler = (msg: ServerMsg) => void;
 
+// Only profile-level messages survive a disconnect. In-world actions (fire, interact,
+// grab, tractor, reset...) are positional and instance-scoped — replaying them on
+// reconnect would act on stale positions, possibly in a different instance.
+const QUEUEABLE = new Set<ClientMsg['t']>(['set_name', 'set_opts', 'equip', 'unlock_skill', 'respec', 'chat']);
+const MAX_QUEUE = 32;
+
 export class Net {
   private ws?: WebSocket;
   private handlers: Handler[] = [];
@@ -43,7 +49,7 @@ export class Net {
 
   send(msg: ClientMsg) {
     if (this.connected && this.ws?.readyState === WebSocket.OPEN) this.sendNow(msg);
-    else if (msg.t !== 'move') this.queue.push(msg);
+    else if (QUEUEABLE.has(msg.t) && this.queue.length < MAX_QUEUE) this.queue.push(msg);
   }
   private sendNow(msg: ClientMsg) { this.ws!.send(JSON.stringify(msg)); }
 }
