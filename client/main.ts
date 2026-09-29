@@ -151,7 +151,7 @@ function handleMsg(msg: ServerMsg) {
       projectiles.clear();
       levelDef = s.level ?? null;
       if (!levelDef) break;
-      world = new World(renderer.scene, levelDef, s.states, renderer.lights);
+      world = new World(renderer.scene, levelDef, s.states, renderer.lights, renderer.quality);
       world.playersPresent = s.players.length;
       world.solved = !!s.solved;
       renderer.setWorld(levelDef.world, world.heroFloor());

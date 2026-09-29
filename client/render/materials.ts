@@ -1,192 +1,199 @@
-// Normal-mapped PBR materials from procedural canvas textures (spec §10):
-// tiling *material* normals — stone grain, brushed metal, worn wood — no asset files.
+// PBR material library from procedural texture sets (spec §10) — no asset files.
+// One cached material per (role, colour, emissive, intensity), shared and marked so
+// disposal skips it. Medium/high tiers add a shader layer on top of MeshStandard:
+//   • macro variation — a world-space, triplanar low-frequency noise that modulates
+//     albedo + roughness so the 4 m texture tile never reads as repeating;
+//   • edge wear — driven by the geometry's `aEdge` attribute (bevel ridge = 1):
+//     lighter chipped stone, bare bright metal, worn wood;
+//   • top-face dust — upward faces pick up a faint, rougher film.
+// Crystal on high is a MeshPhysicalMaterial (clearcoat + iridescence + a parallax
+// "inner cloud" emissive layer that shifts with the view — reads as depth without
+// the cost of a transmission pass).
 import * as THREE from 'three';
 import type { MaterialRole } from '../../shared/level';
 import { markShared } from './dispose';
+import { roleTextures, macroNoise, WORLD_UV_DENSITY, type TexRole } from './textures';
+
+export type MatTier = 'low' | 'medium' | 'high';
+let tier: MatTier = 'high';
+
+/** Set before building a world. Changing tier drops the cache (new worlds rebuild). */
+export function setMaterialTier(t: MatTier) {
+  if (t === tier) return;
+  tier = t;
+  cache.clear();
+}
+export function materialTier(): MatTier { return tier; }
 
 const cache = new Map<string, THREE.MeshStandardMaterial>();
-const texCache = new Map<string, { map: THREE.Texture; normal: THREE.Texture; rough: THREE.Texture }>();
 
-function makeCanvas(n = 256): [HTMLCanvasElement, CanvasRenderingContext2D] {
-  const c = document.createElement('canvas');
-  c.width = c.height = n;
-  return [c, c.getContext('2d')!];
+interface RoleLook {
+  metal: number;           // scalar multiplier on the ORM metalness channel
+  normalScale: number;
+  env: number;             // envMapIntensity for scene IBL
+  macro: number;           // albedo macro-variation amount
+  macroRough: number;
+  wearTint: [number, number, number];
+  wear: number;
+  wearRough: number;       // added to roughness on worn edges (negative = polished)
+  dust: number;
 }
-
-/** Height field → tangent-space normal map. */
-function normalFromHeight(height: Float32Array, n: number, strength: number): HTMLCanvasElement {
-  const [c, ctx] = makeCanvas(n);
-  const img = ctx.createImageData(n, n);
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      const h = (xx: number, yy: number) => height[((yy + n) % n) * n + ((xx + n) % n)];
-      const dx = (h(x + 1, y) - h(x - 1, y)) * strength;
-      const dy = (h(x, y + 1) - h(x, y - 1)) * strength;
-      const inv = 1 / Math.hypot(dx, dy, 1);
-      const i = (y * n + x) * 4;
-      img.data[i] = (-dx * inv * 0.5 + 0.5) * 255;
-      img.data[i + 1] = (-dy * inv * 0.5 + 0.5) * 255;
-      img.data[i + 2] = (inv * 0.5 + 0.5) * 255;
-      img.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return c;
-}
-
-// deterministic value noise
-function noiseField(n: number, seed: number, octaves: number): Float32Array {
-  const rnd = mulberry(seed);
-  const field = new Float32Array(n * n);
-  let amp = 1, scale = 8;
-  for (let o = 0; o < octaves; o++) {
-    const grid = Math.max(2, Math.floor(scale));
-    const g = new Float32Array((grid + 1) * (grid + 1));
-    for (let i = 0; i < g.length; i++) g[i] = rnd();
-    for (let y = 0; y < n; y++) {
-      for (let x = 0; x < n; x++) {
-        const gx = (x / n) * grid, gy = (y / n) * grid;
-        const x0 = Math.floor(gx), y0 = Math.floor(gy);
-        const fx = smooth(gx - x0), fy = smooth(gy - y0);
-        const v =
-          lerp(lerp(g[y0 * (grid + 1) + x0], g[y0 * (grid + 1) + x0 + 1], fx),
-               lerp(g[(y0 + 1) * (grid + 1) + x0], g[(y0 + 1) * (grid + 1) + x0 + 1], fx), fy);
-        field[y * n + x] += v * amp;
-      }
-    }
-    amp *= 0.5; scale *= 2.1;
-  }
-  return field;
-}
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const smooth = (t: number) => t * t * (3 - 2 * t);
-function mulberry(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-interface RoleSpec {
-  base: string; rough: [number, number]; metal: number; seed: number;
-  normalStrength: number; grain: 'noise' | 'brushed' | 'planks' | 'tiles';
-  tint: number; // color variation amount
-}
-const ROLES: Record<MaterialRole, RoleSpec> = {
-  stone:   { base: '#d8d3e0', rough: [0.75, 0.95], metal: 0.0, seed: 11, normalStrength: 2.2, grain: 'noise', tint: 0.08 },
-  tile:    { base: '#cfc9dd', rough: [0.35, 0.7], metal: 0.05, seed: 23, normalStrength: 1.6, grain: 'tiles', tint: 0.05 },
-  metal:   { base: '#9d99b0', rough: [0.25, 0.5], metal: 0.85, seed: 37, normalStrength: 1.0, grain: 'brushed', tint: 0.04 },
-  wood:    { base: '#8a6f5c', rough: [0.55, 0.8], metal: 0.0, seed: 51, normalStrength: 1.8, grain: 'planks', tint: 0.1 },
-  crystal: { base: '#bfc4ff', rough: [0.05, 0.25], metal: 0.1, seed: 67, normalStrength: 0.8, grain: 'noise', tint: 0.06 },
-  accent:  { base: '#ffd98a', rough: [0.4, 0.6], metal: 0.2, seed: 71, normalStrength: 1.2, grain: 'noise', tint: 0.05 },
-  void:    { base: '#14121f', rough: [0.9, 1.0], metal: 0.0, seed: 83, normalStrength: 0.5, grain: 'noise', tint: 0.02 },
+const LOOK: Record<TexRole, RoleLook> = {
+  stone:   { metal: 0, normalScale: 1.1, env: 0.7, macro: 0.32, macroRough: 0.12, wearTint: [1.22, 1.2, 1.18], wear: 0.8, wearRough: -0.05, dust: 0.18 },
+  tile:    { metal: 0, normalScale: 0.9, env: 1.0, macro: 0.18, macroRough: 0.18, wearTint: [1.12, 1.12, 1.1], wear: 0.6, wearRough: 0.18, dust: 0.1 },
+  metal:   { metal: 1, normalScale: 0.9, env: 1.0, macro: 0.2, macroRough: 0.2, wearTint: [1.45, 1.42, 1.4], wear: 0.9, wearRough: -0.2, dust: 0.12 },
+  wood:    { metal: 0, normalScale: 1.0, env: 0.55, macro: 0.25, macroRough: 0.1, wearTint: [1.3, 1.22, 1.12], wear: 0.7, wearRough: 0.05, dust: 0.1 },
+  crystal: { metal: 0, normalScale: 0.5, env: 1.4, macro: 0.1, macroRough: 0.05, wearTint: [1.15, 1.15, 1.2], wear: 0.5, wearRough: -0.02, dust: 0 },
+  accent:  { metal: 1, normalScale: 0.8, env: 1.1, macro: 0.12, macroRough: 0.12, wearTint: [1.25, 1.2, 1.1], wear: 0.8, wearRough: -0.15, dust: 0 },
+  void:    { metal: 0, normalScale: 0.8, env: 1.2, macro: 0.2, macroRough: 0.3, wearTint: [1.6, 1.4, 1.6], wear: 0.5, wearRough: -0.1, dust: 0 },
+  rock:    { metal: 0, normalScale: 1.2, env: 0.5, macro: 0.4, macroRough: 0.1, wearTint: [1.2, 1.18, 1.15], wear: 0.6, wearRough: 0, dust: 0.25 },
 };
 
-function buildTextures(role: MaterialRole) {
-  if (texCache.has(role)) return texCache.get(role)!;
-  const spec = ROLES[role];
-  const n = 512;                       // HD: 4x the texel density of the old 256
-  let height = noiseField(n, spec.seed, 4);
-
-  const sc = n / 256;                  // keep pattern scale constant as resolution grows
-  if (spec.grain === 'brushed') {
-    const step = Math.round(6 * sc);
-    const h2 = new Float32Array(n * n);
-    for (let y = 0; y < n; y++)
-      for (let x = 0; x < n; x++)
-        h2[y * n + x] = height[y * n + Math.floor(x / step) * step] * 0.3 + Math.sin(y * 0.9 / sc + height[y * n + x] * 6) * 0.06;
-    height = h2;
-  } else if (spec.grain === 'planks') {
-    const pw = 42 * sc;
-    for (let y = 0; y < n; y++)
-      for (let x = 0; x < n; x++) {
-        const plank = Math.floor(y / pw);
-        const edge = Math.min(1, Math.abs((y % pw) - pw / 2) / (4 * sc));
-        height[y * n + x] = height[y * n + x] * 0.5 + edge * 0.4 + (plank % 2) * 0.05 + Math.sin(x * 0.35 / sc + plank * 9) * 0.04;
-      }
-  } else if (spec.grain === 'tiles') {
-    const tw = 64 * sc, half = tw / 2;
-    for (let y = 0; y < n; y++)
-      for (let x = 0; x < n; x++) {
-        const gx = Math.abs((x % tw) - half) / half, gy = Math.abs((y % tw) - half) / half;
-        const groove = Math.min(1, Math.min(gx, gy) * 10);
-        height[y * n + x] = height[y * n + x] * 0.35 + groove * 0.6;
-      }
-  }
-
-  // albedo: base colour with tint variation from height
-  const [c, ctx] = makeCanvas(n);
-  const base = new THREE.Color(spec.base);
-  const img = ctx.createImageData(n, n);
-  for (let i = 0; i < n * n; i++) {
-    const v = 1 - spec.tint + height[i] * spec.tint * 2 * 0.9;
-    img.data[i * 4] = Math.min(255, base.r * 255 * v);
-    img.data[i * 4 + 1] = Math.min(255, base.g * 255 * v);
-    img.data[i * 4 + 2] = Math.min(255, base.b * 255 * v);
-    img.data[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-
-  // roughness map from inverted height
-  const [rc, rctx] = makeCanvas(n);
-  const rimg = rctx.createImageData(n, n);
-  for (let i = 0; i < n * n; i++) {
-    const r = lerp(spec.rough[0], spec.rough[1], 1 - Math.min(1, Math.max(0, height[i])));
-    rimg.data[i * 4] = rimg.data[i * 4 + 1] = rimg.data[i * 4 + 2] = r * 255;
-    rimg.data[i * 4 + 3] = 255;
-  }
-  rctx.putImageData(rimg, 0, 0);
-
-  const mk = (canvas: HTMLCanvasElement, srgb = false) => {
-    const t = new THREE.CanvasTexture(canvas);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    markShared(t);
-    t.anisotropy = 16;                 // max the GPU allows (three clamps to hw limit)
-    t.minFilter = THREE.LinearMipmapLinearFilter;
-    t.generateMipmaps = true;
-    return t;
+// ---- shader layer (shared code → one program per material type) ----
+const macroUniform = { value: null as THREE.Texture | null };
+function patchSurface(mat: THREE.MeshStandardMaterial, look: RoleLook, crystal: boolean) {
+  const u = {
+    uMacro: macroUniform,
+    uMacroAmt: { value: look.macro },
+    uMacroRough: { value: look.macroRough },
+    uWearTint: { value: new THREE.Vector3(...look.wearTint) },
+    uWearAmt: { value: look.wear },
+    uWearRough: { value: look.wearRough },
+    uDust: { value: look.dust },
+    uInner: { value: crystal ? 1 : 0 },
   };
-  const out = {
-    map: mk(c, true),
-    normal: mk(normalFromHeight(height, n, spec.normalStrength)),
-    rough: mk(rc),
+  mat.userData.surface = u;
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        attribute float aEdge;
+        varying float vEdge;
+        varying vec3 vWPos;
+        varying vec3 vWNrm;`)
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        vEdge = aEdge;
+        vec4 tWPos = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          tWPos = instanceMatrix * tWPos;
+        #endif
+        vWPos = (modelMatrix * tWPos).xyz;
+        vWNrm = normalize(mat3(modelMatrix) * objectNormal);`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform sampler2D uMacro;
+        uniform float uMacroAmt, uMacroRough, uWearAmt, uWearRough, uDust, uInner;
+        uniform vec3 uWearTint;
+        varying float vEdge;
+        varying vec3 vWPos;
+        varying vec3 vWNrm;
+        float sMacro; float sWear; float sDust;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+          vec3 bw = pow(abs(vWNrm), vec3(4.0)); bw /= (bw.x + bw.y + bw.z + 1e-4);
+          vec3 p = vWPos * 0.045;
+          float m = texture2D(uMacro, p.zy).r * bw.x + texture2D(uMacro, p.xz).r * bw.y + texture2D(uMacro, p.xy).r * bw.z;
+          vec3 q = vWPos * 0.16;
+          float m2 = texture2D(uMacro, q.zy + 0.37).g * bw.x + texture2D(uMacro, q.xz + 0.37).g * bw.y + texture2D(uMacro, q.xy + 0.37).g * bw.z;
+          sMacro = (m - 0.5) * 1.4 + (m2 - 0.5) * 0.6;
+          diffuseColor.rgb *= 1.0 + sMacro * uMacroAmt;
+          // edge wear: bevel ridge x chipped noise mask
+          vec3 w = vWPos * 1.7;
+          float chipN = texture2D(uMacro, w.zy).b * bw.x + texture2D(uMacro, w.xz).b * bw.y + texture2D(uMacro, w.xy).b * bw.z;
+          sWear = smoothstep(0.15, 0.9, vEdge) * smoothstep(0.35, 0.6, chipN + vEdge * 0.25);
+          diffuseColor.rgb = mix(diffuseColor.rgb, min(diffuseColor.rgb * uWearTint, vec3(1.0)), sWear * uWearAmt);
+          // dust film on up-facing surfaces, broken up by the macro noise
+          sDust = smoothstep(0.55, 0.95, vWNrm.y) * smoothstep(0.35, 0.75, m2) * uDust;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.33))) * 1.12, sDust);
+        }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(roughnessFactor + sMacro * uMacroRough + sWear * uWearRough + sDust * 0.35, 0.04, 1.0);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (uInner > 0.5) {
+          // parallax inner cloud: sample the noise BEHIND the surface along the view
+          // ray so the glow drifts against the facets as the camera moves
+          vec3 V = normalize(cameraPosition - vWPos);
+          vec3 d1 = (vWPos - V * 0.35) * 0.9, d2 = (vWPos - V * 0.8) * 0.55;
+          float c1 = texture2D(uMacro, d1.xz + d1.y * 0.31).g;
+          float c2 = texture2D(uMacro, d2.zy + d2.x * 0.27).r;
+          float inner = smoothstep(0.35, 0.8, c1 * 0.6 + c2 * 0.6);
+          float fres = pow(1.0 - clamp(dot(V, normalize(vWNrm)), 0.0, 1.0), 3.0);
+          totalEmissiveRadiance *= 0.55 + inner * 0.9;
+          totalEmissiveRadiance += diffuseColor.rgb * (inner * 0.05 + fres * 0.12);
+        }`);
   };
-  texCache.set(role, out);
-  return out;
 }
 
-export function getMaterial(role: MaterialRole, colorOverride?: string, emissive?: string, emissiveIntensity = 1): THREE.MeshStandardMaterial {
+export function getMaterial(role: TexRole, colorOverride?: string, emissive?: string, emissiveIntensity = 1): THREE.MeshStandardMaterial {
   const key = `${role}|${colorOverride ?? ''}|${emissive ?? ''}|${emissiveIntensity}`;
-  if (cache.has(key)) return cache.get(key)!;
-  const spec = ROLES[role];
-  const tex = buildTextures(role);
-  const mat = new THREE.MeshStandardMaterial({
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const look = LOOK[role];
+  const res = tier === 'low' ? 256 : 512;
+  const tex = roleTextures(role, res);
+  const physical = role === 'crystal' && tier === 'high';
+  const params: THREE.MeshStandardMaterialParameters = {
     map: tex.map,
     normalMap: tex.normal,
-    roughnessMap: tex.rough,
+    normalScale: new THREE.Vector2(look.normalScale, look.normalScale),
+    roughnessMap: tex.orm,
+    metalnessMap: tex.orm,
+    aoMap: tex.orm,
+    aoMapIntensity: 0.7,
     roughness: 1,
-    metalness: spec.metal,
+    metalness: 1,                     // ORM.b already encodes the role's metalness
+    envMapIntensity: look.env,
     color: colorOverride ? new THREE.Color(colorOverride) : new THREE.Color('#ffffff'),
-  });
+  };
+  let mat: THREE.MeshStandardMaterial;
+  if (physical) {
+    mat = new THREE.MeshPhysicalMaterial({
+      ...params,
+      clearcoat: 1, clearcoatRoughness: 0.08,
+      iridescence: 0.55, iridescenceIOR: 1.35, iridescenceThicknessRange: [180, 520],
+      specularIntensity: 1, ior: 1.6,
+    });
+  } else {
+    mat = new THREE.MeshStandardMaterial(params);
+  }
   if (emissive) {
     mat.emissive = new THREE.Color(emissive);
     mat.emissiveIntensity = emissiveIntensity;
+    // crystals/void glow through their vein mask instead of as a flat slab
+    if (tex.glow) mat.emissiveMap = tex.glow;
   }
-  if (role === 'crystal') { mat.transparent = true; mat.opacity = 0.92; }
+  if (role === 'crystal') {
+    // darker body so the glow + reflections carry the look (a bright albedo PLUS
+    // emissive is what used to bloom into white slabs)
+    mat.color.multiplyScalar(emissive ? 0.55 : 0.85);
+  }
+  if (tier !== 'low') {
+    macroUniform.value = macroNoise();
+    patchSurface(mat, look, role === 'crystal' && tier === 'high');
+  }
   cache.set(key, markShared(mat));
   return mat;
 }
 
-/** World-scale UV tiling so textures don't stretch across large slabs. */
+/**
+ * Emissive budget for a piece of geometry: small accents may glow hot (bloom),
+ * large surfaces stay under the bloom threshold so they never blow out to white.
+ */
+export function emissiveCap(size: [number, number, number], shape: 'box' | 'cylinder', role: MaterialRole): number {
+  const dims = shape === 'cylinder' ? [size[0] * 2, size[1], size[0] * 2] : size;
+  const s = [...dims].sort((a, b) => b - a);
+  const area = s[0] * s[1];              // largest face-ish area
+  // 0.25 m² → 2.2 · 4 m² → 1.0 · 16 m²+ → 0.6
+  const cap = THREE.MathUtils.clamp(2.2 - Math.log2(Math.max(area, 0.25) / 0.25) * 0.3, 0.6, 2.2);
+  return role === 'crystal' || role === 'void' || role === 'accent' ? cap * 1.25 : cap;   // masked by veins / inlays
+}
+
+/** World-scale UV tiling for plain BoxGeometry (kept for external callers). */
 export function applyWorldUV(geometry: THREE.BufferGeometry, size: [number, number, number]) {
   const uv = geometry.getAttribute('uv') as THREE.BufferAttribute | undefined;
   const normal = geometry.getAttribute('normal') as THREE.BufferAttribute | undefined;
   if (!uv || !normal) return;
-  const density = 0.35;
+  const density = WORLD_UV_DENSITY;
   for (let i = 0; i < uv.count; i++) {
     const nx = Math.abs(normal.getX(i)), ny = Math.abs(normal.getY(i));
     let su: number, sv: number;
