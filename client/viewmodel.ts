@@ -15,8 +15,8 @@ export interface ViewmodelOpts {
   speed?: number;         // planar speed (m/s) for bob amplitude
 }
 
-const BASE = new THREE.Vector3(0.2, -0.185, -0.48);
-const SCALE = 0.74;
+const BASE = new THREE.Vector3(0.2, -0.18, -0.48);
+const SCALE = 0.68;
 
 /** critically-damped-ish spring on a scalar */
 class Spring {

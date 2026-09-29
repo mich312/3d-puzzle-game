@@ -209,6 +209,11 @@ for (; simT < SIM_T; simT += STEP) for (const f of tick) f(STEP, simT);
 function frame() {
   if (customRender) customRender(); else composer.render();
 }
+gl.info.autoReset = false;
+gl.info.reset();
+{ const cr = customRender as (() => void) | null; if (cr) cr(); else gl.render(scene, camera); }
+label.textContent += `\n${gl.info.render.calls} draw calls · ${(gl.info.render.triangles / 1000).toFixed(1)}k tris (scene pass, incl. ground)`;
+gl.info.autoReset = true;
 frame();
 requestAnimationFrame(() => { frame(); (window as unknown as { __galleryReady: boolean }).__galleryReady = true; });
 if (!qs.has('still')) {
