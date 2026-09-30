@@ -9,6 +9,11 @@
   "players": { "min": 1, "max": 4 },
   "requiresDevice": [],
   "intro": "The lever wakes the gate. The Pulse wakes everything else.",
+  "objectives": [
+    { "text": "Pull the lever to open the gate", "done": "lever1.state==1" },
+    { "text": "Shoot the switch across the gap with the Pulse (LMB)", "done": "bridgeSwitch.on" },
+    { "text": "Defeat the drifter guarding the Threshold", "done": "d1.down" }
+  ],
   "fog": { "color": "#44507a", "density": 0.02 },
   "spawns": { "entry": [0, 1, 4] },
   "checkpoints": [[0, 1, 4], [0, 1, -18]],

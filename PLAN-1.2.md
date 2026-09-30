@@ -21,7 +21,7 @@ Each milestone leaves the game shippable. Gate for every milestone: `typecheck` 
 4. **Reset rule:** any player proposes, a majority confirms within 10 s; a solo
    instance resets immediately. (M2)
 
-## M0 — Safety net (S, ~1–2 days) — do first
+## M0 — Safety net (S, ~1–2 days) — do first — ✅ done
 - GitHub Actions: `npm ci`, `typecheck`, `validate:content`, `build`, then boot
   the server and run `playtest-bot.ts` + `playtest-proving.ts`.
 - Bots stop relying on `THRESHOLD_DEV_UNLOCK`: they log in with seeded guest
@@ -37,7 +37,7 @@ Each milestone leaves the game shippable. Gate for every milestone: `typecheck` 
 
 **Done when:** CI is green on PR #3's branch and red on a deliberately broken commit.
 
-## M1 — First-run bug sweep (S, ~2 days)
+## M1 — First-run bug sweep (S, ~2 days) — ✅ done (objectives authored for atrium-01/02; the rest land with the M4 puzzle rework; `?join=` docs move to M2)
 Confirmed bugs a new player hits in the first minutes:
 - **Respawn ejects to Nexus:** `respawn()` never clears `armedPortals`
   (`server/instances.ts:732`); with spawn ~1 m from the back portal, dying

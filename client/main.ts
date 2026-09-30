@@ -49,6 +49,7 @@ let lastTractorSent = 0;
 let revivingId: string | null = null;
 let blockedHintAt = 0;
 let lastDevBar = 0;
+let lastObjectives = 0;
 let reviveHideTimer: ReturnType<typeof setTimeout> | undefined;
 let started = false;
 // Echo Core: rolling 8s of positions (10 Hz) — sent with T so the ghost replays your run
@@ -109,6 +110,10 @@ function start(name: string) {
   audio.init();
   net = new Net();
   net.onMessage(handleMsg);
+  net.onStatus((st) => {
+    hud.setConnection(st, () => net.takeOver());
+    if (st !== 'online') resetLocalActions();
+  });
   net.connect();
   applySettings();
   bindInput();
@@ -427,9 +432,13 @@ function bindInput() {
   canvas.addEventListener('click', () => {
     if (!hud.panelOpen && document.pointerLockElement !== canvas) canvas.requestPointerLock?.();
   });
-  addEventListener('hud-closed', () => { controller.frozen = selfDowned; renderer.canvas.requestPointerLock?.(); });
+  addEventListener('hud-closed', () => {
+    controller.frozen = selfDowned;
+    if (net.status !== 'replaced') renderer.canvas.requestPointerLock?.();
+  });
   document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement !== renderer.canvas && started && !hud.panelOpen) {
+    // a tab paused by a takeover shows only the "play here" panel, not the pause menu
+    if (document.pointerLockElement !== renderer.canvas && started && !hud.panelOpen && net.status !== 'replaced') {
       hud.showMenu(inLevel);
       controller.frozen = true;
     }
@@ -437,6 +446,12 @@ function bindInput() {
 
   document.addEventListener('keydown', (e) => {
     if (hud.chatOpen) return;
+    // keys typed into a field (the title-screen name box, menus) are not game input —
+    // the Enter that submits the title screen used to open chat on the first frame
+    const tgt = e.target as HTMLElement | null;
+    const typing = tgt instanceof HTMLInputElement ? ['text', 'search', 'email', ''].includes(tgt.type)
+      : !!tgt && (tgt.tagName === 'TEXTAREA' || tgt.isContentEditable);
+    if (typing) return;
     // OS key auto-repeat would re-send one-shot actions ~30x/s: holding E restarted the
     // revive timer every repeat (revives never finished) and flip-flopped levers/grabs
     if (e.repeat) return;
@@ -641,7 +656,7 @@ function placePortal(slot: 0 | 1) {
 }
 
 // interact / revive / grab targeting
-interface Focus { kind: 'interact' | 'pickup' | 'socket' | 'revive'; id: string; label: string }
+interface Focus { kind: 'interact' | 'pickup' | 'socket' | 'revive' | 'aim'; id: string; label: string }
 let focus: Focus | null = null;
 
 function scanFocus(): Focus | null {
@@ -669,7 +684,24 @@ function scanFocus(): Focus | null {
       best = { kind: 'socket', id: it.id, label: `<b>E</b> — slot the ${esc(it.accepts)}` }; bestD = d;
     }
   }
-  return best;
+  return best ?? scanAimHint();
+}
+
+/** Nothing in reach: hint when the crosshair rests on an unlit switch within Pulse range
+    (switches are meant to be shot from across a gap, so the E-radius never finds them). */
+function scanAimHint(): Focus | null {
+  if (!world || !rig.owned.includes('pulse')) return null;
+  const { origin, dir } = aim();
+  const o = new THREE.Vector3(...origin), d = new THREE.Vector3(...dir);
+  for (const it of world.interactableDefs()) {
+    if (it.type !== 'switch' || world.states.get(it.id)?.on) continue;
+    const c = world.interactableAt(it.id)?.position ?? new THREE.Vector3(...it.pos);
+    const t = c.clone().sub(o).dot(d);
+    if (t < 0 || t > DEVICES.pulse.range) continue;
+    if (o.clone().addScaledVector(d, t).distanceTo(c) < 0.9)
+      return { kind: 'aim', id: it.id, label: '<b>LMB</b> — pulse the switch' };
+  }
+  return null;
 }
 function esc(s: string) { return s.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!)); }
 
@@ -794,6 +826,12 @@ function loop(t: number) {
 
   // device bar cooldown/charges animate
   if (t - lastDevBar > 250) { lastDevBar = t; refreshDeviceBar(); }
+
+  // objectives checklist (cheap: <= 8 expressions, the HUD diffs)
+  if (t - lastObjectives > 200) {
+    lastObjectives = t;
+    hud.setObjectives(levelDef?.objectives?.map((o) => ({ text: o.text, done: world?.evalSafe(o.done) ?? false })) ?? []);
+  }
 
   // prompts
   focus = scanFocus();

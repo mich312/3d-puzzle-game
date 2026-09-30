@@ -72,6 +72,9 @@ export class Hud {
       <div id="letterbox"><i></i><i></i></div>
       <div id="crosshair"><i class="t t-u"></i><i class="t t-d"></i><i class="t t-l"></i><i class="t t-r"></i><i class="c-dot"></i><div class="hm"><i></i><i></i><i></i><i></i></div></div>
       <div id="levelinfo"><div class="tier" id="li-tier"></div><b id="li-name">…</b><div class="obj" id="li-obj"></div></div>
+      <div id="objectives"></div>
+      <div id="conn"><div class="cn-chip panel"><i class="cn-dot"></i><span class="cn-t"></span></div>
+        <div class="cn-panel panel"><h3>PLAYING IN ANOTHER TAB</h3><p>This profile connected from another tab or device, so this one was paused.</p><button id="cn-take">PLAY HERE INSTEAD</button></div></div>
       <div id="shards"></div>
       <div id="shardcall"></div>
       <div id="roster"></div>
@@ -342,6 +345,7 @@ export class Hud {
     setTimeout(() => input.focus(), 0);
     const close = () => {
       this.chatOpen = false;
+      input.blur();
       box.style.display = 'none';
       input.onkeydown = null;
       dispatchEvent(new CustomEvent('hud-closed'));
@@ -363,6 +367,35 @@ export class Hud {
   }
   /** `text` is trusted markup from main.ts ("<b>E</b> — label", label already escaped) */
   private lastPrompt: string | null = null;
+  private objKey = '';
+  /** ordered checklist: done steps are ticked, the first open step is highlighted */
+  setObjectives(list: { text: string; done: boolean }[]) {
+    const key = list.map((o) => `${o.done ? 1 : 0}${o.text}`).join('|');
+    if (key === this.objKey) return;
+    const prev = this.objKey.split('|');
+    this.objKey = key;
+    const el = this.$('#objectives');
+    const firstOpen = list.findIndex((o) => !o.done);
+    el.innerHTML = list.map((o, i) =>
+      `<div class="ob${o.done ? ' done' : ''}${i === firstOpen ? ' cur' : ''}${o.done && prev[i]?.[0] === '0' ? ' just' : ''}"><i></i><span>${esc(o.text)}</span></div>`).join('');
+    el.style.display = list.length ? 'block' : 'none';
+  }
+
+  private connTake?: () => void;
+  /** connection chip (connecting / reconnecting) and the "another tab took over" panel */
+  setConnection(status: 'connecting' | 'online' | 'reconnecting' | 'replaced', onTakeOver: () => void) {
+    this.connTake = onTakeOver;
+    const el = this.$('#conn');
+    el.dataset.st = status;
+    this.$('#conn .cn-t').textContent = status === 'reconnecting' ? 'Connection lost — reconnecting…' : 'Connecting…';
+    const btn = this.$('#cn-take') as HTMLButtonElement;
+    btn.onclick = () => this.connTake?.();
+    if (status === 'replaced') {
+      for (const id of ['menu', 'loadout']) if (this.$(`#${id}`).style.display === 'block') this.hidePanel(id);
+      document.exitPointerLock?.();
+    }
+  }
+
   prompt(text: string | null) {
     if (text === this.lastPrompt) return;
     this.lastPrompt = text;

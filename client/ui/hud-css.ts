@@ -364,6 +364,37 @@ export const HUD_CSS = `
 .rm #dmgdir .arc.on { animation: cardFade 1.1s linear forwards !important; }
 .rm #crosshair .hm.on { animation: cardFade 0.3s linear forwards !important; }
 @keyframes cardFade { 0% { opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+/* ---------- objectives checklist ---------- */
+#objectives { position: absolute; top: 6.2em; left: 1.6em; display: none; max-width: 24em; font-size: 0.9em; }
+#objectives .ob { display: flex; align-items: baseline; gap: 0.6em; padding: 0.18em 0; color: var(--ink-3); transition: color 0.4s var(--ease), opacity 0.4s var(--ease); }
+#objectives .ob i { flex: none; width: 0.7em; height: 0.7em; border: 1.5px solid currentColor; transform: rotate(45deg) translateY(-1px); transition: background 0.3s var(--ease); }
+#objectives .ob.cur { color: var(--ink); }
+#objectives .ob.cur i { border-color: var(--gold); box-shadow: 0 0 8px rgba(var(--gold-rgb),0.5); }
+#objectives .ob.done { color: var(--ink-3); opacity: 0.7; }
+#objectives .ob.done span { text-decoration: line-through; text-decoration-color: rgba(168,240,198,0.6); }
+#objectives .ob.done i { background: var(--mint); border-color: var(--mint); }
+#objectives .ob.just { animation: obDone 0.9s var(--ease); }
+@keyframes obDone { 0% { color: var(--mint); transform: translateX(4px); } 100% { transform: none; } }
+
+/* ---------- connection status ---------- */
+#conn { position: absolute; inset: 0; pointer-events: none; z-index: 5; }   /* above the menus */
+#conn .cn-chip { position: absolute; top: 1.2em; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 0.6em;
+  padding: 0.45em 1.1em; font-size: 0.88em; border-color: rgba(var(--ember-rgb),0.5) !important; }
+#conn .cn-dot { width: 0.55em; height: 0.55em; border-radius: 50%; background: var(--ember); animation: cnPulse 1s ease-in-out infinite alternate; }
+#conn[data-st="connecting"] .cn-chip { display: flex; opacity: 0; animation: cnShow 0.3s 0.8s forwards; border-color: var(--line-2) !important; }
+#conn[data-st="connecting"] .cn-dot { background: var(--acc); }
+#conn[data-st="reconnecting"] .cn-chip { display: flex; }
+#conn .cn-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; width: min(26em, 86vw); padding: 1.6em 1.8em; text-align: center; pointer-events: auto; }
+#conn[data-st="replaced"] .cn-panel { display: block; }
+#conn .cn-panel h3 { margin: 0 0 0.5em; font-family: var(--f-disp); font-weight: 700; letter-spacing: 0.2em; font-size: 1.05em; color: var(--gold); }
+#conn .cn-panel p { margin: 0 0 1.2em; color: var(--ink-2); line-height: 1.5; font-size: 0.92em; }
+#conn .cn-panel button { font: inherit; font-family: var(--f-disp); font-weight: 600; letter-spacing: 0.16em; font-size: 0.9em; color: #fff; cursor: pointer;
+  padding: 0.6em 1.4em; border-radius: 3px; border: 1px solid var(--acc); background: rgba(var(--acc-rgb),0.16); }
+#conn .cn-panel button:hover { background: rgba(var(--acc-rgb),0.28); }
+#conn .cn-panel button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+@keyframes cnPulse { from { opacity: 0.35; } to { opacity: 1; } }
+@keyframes cnShow { to { opacity: 1; } }   /* shows only if connecting outlasts 0.8 s */
+
 @media (prefers-reduced-motion: reduce) {
   #intro *, #hud * { animation-iteration-count: 1 !important; }
   #intro h1 span, #intro .mark, #intro .rule, #intro p.tag, #intro .in-card, #intro .keys { animation-name: fadeIn !important; }

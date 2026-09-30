@@ -2,6 +2,11 @@
 import type { ClientMsg, ServerMsg } from '../shared/messages';
 
 type Handler = (msg: ServerMsg) => void;
+/** connecting: first attempt · online · reconnecting: lost, retrying with backoff ·
+    replaced: this profile was taken over by another tab/device — no auto-retry */
+export type NetStatus = 'connecting' | 'online' | 'reconnecting' | 'replaced';
+/** server close code when a newer connection takes over this profile's session */
+const CLOSE_REPLACED = 4001;
 
 // Only profile-level messages survive a disconnect. In-world actions (fire, interact,
 // grab, tractor, reset...) are positional and instance-scoped — replaying them on
@@ -14,9 +19,27 @@ export class Net {
   private handlers: Handler[] = [];
   private queue: ClientMsg[] = [];
   private reconnectDelay = 1000;
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private statusHandlers: ((s: NetStatus) => void)[] = [];
+  status: NetStatus = 'connecting';
   connected = false;
 
   onMessage(h: Handler) { this.handlers.push(h); }
+  onStatus(h: (s: NetStatus) => void) { this.statusHandlers.push(h); h(this.status); }
+  private setStatus(s: NetStatus) {
+    if (s === this.status) return;
+    this.status = s;
+    for (const h of this.statusHandlers) h(s);
+  }
+
+  /** reconnect after being replaced (the user chose to play in this tab) or retry now */
+  takeOver() {
+    clearTimeout(this.retryTimer);
+    if (this.ws && this.ws.readyState <= WebSocket.OPEN) return;
+    this.reconnectDelay = 1000;
+    this.setStatus('connecting');
+    this.connect();
+  }
 
   connect() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -24,6 +47,7 @@ export class Net {
     this.ws.onopen = () => {
       this.connected = true;
       this.reconnectDelay = 1000;
+      this.setStatus('online');
       const target = new URLSearchParams(location.search).get('join') ?? undefined;
       this.sendNow({
         t: 'hello', v: 1,
@@ -39,9 +63,13 @@ export class Net {
       if (msg.t === 'welcome') localStorage.setItem('threshold-token', msg.token);
       for (const h of this.handlers) h(msg);
     };
-    this.ws.onclose = () => {
+    this.ws.onclose = (ev) => {
       this.connected = false;
-      setTimeout(() => this.connect(), this.reconnectDelay);
+      // replaced by another tab: reconnecting would kick THAT tab, which would then
+      // kick this one again — two tabs evicting each other every second
+      if (ev.code === CLOSE_REPLACED) { this.queue.length = 0; this.setStatus('replaced'); return; }
+      this.setStatus('reconnecting');
+      this.retryTimer = setTimeout(() => this.connect(), this.reconnectDelay);
       this.reconnectDelay = Math.min(10_000, this.reconnectDelay * 1.6);
     };
     this.ws.onerror = () => this.ws?.close();

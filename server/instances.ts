@@ -734,6 +734,10 @@ export class LevelInstance extends Instance {
     p.pos = [...(cp ?? this.level.spawns['entry'])] as Vec3;
     p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.damageCarry = 0;
     p.ignoreMovesUntil = Date.now() + 500;
+    // the entry spawn sits ~1 m from the back-to-Nexus portal in several levels: a
+    // portal armed before dying would fire on the respawn and eject the player
+    p.armedPortals.clear();
+    p.portalCooldownUntil = Date.now() + 1500;
     this.broadcast({ t: 'respawn', v: 1, id: p.id, p: p.pos });
     this.mgr.store.telemetry(p.profile.token, 'respawn', { level: this.level.id });
   }

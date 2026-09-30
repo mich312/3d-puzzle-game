@@ -433,6 +433,29 @@ async function pairEnter(a: Bot, b: Bot, level: string) {
   await sleep(500);
 }
 
+/** Regression: falling before the first checkpoint respawns at the entry spawn. In
+    atrium-02/03 and vaults-01/03 that spawn is 1.04 m from the back-to-Nexus portal
+    (trigger radius 1.4 m), so a portal armed before dying used to eject the player. */
+async function testFallRespawn() {
+  console.log('\n— TEST 6: falling before the first checkpoint respawns in-level (atrium-03) —');
+  const a = new Bot('BotFall'), b = new Bot('BotFallMate');
+  await a.open(); await b.open();
+  await pairEnter(a, b, 'atrium-03');
+  const spawn = [...a.pos] as Vec3;
+  // tick snaps omit the level def — read geometry from the join message
+  const joined = [...a.msgs].reverse().find((m) => m.t === 'joined' && m.snapshot.levelId === 'atrium-03');
+  const level = joined?.t === 'joined' ? joined.snapshot.level : undefined;
+  if (!level) throw new Error('no level def in joined snapshot');
+  const floor = Math.min(...level.geometry.map((g) => g.pos[1]));
+  await a.walkTo([spawn[0], spawn[1], spawn[2] - 3]);        // >2.2 m from the back portal: arms it
+  const before = a.msgs.filter((m) => m.t === 'respawn' && m.id === a.id).length;
+  await a.walkTo([spawn[0], floor - 12, spawn[2] - 3]);     // below the kill plane
+  await a.until(() => a.msgs.filter((m) => m.t === 'respawn' && m.id === a.id).length > before, 'fall respawn');
+  await sleep(2500);
+  check(a.levelId === 'atrium-03', `fall respawn stays in the level (level=${a.levelId})`);
+  a.close(); b.close();
+}
+
 /** cycle a lever/rotator to a target state by repeated interact */
 async function setState(bot: Bot, id: string, pos: Vec3, target: number) {
   await bot.walkTo([pos[0], pos[1] + 0.6, pos[2] + 1.2]);
@@ -532,6 +555,7 @@ async function provision(a: Bot, b: Bot, level: string, device: string) {
 }
 
 async function audit(name: string, fn: (a: Bot, b: Bot) => Promise<void>) {
+  if (!selected(name)) return;
   console.log(`\n— ${name} —`);
   const a = new Bot(`${name}-A`), b = new Bot(`${name}-B`);
   try {
@@ -637,7 +661,12 @@ async function auditAll() {
   });
 }
 
+/** PLAYTEST_ONLY=name[,name…] runs just those tests/audits (e.g. fall-respawn,vaults-02) */
+const ONLY = (process.env.PLAYTEST_ONLY ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+function selected(name: string) { return !ONLY.length || ONLY.includes(name); }
+
 async function guarded(name: string, fn: () => Promise<void>) {
+  if (!selected(name)) return;
   try { await fn(); } catch (e) { check(false, `${name}: aborted — ${(e as Error).message}`); }
 }
 
@@ -648,6 +677,7 @@ try {
   await guarded('down/revive', testDownRevive);
   await guarded('vaults-01', testFreezeVaults01);
   await guarded('gardens-02', testPortalsGardens02);
+  await guarded('fall-respawn', testFallRespawn);
   await auditAll();
   console.log(failures ? `\n${failures} FAILURES` : '\nALL PLAYTESTS PASSED');
   process.exit(failures ? 1 : 0);

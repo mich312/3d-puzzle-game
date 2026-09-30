@@ -173,3 +173,14 @@ test('level: self-referencing and cyclic doors are rejected', () => {
   );
   assert.ok(validateLevel(cyc).some((e) => e.startsWith('door cycle')), validateLevel(cyc).join('; '));
 });
+
+test('level: objectives are validated like other expressions', () => {
+  const lv = loadLevel('atrium', 'atrium-01');
+  assert.ok((lv.objectives?.length ?? 0) > 0, 'tutorial ships objectives');
+  const bad = structuredClone(lv);
+  bad.objectives = [{ text: '', done: 'lever1.state==1' }, { text: 'ok', done: 'ghost.on' }, { text: 'ok', done: 'a &&' }];
+  const errs = validateLevel(bad);
+  assert.ok(errs.some((e) => e.startsWith('objectives[0]: text')), errs.join('; '));
+  assert.ok(errs.some((e) => e.includes('unknown identifier "ghost.on"')), errs.join('; '));
+  assert.ok(errs.some((e) => e.includes('objectives[2].done: unparseable')), errs.join('; '));
+});
