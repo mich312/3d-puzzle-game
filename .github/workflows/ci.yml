@@ -28,8 +28,9 @@ jobs:
     timeout-minutes: 30
     env:
       PORT: 8080
-      THRESHOLD_DATA_DIR: ${{ runner.temp }}/threshold-data
     steps:
+      # the runner context isn't available in job-level env — export it from a step
+      - run: echo "THRESHOLD_DATA_DIR=$RUNNER_TEMP/threshold-data" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -38,7 +39,7 @@ jobs:
       - run: npm ci
       - name: Start server
         run: |
-          npx tsx server/index.ts > server.log 2>&1 &
+          nohup npx tsx server/index.ts > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/api/health && exit 0; sleep 1; done
           cat server.log; exit 1
       - run: npx tsx tools/playtest-security.ts
