@@ -25,6 +25,7 @@ class Bot {
   state = 'alive';
   snapshot?: InstanceSnapshot;
   levelId?: string;
+  traversals = 0;
   solved = false;
   shards: string[] = [];
   msgs: ServerMsg[] = [];
@@ -60,7 +61,7 @@ class Bot {
       if (m.t === 'downed' && m.id === this.id) this.state = 'downed';
       if (m.t === 'revived' && m.id === this.id) this.state = 'alive';
       if (m.t === 'respawn' && m.id === this.id) { this.state = 'alive'; this.pos = [...m.p] as Vec3; }
-      if (m.t === 'portal_traverse' && m.player === this.id) this.pos = [...m.to] as Vec3;
+      if (m.t === 'portal_traverse' && m.player === this.id) { this.pos = [...m.to] as Vec3; this.traversals++; }
       if (m.t === 'shards') this.shards = m.shards;
     });
     this.mover = setInterval(() => {
@@ -85,12 +86,14 @@ class Bot {
     this.send({ t: 'set_opts', v: 1, difficulty: 'story' });
   }
   /** teleport-free walk: move in small legal steps (server rejects >12m jumps).
-      Aborts if a portal/transfer changes the level mid-walk — the target
-      coordinates belong to the old level. */
+      Aborts if a portal/transfer changes the level or teleports us mid-walk —
+      the target coordinates belong to where we were. */
   async walkTo(p: Vec3) {
-    const startLevel = this.levelId;
+    const startLevel = this.levelId, startTraversals = this.traversals;
     for (let guard = 0; guard < 800; guard++) {
-      if (this.levelId !== startLevel) return;
+      // a portal carried us elsewhere: the target belongs to the old side — stop, or we
+      // walk straight back across and ping-pong through the pair on every cooldown
+      if (this.levelId !== startLevel || this.traversals !== startTraversals) return;
       const dx = p[0] - this.pos[0], dy = p[1] - this.pos[1], dz = p[2] - this.pos[2];
       const d = Math.hypot(dx, dy, dz);
       if (d < 0.4) return;
@@ -365,8 +368,12 @@ async function testPortalsGardens02() {
 
   // clear the sower (stops the adds) then the warden + stragglers.
   // Both bots fight, and strafe between volleys so sower bolts miss.
-  await b.walkTo([-11.6, 1.6, 14]);      // B follows through the portal pair
-  await b.until(() => b.pos[2] < 0, 'B traversal', 8000);
+  await b.walkTo([0, 1, 14]);             // B follows A's route through the portal pair
+  await b.walkTo([-11.6, 1.6, 14]);
+  try { await b.until(() => b.pos[2] < 0, 'B traversal', 8000); } catch (e) {
+    const me = b.snapshot?.players?.find((p) => p.id === b.id);
+    throw new Error(`${(e as Error).message} (bot ${b.pos.map((n) => n.toFixed(1)).join(',')}, server ${me?.p.map((n) => n.toFixed(1)).join(',')} hp=${me?.hp} state=${me?.state})`);
+  }
   for (let i = 0; i < 90; i++) {
     const alive = (a.snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
     if (!alive.length) break;
