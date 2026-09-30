@@ -74,7 +74,7 @@ export function validateClientMsg(raw: unknown): raw is ClientMsg {
     case 'enter_level': return isStr(m.level);
     case 'join_instance': return isStr(m.instanceId);
     case 'leave_level': case 'raise_beacon': case 'lower_beacon': case 'release':
-    case 'respec': case 'revive_cancel': case 'reset_level':
+    case 'respec': case 'revive_cancel': case 'reset_level': case 'cancel_wait':
       return true;
     case 'interact': case 'grab': case 'revive_start':
       return isStr(m.target);
@@ -86,6 +86,7 @@ export function validateClientMsg(raw: unknown): raw is ClientMsg {
     case 'place_portal':
       return (m.slot === 0 || m.slot === 1) && isVec3(m.pos) && isVec3(m.normal) &&
         Math.hypot(...(m.normal as Vec3)) > 1e-6;
+    case 'reset_vote': return isBool(m.yes);
     case 'equip': return isDeviceId(m.device);
     case 'pickup': return isStr(m.itemId);
     case 'use_item': return isStr(m.item) && isStr(m.socketId);

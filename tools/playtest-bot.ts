@@ -31,8 +31,8 @@ class Bot {
   private mover?: ReturnType<typeof setInterval>;
 
   private token: string;
-  constructor(public name: string) {
-    this.token = seededToken(name);
+  constructor(public name: string, opts: { shards?: number } = {}) {
+    this.token = seededToken(name, opts);
     this.ws = new WebSocket(URL);
     this.ws.on('message', (raw) => {
       const m = JSON.parse(String(raw)) as ServerMsg;
@@ -69,7 +69,7 @@ class Bot {
     }, 80);
   }
   send(m: ClientMsg) { this.ws.send(JSON.stringify(m)); }
-  async open() {
+  async open(target?: string) {
     if (this.ws.readyState !== WebSocket.OPEN) {
       await new Promise<void>((res, rej) => {
         this.ws.once('open', res);
@@ -77,7 +77,7 @@ class Bot {
         setTimeout(() => rej(new Error(`${this.name}: ws open timeout`)), 8000);
       });
     }
-    this.send({ t: 'hello', v: 1, name: this.name, token: this.token });
+    this.send({ t: 'hello', v: 1, name: this.name, token: this.token, target });
     await this.until(() => !!this.id, 'welcome');
     await this.until(() => !!this.snapshot, 'joined lobby');
     // Story difficulty (40% incoming damage) — the audit verifies puzzle LOGIC,
@@ -194,7 +194,7 @@ async function testCoopAtrium02() {
   b.send({ t: 'enter_level', v: 1, level: 'atrium-02' });
   await a.until(() => a.levelId === 'atrium-02', 'A enters');
   await b.until(() => b.levelId === 'atrium-02', 'B enters');
-  a.send({ t: 'reset_level', v: 1 });
+  await resetTogether(a, b);
   await sleep(800);
   check((a.snapshot?.players.length ?? 0) === 2, 'both bots share one instance');
 
@@ -244,14 +244,16 @@ async function testDownRevive() {
   console.log('\n— TEST 3: down & revive —');
   const a = new Bot('BotDown');
   const b = new Bot('BotMedic');
-  await a.open(); await b.open();
+  await a.open();
+  await b.open(`@${a.id}`);          // B follows A's invite link: same party
   // this test is ABOUT getting downed, so A takes full (normal) damage again
   a.send({ t: 'set_opts', v: 1, difficulty: 'normal' });
   a.send({ t: 'enter_level', v: 1, level: 'atrium-01' });
   await a.until(() => a.levelId === 'atrium-01', 'A in');
+  // atrium-01 is solo-capable: each player gets a fresh run — a party member joins A's
   b.send({ t: 'enter_level', v: 1, level: 'atrium-01' });
-  await b.until(() => b.levelId === 'atrium-01', 'B in');
-  a.send({ t: 'reset_level', v: 1 });
+  await b.until(() => b.levelId === 'atrium-01' && b.snapshot?.instanceId === a.snapshot?.instanceId, 'B joins A');
+  await resetTogether(a, b);
   await sleep(800);
   // A runs to the drifter courtyard and stands still until downed
   await a.walkTo([2.2, 1, -5]);
@@ -285,7 +287,7 @@ async function testFreezeVaults01() {
   b.send({ t: 'enter_level', v: 1, level: 'vaults-01' });
   await a.until(() => a.levelId === 'vaults-01', 'A enters');
   await b.until(() => b.levelId === 'vaults-01', 'B enters');
-  a.send({ t: 'reset_level', v: 1 });
+  await resetTogether(a, b);
   await sleep(800);
   const gotFreeze = a.msgs.some((m) => m.t === 'devices' && m.devices.includes('freeze'));
   check(gotFreeze, 'Freeze Ray granted on entry');
@@ -345,7 +347,7 @@ async function testPortalsGardens02() {
   b.send({ t: 'enter_level', v: 1, level: 'gardens-02' });
   await a.until(() => a.levelId === 'gardens-02', 'A enters');
   await b.until(() => b.levelId === 'gardens-02', 'B enters');
-  a.send({ t: 'reset_level', v: 1 });
+  await resetTogether(a, b);
   await sleep(800);
   const gotGun = a.msgs.some((m) => m.t === 'devices' && m.devices.includes('portalgun'));
   check(gotGun, 'Portal Device granted on entry');
@@ -433,6 +435,89 @@ async function pairEnter(a: Bot, b: Bot, level: string) {
   await sleep(500);
 }
 
+/** M2 co-op flow: per-group instances, parties, private sessions, beacons vs shard
+    gates, invite links, unique colours, reset vote refusal, cancelling a wait. */
+async function testParties() {
+  console.log('\n— TEST 7: parties, private instances, invites, votes —');
+  const inst = (b: Bot) => b.snapshot?.instanceId ?? '';
+  const [a1, a2, b1, b2] = [new Bot('PartyA1'), new Bot('PartyA2'), new Bot('PartyB1'), new Bot('PartyB2')];
+  for (const b of [a1, a2, b1, b2]) await b.open();
+  // same colour on purpose: the instance must still show them distinctly
+  for (const b of [a1, a2]) b.send({ t: 'set_name', v: 1, name: b.name, accent: '#6ec6ff' });
+  await sleep(300);
+  await pairEnter(a1, a2, 'atrium-02');
+  await pairEnter(b1, b2, 'atrium-02');
+  check(inst(a1) !== '' && inst(a1) === inst(a2), 'pair A shares one instance');
+  check(inst(b1) === inst(b2) && inst(b1) !== inst(a1), 'pair B gets its own instance of the same level');
+  const accents = (a1.snapshot?.players ?? []).map((p) => p.accent);
+  check(accents.length === 2 && accents[0] !== accents[1], `partners get distinct colours (${accents.join(' / ')})`);
+
+  // a party member who steps out walks straight back into the partner's run, no gate
+  const runA = inst(a1);
+  a2.send({ t: 'leave_level', v: 1 });
+  await a2.until(() => a2.snapshot?.kind === 'lobby', 'A2 back in lobby');
+  a2.send({ t: 'enter_level', v: 1, level: 'atrium-02' });
+  await a2.until(() => inst(a2) === runA, 'A2 rejoins partner');
+  check(true, 'party member re-enters the partner\'s instance directly');
+
+  // private by default; a raised beacon opens it — even to a 0-shard stranger in a sealed world
+  const s = new Bot('PartyStranger', { shards: 0 });
+  await s.open();
+  s.send({ t: 'join_instance', v: 1, instanceId: runA });
+  await sleep(800);
+  check(s.snapshot?.kind === 'lobby', 'stranger cannot join a private instance');
+  const o1 = new Bot('PartyObs1'), o2 = new Bot('PartyObs2');
+  await o1.open(); await o2.open();
+  await pairEnter(o1, o2, 'observatory-01');
+  o1.send({ t: 'raise_beacon', v: 1 });
+  await sleep(500);
+  s.send({ t: 'enter_level', v: 1, level: 'observatory-01' });
+  await s.until(() => s.msgs.some((m) => m.t === 'error' && m.code === 'sealed'), 'sealed for 0 shards');
+  check(s.snapshot?.kind === 'lobby', '0-shard player cannot open a sealed level alone');
+  s.send({ t: 'join_instance', v: 1, instanceId: inst(o1) });
+  await s.until(() => inst(s) === inst(o1), 'stranger answers the beacon');
+  check(true, '0-shard player follows a help beacon into a sealed level');
+
+  // invite link: ?join=@<playerId> lands in the inviter's instance
+  const inv = new Bot('PartyInvitee', { shards: 0 });
+  await inv.open(`@${b1.id}`);
+  await inv.until(() => inst(inv) === inst(b1), 'invitee joins inviter');
+  check(true, 'invite link joins the inviter\'s instance');
+
+  // reset vote: a refusal fails it and nothing resets
+  b1.send({ t: 'reset_level', v: 1 });
+  await b1.until(() => b1.msgs.some((m) => m.t === 'reset_vote' && m.state === 'open'), 'vote open');
+  b2.send({ t: 'reset_vote', v: 1, yes: false });
+  inv.send({ t: 'reset_vote', v: 1, yes: false });
+  await b1.until(() => b1.msgs.some((m) => m.t === 'reset_vote' && m.state === 'failed'), 'vote failed');
+  check(!b1.msgs.some((m) => m.t === 'reset_done'), 'refused reset vote fails without resetting');
+
+  // waiting alone at a co-op threshold can be cancelled
+  const w = new Bot('PartyWaiter');
+  await w.open();
+  w.send({ t: 'enter_level', v: 1, level: 'vaults-01' });
+  await w.until(() => w.msgs.some((m) => m.t === 'gate_wait' && !m.cancelled), 'gate wait');
+  w.send({ t: 'cancel_wait', v: 1 });
+  await w.until(() => w.msgs.some((m) => m.t === 'gate_wait' && m.cancelled), 'wait cancelled');
+  await sleep(400);
+  const lastBeacons = [...w.msgs].reverse().find((m) => m.t === 'beacons');
+  const stillListed = lastBeacons?.t === 'beacons' && !!lastBeacons.beacons?.some((bc) => bc.instanceId === 'wait-vaults-01');
+  check(!stillListed, 'cancelled wait is no longer advertised as a beacon');
+  for (const b of [a1, a2, b1, b2, s, o1, o2, inv, w]) b.close();
+}
+
+/** Co-op reset is a vote: A proposes, B agrees, the majority passes it. */
+async function resetTogether(a: Bot, b: Bot) {
+  const passed = () => a.msgs.some((m) => m.t === 'reset_vote' && m.state === 'passed' && !seenVotes.has(m));
+  a.send({ t: 'reset_level', v: 1 });
+  await a.until(() => a.msgs.some((m) => m.t === 'reset_vote' && m.state === 'open' && !seenVotes.has(m)), 'reset vote opened');
+  b.send({ t: 'reset_vote', v: 1, yes: true });
+  await a.until(passed, 'reset vote passed');
+  for (const m of a.msgs) if (m.t === 'reset_vote') seenVotes.add(m);
+  await sleep(400);
+}
+const seenVotes = new WeakSet<object>();
+
 /** Regression: falling before the first checkpoint respawns at the entry spawn. In
     atrium-02/03 and vaults-01/03 that spawn is 1.04 m from the back-to-Nexus portal
     (trigger radius 1.4 m), so a portal armed before dying used to eject the player. */
@@ -493,7 +578,9 @@ async function clearEnemies(bots: Bot[]): Promise<boolean> {
     }
     await sleep(650);
   }
-  return (bots[0].snapshot?.enemies ?? []).every((e) => e.state === 'down');
+  const left = (bots[0].snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
+  if (left.length) console.log(`    enemies left: ${left.map((e) => `${e.id}/${e.type} ${e.state} hp=${e.hp} at ${e.p.map((n) => n.toFixed(1)).join(',')}`).join('; ')} · bot at ${bots[0].pos.map((n) => n.toFixed(1)).join(',')}`);
+  return !left.length;
 }
 
 async function grabBody(bot: Bot, bodyId: string, pos: Vec3) {
@@ -573,7 +660,7 @@ async function auditAll() {
   // atrium-03 — three levers to a posture combo + a mass-2 choir plate (no combat)
   await audit('atrium-03', async (a, b) => {
     await pairEnter(a, b, 'atrium-03');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     await setState(a, 'choirA', [-2, 0.8, -5.4], 2);
     await setState(a, 'choirC', [2, 0.8, -5.4], 1);   // choirB stays 0
     await standOn(a, [0, 0.15, 4]); await standOn(b, [0.6, 0.15, 4]);   // mass 2
@@ -582,7 +669,7 @@ async function auditAll() {
   // vaults-02 — clear, pre-set both rotators, then 2-carry the heavy keystone to its plate
   await audit('vaults-02', async (a, b) => {
     await pairEnter(a, b, 'vaults-02');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     check(await clearEnemies([a, b]), 'vaults-02: enemies cleared');
     await setState(a, 'rotator1', [-6, 0.9, -3], 2);
     await setState(a, 'rotator2', [6, 0.9, -3], 1);
@@ -596,7 +683,7 @@ async function auditAll() {
     await provision(a, b, 'vaults-01', 'freeze');
     a.send({ t: 'equip', v: 1, device: 'freeze' }); b.send({ t: 'equip', v: 1, device: 'freeze' });
     await pairEnter(a, b, 'vaults-03');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     check(await clearEnemies([a, b]), 'vaults-03: enemies cleared');
     await a.walkTo([7, 1, 15]);
     await a.attempt(() => a.send({ t: 'pickup', v: 1, itemId: 'prism' }), () => a.st('prism')?.collected === true, 'take prism');
@@ -616,7 +703,7 @@ async function auditAll() {
   // gardens-01 — grants Tractor: seed-stones onto rising plate-islands + rotate the aim ring
   await audit('gardens-01', async (a, b) => {
     await pairEnter(a, b, 'gardens-01');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     check(await clearEnemies([a, b]), 'gardens-01: enemies cleared');
     await setState(a, 'aimRing', [-12.5, 0.8, 6], 1);
     await grabBody(a, 'seedA', [-3, 0.9, 12.6]); await dropAt([a], [-3, 0.15, 3]);   // plateA
@@ -629,7 +716,7 @@ async function auditAll() {
   // gardens-03 — set the bridge wheel, drop the shutter for the beam, hold the summit plate
   await audit('gardens-03', async (a, b) => {
     await pairEnter(a, b, 'gardens-03');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     check(await clearEnemies([a, b]), 'gardens-03: enemies cleared');
     await setState(a, 'wheel', [6, 1, 6], 2);
     await standOn(a, [5, 6, -4]);                     // shutterPlate → drops shutter for em1→rec1
@@ -639,7 +726,7 @@ async function auditAll() {
   // observatory-01 — orrery alignment threads the beam, then a two-plate sync
   await audit('observatory-01', async (a, b) => {
     await pairEnter(a, b, 'observatory-01');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     await setState(a, 'ringX', [-6, 0.8, 2], 3);
     await setState(a, 'ringY', [0, 0.8, 2], 1);
     await setState(a, 'ringZ', [6, 0.8, 2], 2);
@@ -652,7 +739,7 @@ async function auditAll() {
   await audit('observatory-02', async (a, b) => {
     await provision(a, b, 'gardens-01', 'tractor');   // colossus needs the Tractor
     await pairEnter(a, b, 'observatory-02');
-    a.send({ t: 'reset_level', v: 1 }); await sleep(700);
+    await resetTogether(a, b); await sleep(300);
     check(await clearEnemies([a, b]), 'observatory-02: colossus + wardens down');
     await grabBody(a, 'prismL', [-15, 1.4, 6]); await dropAt([a], [-13, 1, 2]);   // socketL
     await grabBody(b, 'prismR', [15, 1.4, 6]); await dropAt([b], [13, 1, 2]);     // socketR
@@ -678,6 +765,7 @@ try {
   await guarded('vaults-01', testFreezeVaults01);
   await guarded('gardens-02', testPortalsGardens02);
   await guarded('fall-respawn', testFallRespawn);
+  await guarded('parties', testParties);
   await auditAll();
   console.log(failures ? `\n${failures} FAILURES` : '\nALL PLAYTESTS PASSED');
   process.exit(failures ? 1 : 0);

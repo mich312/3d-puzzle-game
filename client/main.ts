@@ -50,6 +50,14 @@ let revivingId: string | null = null;
 let blockedHintAt = 0;
 let lastDevBar = 0;
 let lastObjectives = 0;
+let waitingAt: string | null = null;     // level whose co-op threshold we're queued at
+let voteOpen = false;
+let lastBeacons: NonNullable<Parameters<Hud['setBeacons']>[0]> = [];
+/** beacons minus our own gate-wait (you can't answer your own call for help) */
+function othersBeacons(list: typeof lastBeacons | undefined) {
+  return (list ?? []).filter((b) => !(waitingAt && b.instanceId === `wait-${waitingAt}` && b.present <= 1));
+}                     // a reset vote is running in this instance
+let votedReset = false;                   // … and we already answered / proposed it
 let reviveHideTimer: ReturnType<typeof setTimeout> | undefined;
 let started = false;
 // Echo Core: rolling 8s of positions (10 Hz) — sent with T so the ghost replays your run
@@ -63,7 +71,7 @@ const hud = new Hud({
   onUnlockSkill(s) { net.send({ t: 'unlock_skill', v: 1, skill: s }); },
   onRespec() { net.send({ t: 'respec', v: 1 }); },
   onJoinBeacon(instanceId) { net.send({ t: 'join_instance', v: 1, instanceId }); },
-  onReset() { net.send({ t: 'reset_level', v: 1 }); },
+  onReset() { votedReset = true; net.send({ t: 'reset_level', v: 1 }); },   // proposer counts as a yes
   onLeaveLevel() { net.send({ t: 'leave_level', v: 1 }); },
   onBeacon() { net.send({ t: 'raise_beacon', v: 1 }); audio.play('beacon'); },
   onSettings(s) { applySettings(); },
@@ -154,6 +162,7 @@ function handleMsg(msg: ServerMsg) {
   switch (msg.t) {
     case 'welcome': {
       playerId = msg.playerId;
+      hud.inviteId = msg.playerId;
       Object.assign(profile, msg.profile);
       // restore skill-driven movement abilities on (re)connect — previously these
       // only applied after a fresh 'skills' message, so double jump / dash were
@@ -174,6 +183,11 @@ function handleMsg(msg: ServerMsg) {
     case 'joined': {
       const s = msg.snapshot;
       resetLocalActions();
+      waitingAt = null; voteOpen = false; votedReset = false;
+      hud.voteBanner(null);
+      // the server gives everyone in an instance a distinct colour
+      const meSnap = s.players.find((pl) => pl.id === playerId);
+      if (meSnap?.accent) profile.accent = meSnap.accent;
       world?.dispose();
       enemies.clear();
       peers.clear();
@@ -206,7 +220,8 @@ function handleMsg(msg: ServerMsg) {
       hud.setLevelInfo(levelDef.name, levelDef.world.toUpperCase(),
         inLevel ? levelDef.coop : 'shared lobby — walk into a portal',
         profile.bestTimes[levelDef.id]);
-      hud.setBeacons(s.beacons ?? [], !inLevel);
+      lastBeacons = s.beacons ?? [];
+      hud.setBeacons(othersBeacons(s.beacons), !inLevel);
       if (levelDef.intro) hud.toast(levelDef.intro);
       audio.play('portal-traverse');
       echoPlaced = false;
@@ -228,7 +243,7 @@ function handleMsg(msg: ServerMsg) {
           world.updatePortalLocks(profile.shards.length);
         }
       }
-      if (s.beacons) hud.setBeacons(s.beacons, !inLevel);
+      if (s.beacons) hud.setBeacons(othersBeacons(s.beacons), !inLevel);
       updateRoster(s.players);
       const self = s.players.find((p) => p.id === playerId);
       if (self && Math.abs(self.hp - selfHp) > 0.5 && self.state === 'alive') {
@@ -256,8 +271,27 @@ function handleMsg(msg: ServerMsg) {
       break;
     }
     case 'gate_wait':
-      hud.gateBanner(`${msg.levelName} — waiting at the threshold (${msg.waiting}/${msg.needed}). Bring a partner, or wait for one.`);
-      setTimeout(() => hud.gateBanner(null), 30000);
+      if (msg.cancelled) {
+        waitingAt = null;
+        hud.setBeacons(othersBeacons(lastBeacons), !inLevel);
+        hud.gateBanner(null);
+        hud.toast(`Stopped waiting at ${msg.levelName}.`);
+        break;
+      }
+      // stays up until the gate opens (joined) or the wait is cancelled/expires
+      waitingAt = msg.level;
+      hud.setBeacons(othersBeacons(lastBeacons), !inLevel);
+      hud.gateBanner(`${msg.levelName} — waiting for a partner (${msg.waiting}/${msg.needed}). Your beacon is up in the Nexus; share an invite from the menu.`);
+      break;
+    case 'reset_vote':
+      if (msg.state === 'open') {
+        voteOpen = true;
+        hud.voteBanner({ by: msg.by, yes: msg.yes, needed: msg.needed, mine: msg.by === profile.name && votedReset });
+      } else {
+        voteOpen = false; votedReset = false;
+        hud.voteBanner(null);
+        if (msg.state === 'failed') hud.toast('Reset vote failed — nothing changed.', 'warn');
+      }
       break;
     case 'state_update': {
       if (!world) break;
@@ -395,9 +429,9 @@ function handleMsg(msg: ServerMsg) {
       audio.play('shard');
       break;
     }
-    case 'beacons': hud.setBeacons(msg.beacons ?? [], !inLevel); break;
+    case 'beacons': lastBeacons = msg.beacons ?? []; hud.setBeacons(othersBeacons(lastBeacons), !inLevel); break;
     case 'toast': hud.toast(msg.text, msg.kind); if (msg.kind === 'warn') audio.play('locked'); break;
-    case 'reset_done': hud.toast('Level reset — everything is back where it began.'); break;
+    case 'reset_done': votedReset = false; hud.toast('Level reset — everything is back where it began.'); break;
     case 'error': hud.toast(msg.message, 'warn'); break;
   }
 }
@@ -470,6 +504,10 @@ function bindInput() {
         }
         break;
       case 'KeyV': if (world && profile.skills.includes('phase-sight')) world.phaseSight = true; break;
+      case 'KeyX': if (waitingAt) net.send({ t: 'cancel_wait', v: 1 }); break;
+      case 'KeyY': case 'KeyN':
+        if (voteOpen && !votedReset) { votedReset = true; net.send({ t: 'reset_vote', v: 1, yes: e.code === 'KeyY' }); }
+        break;
       case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': {
         const i = Number(e.code.slice(-1)) - 1;
         if (rig.owned[i]) { rig.equipped = rig.owned[i]; net.send({ t: 'equip', v: 1, device: rig.owned[i] }); refreshDeviceBar(); }

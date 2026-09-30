@@ -56,7 +56,7 @@ Confirmed bugs a new player hits in the first minutes:
 **Done when:** a scripted fresh-profile run (title → atrium-01 → die → solve)
 passes with no ejects, and the new bot tests are in CI.
 
-## M2 — Co-op flow (M, ~1 week)
+## M2 — Co-op flow (M, ~1 week) — ✅ done
 - **Instances per party, not per level.** Today `levels` is keyed by level id
   (`instances.ts:1325`, `:1358`), so one level = one global 4-player room.
   Key by instance id; the portal queue matches a party (or joins an existing

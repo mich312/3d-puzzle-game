@@ -84,6 +84,7 @@ export class Hud {
       <div id="prompt"></div>
       <div id="hint" class="panel"></div>
       <div id="gate" class="panel"></div>
+      <div id="vote" class="panel"></div>
       <div id="chatlog" class="dim"></div>
       <div id="chatinput"><input maxlength="200" placeholder="say something… (Enter to send, Esc to cancel)"/></div>
       <div id="toasts"></div>
@@ -363,8 +364,19 @@ export class Hud {
   gateBanner(text: string | null) {
     const el = this.$('#gate');
     el.style.display = text ? 'block' : 'none';
-    if (text) el.innerHTML = `${icon('players', 16)}${esc(text)}`;
+    if (text) el.innerHTML = `${icon('players', 16)}${esc(text)} <span class="gk"><span class="kc">X</span> stop waiting</span>`;
   }
+  /** open reset vote: who asked, tally, and how to answer (null hides) */
+  voteBanner(v: { by: string; yes: number; needed: number; mine: boolean } | null) {
+    const el = this.$('#vote');
+    el.style.display = v ? 'block' : 'none';
+    if (!v) return;
+    el.innerHTML = `${icon('reset', 16)}<b>${esc(v.by)}</b> wants to reset the level · ${v.yes}/${v.needed}` +
+      (v.mine ? ' <span class="gk">waiting for your partner…</span>'
+        : ' <span class="gk"><span class="kc">Y</span> agree <span class="kc">N</span> decline</span>');
+  }
+  /** player id used for invite links (?join=@id) */
+  inviteId = '';
   /** `text` is trusted markup from main.ts ("<b>E</b> — label", label already escaped) */
   private lastPrompt: string | null = null;
   private objKey = '';
@@ -607,8 +619,9 @@ export class Hud {
     c.querySelectorAll('input').forEach((n) => n.addEventListener('change', upd));
     c.querySelector('#mn-resume')!.addEventListener('click', () => this.hidePanel('menu'));
     c.querySelector('#mn-invite')!.addEventListener('click', () => {
-      navigator.clipboard?.writeText(location.origin + location.pathname);
-      this.toast('Invite link copied — anyone who opens it lands in the shared Nexus.', 'success');
+      const url = location.origin + location.pathname + (this.inviteId ? `?join=@${encodeURIComponent(this.inviteId)}` : '');
+      navigator.clipboard?.writeText(url);
+      this.toast('Invite link copied — whoever opens it joins your party, right where you are.', 'success');
     });
     c.querySelector('#mn-beacon')?.addEventListener('click', () => { this.cb.onBeacon(); this.hidePanel('menu'); });
     c.querySelector('#mn-reset')?.addEventListener('click', () => { this.cb.onReset(); this.hidePanel('menu'); });

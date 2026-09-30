@@ -20,6 +20,12 @@ Open `http://localhost:8080` in a normal window **and** a private window (or sen
 URL to a friend on your network) — each gets its own guest profile and you land in the
 same Nexus. Two normal tabs share one profile, so the second takes over the first.
 
+**Playing together:** Esc → *Copy invite link* gives a `?join=@<you>` URL — whoever opens
+it joins your party, right where you are (even a level beyond their own progress).
+Parties stick together across levels; every group gets its own private run of a level,
+open to others only while a help beacon (Q) is up. Or just walk into a co-op portal and
+wait — anyone else who walks in (or answers your beacon) pairs up with you.
+
 **Development** (client hot-reload on :5173, server on :80, level JSON hot-reload):
 
 ```bash
@@ -64,10 +70,12 @@ gates and the move speed budget. No tooling needs it. **Never set it in producti
 | Enter | chat (instance-scoped; log + speech bubbles) |
 | MMB | ping — drop a "look here" marker for your team |
 | Q | raise a help beacon (visible to everyone in the Nexus) |
+| X | stop waiting at a co-op threshold |
+| Y / N | agree / decline a partner's reset vote |
 | L | loadout: equip devices, spend skill points, check inventory |
 | T | place/recall your Echo (Echo Core skill) |
 | V | Phase Sight (skill) — reveal hidden items |
-| Esc | menu: settings, invite link, reset level, return to Nexus |
+| Esc | menu: settings, invite link, reset level (a vote when others are present), return to Nexus |
 
 **Graphics (auto-scaling Low/Medium/High, set in Esc → menu):** traveling device
 projectiles that fly, cast a dynamic light as they pass, and flash on impact; a

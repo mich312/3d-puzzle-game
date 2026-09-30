@@ -25,7 +25,9 @@ export type ClientMsg =
   | { t: 'unlock_skill'; v: 1; skill: SkillId }
   | { t: 'respec'; v: 1 }
   | { t: 'revive_start'; v: 1; target: string } | { t: 'revive_cancel'; v: 1 }
-  | { t: 'reset_level'; v: 1 }
+  | { t: 'reset_level'; v: 1 }                       // alone: resets now; with others: proposes a vote
+  | { t: 'reset_vote'; v: 1; yes: boolean }           // answer an open reset vote
+  | { t: 'cancel_wait'; v: 1 }                        // stop waiting at a co-op threshold
   | { t: 'chat'; v: 1; text: string }                 // instance-scoped chat (rate-limited, sanitized)
   | { t: 'ping'; v: 1; pos: Vec3 }                    // "look here" world marker
   | { t: 'echo'; v: 1; place: boolean; path?: Vec3[] } // Echo Core: place a stationary echo, or replay a recorded path (10 Hz samples, <=84)
@@ -90,6 +92,7 @@ export type ServerMsg =
   | { t: 'reset_done'; v: 1 }
   | { t: 'chat'; v: 1; from: string; name: string; accent: string; text: string; system?: boolean }
   | { t: 'ping'; v: 1; from: string; accent: string; pos: Vec3 }
-  | { t: 'gate_wait'; v: 1; level: string; levelName: string; waiting: number; needed: number }
+  | { t: 'gate_wait'; v: 1; level: string; levelName: string; waiting: number; needed: number; cancelled?: boolean }
+  | { t: 'reset_vote'; v: 1; state: 'open' | 'passed' | 'failed'; by: string; yes: number; needed: number; endsAt?: number }
   | { t: 'toast'; v: 1; text: string; kind?: 'info' | 'success' | 'warn' }
   | { t: 'error'; v: 1; code: string; message: string };

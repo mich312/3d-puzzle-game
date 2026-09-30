@@ -149,6 +149,11 @@ export const HUD_CSS = `
   background: linear-gradient(90deg, transparent, rgba(10,12,24,0.72) 15%, rgba(10,12,24,0.72) 85%, transparent); border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 #gate { position: absolute; top: 4.6em; left: 50%; transform: translateX(-50%); font-size: 0.92em; padding: 0.55em 1.2em; display: none; border-color: rgba(var(--gold-rgb),0.5) !important; max-width: 80vw; }
 #gate svg { vertical-align: -3px; margin-right: 0.5em; color: var(--gold); }
+#gate .gk, #vote .gk { margin-left: 0.8em; color: var(--ink-2); white-space: nowrap; }
+#gate .kc, #vote .kc { font-size: 0.8em; min-width: 1.5em; height: 1.5em; margin: 0 0.2em 0 0.35em; }
+#vote { position: absolute; top: 8.2em; left: 50%; transform: translateX(-50%); font-size: 0.92em; padding: 0.55em 1.2em; display: none;
+  border-color: rgba(var(--ember-rgb),0.55) !important; max-width: 80vw; animation: fadeIn 0.22s var(--ease); }
+#vote svg { vertical-align: -3px; margin-right: 0.5em; color: var(--ember); }
 #toasts { position: absolute; left: 50%; top: 5.2em; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.4em; align-items: center; width: min(40em, 90vw); }
 #toasts .toast { padding: 0.5em 1.1em 0.5em 0.95em; font-size: 0.92em; line-height: 1.4; text-align: center; border-left: 2px solid var(--acc);
   background: linear-gradient(90deg, rgba(10,12,24,0.86), rgba(10,12,24,0.7)); box-shadow: 0 6px 20px rgba(0,0,0,0.3); animation: toastIn 0.3s var(--ease), toastOut 0.5s ease-in 3.7s forwards; }
