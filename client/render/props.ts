@@ -11,6 +11,8 @@
 //   vaults       ice-crystal clusters at wall bases, pipe runs high on long walls
 //   observatory  brass rings on pillars, small orreries, drifting star motes
 //   nexus/atrium banners on tall pillars, lamp posts on edges, far floating debris
+//                (sky theme: terracotta banners, bronze lamps, and cloud collars
+//                under islands + a cloud ring instead of the debris — clouds.ts)
 import * as THREE from 'three';
 import type { LevelDef, Vec3 } from '../../shared/level';
 import { getMaterial } from './materials';
@@ -18,6 +20,8 @@ import { markShared } from './dispose';
 import { mulberry } from './textures';
 import { finalize, mergeAll, roundedBox, bevelCylinder } from './geometry';
 import { hashStr, type Piece, type Tier } from './levelMesh';
+import { SKY_THEME } from './theme';
+import { buildClouds } from './clouds';
 
 export interface KeepOut { p: Vec3; r: number }
 
@@ -466,9 +470,11 @@ function bannerTexture(base: string, trim: string): THREE.Texture {
 
 function nexusLike(ctx: Ctx, grp: THREE.Group, world: 'nexus' | 'atrium') {
   const rnd = ctx.rnd;
-  const col = world === 'nexus' ? { cloth: '#4a3a78', trim: '#ffd98a', lamp: '#ffd9a0' } : { cloth: '#2f4a7a', trim: '#cfe0ff', lamp: '#cfe4ff' };
+  const col = SKY_THEME
+    ? world === 'nexus' ? { cloth: '#b8643e', trim: '#f0d49a', lamp: '#ffc98a' } : { cloth: '#3a57a0', trim: '#f0d49a', lamp: '#ffd6a0' }
+    : world === 'nexus' ? { cloth: '#4a3a78', trim: '#ffd98a', lamp: '#ffd9a0' } : { cloth: '#2f4a7a', trim: '#cfe0ff', lamp: '#cfe4ff' };
   // banners on tall pillars (face toward the level centre)
-  const bmat = asset(`mat|banner|${world}`, () => {
+  const bmat = asset(`mat|banner|${world}|${col.cloth}`, () => {
     const m = new THREE.MeshStandardMaterial({ map: bannerTexture(col.cloth, col.trim), side: THREE.DoubleSide, roughness: 0.9, alphaTest: 0.5 });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uWind = windU;
@@ -523,9 +529,10 @@ function nexusLike(ctx: Ctx, grp: THREE.Group, world: 'nexus' | 'atrium') {
     add(new THREE.CylinderGeometry(0.075, 0.075, 0.26, 10), glassParts, 2.68);
   }
   const lm = mergeAll(lampParts);
-  if (lm) { const m = new THREE.Mesh(lm, getMaterial('metal', '#3e3a56')); m.castShadow = true; grp.add(m); }
+  if (lm) { const m = new THREE.Mesh(lm, getMaterial('metal', SKY_THEME ? '#e0c8b0' : '#3e3a56')); m.castShadow = true; grp.add(m); }
   const gm = mergeAll(glassParts);
   if (gm) grp.add(new THREE.Mesh(gm, asset(`mat|lamp|${col.lamp}`, () => new THREE.MeshStandardMaterial({ color: col.lamp, emissive: col.lamp, emissiveIntensity: 2.2 }))));
+  if (SKY_THEME) return;   // the cloud ring (clouds.ts) replaces the debris
   // far floating debris around the islands (distance dressing)
   const box = new THREE.Box3();
   for (const p of ctx.statics) box.union(p.box);
@@ -547,11 +554,14 @@ function nexusLike(ctx: Ctx, grp: THREE.Group, world: 'nexus' | 'atrium') {
 export function buildDressing(level: LevelDef, tier: Tier, pieces: Piece[], statics: Piece[], keepOut: KeepOut[]): Dressing {
   const group = new THREE.Group();
   group.name = 'dressing';
-  if (tier === 'low') return { group, update() {} };
   const ctx: Ctx = {
     level, tier, pieces, statics, keepOut, rnd: mulberry(hashStr(level.id) ^ 0x9e3779b9),
     density: tier === 'high' ? 1 : 0.5,
   };
+  // clouds are part of the world's silhouette, so they stay on the low tier too
+  if (SKY_THEME) buildClouds(ctx, group, level.world);
+  const cloudRing = group.getObjectByName('cloudRing');
+  if (tier === 'low') return { group, update(dt) { if (cloudRing) cloudRing.rotation.y += dt * 0.006; } };
   switch (level.world) {
     case 'gardens': gardens(ctx, group); break;
     case 'vaults': vaults(ctx, group); break;
@@ -568,6 +578,7 @@ export function buildDressing(level: LevelDef, tier: Tier, pieces: Piece[], stat
       t += dt;
       windU.value += dt;
       if (debris) debris.rotation.y += dt * 0.004;
+      if (cloudRing) cloudRing.rotation.y += dt * 0.006;
       if (motes) { motes.position.y = Math.sin(t * 0.2) * 0.4; motes.rotation.y += dt * 0.01; }
     },
   };

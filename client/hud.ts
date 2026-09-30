@@ -10,6 +10,7 @@ import type { InstanceSnapshot } from '../shared/messages';
 import { icon, DEVICE_ICON, SKILL_ICON } from './icons';
 import { HUD_CSS } from './ui/hud-css';
 import { startBackdrop, type Backdrop } from './ui/backdrop';
+import { initialPixelScale, type PixelScale } from './render/theme';
 
 export interface HudCallbacks {
   onStart(name: string, accent: string): void;
@@ -27,6 +28,8 @@ export interface HudSettings {
   sensitivity: number; master: number; music: number; sfx: number;
   difficulty: 'normal' | 'story'; reduceMotion: boolean;
   quality: 'low' | 'medium' | 'high';
+  /** render at 1/N with a nearest upscale (0 = off) */
+  pixel: PixelScale;
 }
 
 /** accent choices = the server's player palette: the pick is your in-world colour AND the HUD theme */
@@ -57,6 +60,7 @@ export class Hud {
     difficulty: (lsGet('t-diff') ?? 'normal') as 'normal' | 'story',
     reduceMotion: lsGet('t-motion') === '1',
     quality: (lsGet('t-quality') ?? 'medium') as 'low' | 'medium' | 'high',
+    pixel: initialPixelScale(),
   };
 
   constructor(cb: HudCallbacks) {
@@ -553,6 +557,7 @@ export class Hud {
         `<button type="button" data-v="${o}" class="${o === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     const QNOTE: Record<string, string> = { low: 'Fastest — for integrated GPUs.', medium: 'Reflections and dynamic lights.', high: 'Full effects.' };
     const DNOTE: Record<string, string> = { normal: 'Enemies hit as designed.', story: '60% less damage taken.' };
+    const PNOTE: Record<string, string> = { 0: 'Full resolution.', 2: 'Fine pixels.', 3: 'Classic pixels.', 4: 'Chunky pixels.' };
     c.innerHTML = `
       <div class="mn-grid">
         <div>
@@ -565,6 +570,7 @@ export class Hud {
           <h3>GAMEPLAY &amp; DISPLAY</h3>
           <div class="st-row wide"><span>Combat difficulty</span><div>${seg('st-diff', s.difficulty, [['normal', 'Normal'], ['story', 'Story']])}</div><div class="st-note" id="st-diff-note">${DNOTE[s.difficulty]}</div></div>
           <div class="st-row wide"><span>Graphics quality</span><div>${seg('st-quality', s.quality, [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</div><div class="st-note" id="st-quality-note">${QNOTE[s.quality]}</div></div>
+          <div class="st-row wide"><span>Pixel scale</span><div>${seg('st-px', String(s.pixel), [['0', 'Off'], ['2', '2×'], ['3', '3×'], ['4', '4×']])}</div><div class="st-note" id="st-px-note">${PNOTE[s.pixel]}</div></div>
           <div class="st-row wide"><span>Reduce motion</span><label class="tgl"><input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''} aria-label="Reduce motion"/><span></span></label></div>
         </div>
         <div class="mn-actions">
@@ -593,6 +599,7 @@ export class Hud {
       s.sfx = Number(val('st-sfx'));
       s.difficulty = val('st-diff') as 'normal' | 'story';
       s.quality = val('st-quality') as 'low' | 'medium' | 'high';
+      s.pixel = Number(val('st-px')) as PixelScale;
       s.reduceMotion = (c.querySelector('#st-motion') as HTMLInputElement).checked;
       lsSet('t-sens', String(s.sensitivity));
       lsSet('t-master', String(s.master));
@@ -600,6 +607,7 @@ export class Hud {
       lsSet('t-sfx', String(s.sfx));
       lsSet('t-diff', s.difficulty);
       lsSet('t-motion', s.reduceMotion ? '1' : '0');
+      lsSet('t-px', String(s.pixel));
       this.applyMotion();
       this.cb.onSettings(s);
     };
@@ -613,7 +621,7 @@ export class Hud {
         (c.querySelector(`#${id}`) as HTMLInputElement).value = b.dataset.v!;
         g.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
         const note = c.querySelector(`#${id}-note`);
-        if (note) note.textContent = (id === 'st-quality' ? QNOTE : DNOTE)[b.dataset.v!] ?? '';
+        if (note) note.textContent = (id === 'st-quality' ? QNOTE : id === 'st-px' ? PNOTE : DNOTE)[b.dataset.v!] ?? '';
         upd();
       })));
     c.querySelectorAll('input').forEach((n) => n.addEventListener('change', upd));

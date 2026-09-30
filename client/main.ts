@@ -91,6 +91,7 @@ function applySettings() {
       projectiles?.setQuality(renderer.q.projectileLights);
       particles?.setQuality(renderer.q);
     }
+    if (s.pixel !== renderer.pixelScale) renderer.setPixelScale(s.pixel);
     particles?.setReduceMotion(s.reduceMotion);
   }
   net?.send({ t: 'set_opts', v: 1, difficulty: s.difficulty });

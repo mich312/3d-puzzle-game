@@ -3,7 +3,8 @@
 // in frame so avatars are covered too).
 // Usage: PORT=8080 tsx server/index.ts &  then  tsx tools/shots.ts [outDir] [level ...]
 // Env: BASE_URL (default http://127.0.0.1:8080), QUALITY=low|medium|high (default high),
-//      SOLO=1 (one client only — cheaper; co-op levels are skipped since they need two)
+//      SOLO=1 (one client only — cheaper; co-op levels are skipped since they need two),
+//      PX=0|2|3|4 (pixel scale, sky-temples prototype), THEME=night (old look for A/B)
 // Clients log in with seeded guest profiles (tools/test-profiles.ts), so sealed
 // levels open through the real shard gates — run on the server's machine/data dir.
 import { chromium, type Page } from 'playwright-core';
@@ -17,6 +18,8 @@ const ONLY = process.argv.slice(3);
 const W = 1280, H = 720;
 const QUALITY = process.env.QUALITY ?? 'high';
 const SOLO = process.env.SOLO === '1';
+const PX = process.env.PX;
+const THEME_Q = process.env.THEME === 'night' ? '?theme=night' : '';
 const SOLO_LEVELS = new Set(['nexus', 'atrium-01', 'proving-01']);
 
 type Api = { enterLevel(id: string): void; warp(x: number, y: number, z: number): void; look(yaw: number, pitch?: number): void; pos(): number[] };
@@ -25,7 +28,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // [level, [ [label, pos, yaw, pitch] ... ]]  — pos null = stay at spawn
 const PLAN: [string, [string, [number, number, number] | null, number, number][]][] = [
-  ['nexus', [['spawn', null, 0, -0.05], ['plaza', [0, 3, 14], 0, -0.25], ['back', null, Math.PI, -0.05]]],
+  // yaw 0 looks toward -z (see 'back' = π); vista/overhead/bridge frame the temple dressing
+  ['nexus', [['spawn', null, 0, -0.05], ['plaza', [0, 3, 14], 0, -0.25], ['back', null, Math.PI, -0.05],
+    ['vista', [24, 20, 24], Math.PI / 4, -0.35], ['overhead', [0, 70, 25], 0, -1.2], ['bridge', [0, 3, -12], 0, 0.05]]],
   ['atrium-01', [['spawn', null, 0, -0.05]]],
   ['proving-01', [['spawn', null, 0, -0.05]]],
   ['gardens-02', [['spawn', null, 0, -0.05]]],
@@ -34,7 +39,7 @@ const PLAN: [string, [string, [number, number, number] | null, number, number][]
 ];
 
 async function boot(page: Page, name: string) {
-  await page.goto(BASE);
+  await page.goto(BASE + THEME_Q);
   await page.fill('#intro-name', name);
   // boot is main-thread heavy under software GL — click async so we don't stall on it
   await page.evaluate(() => { setTimeout(() => (document.getElementById('intro-go') as HTMLButtonElement).click(), 0); });
@@ -50,10 +55,11 @@ async function main() {
   });
   const mk = async (name: string) => {
     const ctx = await browser.newContext({ viewport: { width: W, height: H } });
-    await ctx.addInitScript(([q, token]) => {
+    await ctx.addInitScript(([q, token, px]) => {
       localStorage.setItem('t-quality', q);
       localStorage.setItem('threshold-token', token);
-    }, [QUALITY, seededToken(name)] as const);
+      if (px) localStorage.setItem('t-px', px);
+    }, [QUALITY, seededToken(name), PX ?? ''] as const);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`[${name}] pageerror`, e.message));
     page.on('console', (m) => { if (m.type() === 'error') console.log(`[${name}] console`, m.text()); });

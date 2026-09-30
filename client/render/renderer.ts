@@ -16,7 +16,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
-import { WORLD_PALETTES, type WorldPalette } from '../../shared/palette';
+import { SKY_THEME, SKY_PALETTES, worldPalette, initialPixelScale, type ThemedPalette, type PixelScale } from './theme';
 import { installHeightFog, setHeightFog } from './heightFog';
 import { makeSky } from './sky';
 import { WorldEnvironment } from './environment';
@@ -57,12 +57,14 @@ export class Renderer {
   private floor?: ReflectiveFloor;
   private heroFloor?: HeroFloor;
   private currentWorld = 'nexus';
-  private palette: WorldPalette = WORLD_PALETTES.nexus;
+  private palette: ThemedPalette = worldPalette('nexus');
   private tmpV = new THREE.Vector3();
   private tmpV2 = new THREE.Vector3();
   private tmpSize = new THREE.Vector2();
   q: QualitySpec;
   reduceMotion = false;
+  /** 0 = full resolution; N = render at 1/N and nearest-upscale (sky-temples prototype) */
+  pixelScale: PixelScale = initialPixelScale();
 
   constructor(container: HTMLElement) {
     this.camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 300);
@@ -71,7 +73,7 @@ export class Renderer {
     this.gl = new THREE.WebGLRenderer({ antialias: false, stencil: false, powerPreference: 'high-performance' });
     this.q = QUALITY[autoQuality(this.gl.getContext())];
     this.gl.setSize(innerWidth, innerHeight);
-    this.gl.setPixelRatio(Math.min(devicePixelRatio, this.q.pixelRatioCap));
+    this.applyPixelRatio();
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.gl.toneMapping = THREE.NoToneMapping;   // tone mapping lives in GradePass
@@ -100,6 +102,7 @@ export class Renderer {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.gl.setSize(innerWidth, innerHeight);
+      if (this.pixelScale) this.applyPixelRatio();   // browser zoom changes the dpr → re-snap the block
       this.composer.setPixelRatio(this.gl.getPixelRatio());
       this.composer.setSize(innerWidth, innerHeight);
       this.syncPassSizes();
@@ -108,37 +111,69 @@ export class Renderer {
 
   get quality(): QualityTier { return this.q.tier; }
 
+  /** Pixel scale N renders the drawing buffer at 1/N of the CSS size and lets the
+   *  browser do an exact nearest upscale — every size path (pass targets, bloom
+   *  mips, VFX min-pixel guards) follows the buffer, and the DOM HUD stays crisp.
+   *  The block is snapped to whole device pixels so blocks stay square. */
+  private applyPixelRatio() {
+    const dpr = devicePixelRatio || 1;
+    if (this.pixelScale) {
+      const block = Math.max(1, Math.round(this.pixelScale * dpr));
+      this.gl.setPixelRatio(dpr / block);
+      this.gl.domElement.style.imageRendering = 'pixelated';
+    } else {
+      this.gl.setPixelRatio(Math.min(dpr, this.q.pixelRatioCap));
+      this.gl.domElement.style.imageRendering = '';
+    }
+  }
+
+  setPixelScale(n: PixelScale) {
+    this.pixelScale = n;
+    try { localStorage.setItem('t-px', String(n)); } catch { /* storage blocked */ }
+    this.applyPixelRatio();
+    this.buildComposer();
+    this.applyHeroFloor();
+  }
+
   /** (re)build the post stack for the current tier */
   private buildComposer() {
     if (this.composer) {
       for (const p of this.composer.passes) p.dispose();
       this.composer.dispose();
     }
+    // pixel mode drops AA / AO / grain / CA: they smear or boil at 240–360 rows
+    const px = this.pixelScale > 0;
     const size = this.gl.getDrawingBufferSize(new THREE.Vector2());
     const rt = new THREE.WebGLRenderTarget(size.x, size.y, {
       type: THREE.HalfFloatType,
-      samples: this.q.aa === 'msaa' ? 4 : 0,
+      samples: px ? 0 : this.q.aa === 'msaa' ? 4 : 0,
     });
     this.composer = new EffectComposer(this.gl, rt);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     this.ao = undefined;
-    if (this.q.ao !== 'off') {
+    if (this.q.ao !== 'off' && !px) {
       this.ao = makeAOPass(this.scene, this.camera, size.x, size.y, this.q.ao === 'half');
       this.composer.addPass(this.ao);
       // dev aid: ?rdebug=ao shows the raw (denoised) AO buffer
       if (/[?&]rdebug=ao\b/.test(location.search)) this.ao.output = 5;
     }
 
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), this.q.bloomStrength, this.q.bloomRadius, this.q.bloomThreshold);
+    // sky theme: sunlit marble must never bloom — only signals and the sun disc do.
+    // Golden-hour worlds sit far brighter than the night ones (lit marble reaches
+    // ~1.4 luminance), so their knee moves up and the haze is gentler.
+    const daylit = this.palette.cloudY !== undefined;
+    const threshold = daylit ? 1.6 : px || SKY_THEME ? Math.max(this.q.bloomThreshold, 1.0) : this.q.bloomThreshold;
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), this.q.bloomStrength * (daylit ? 0.6 : 1), this.q.bloomRadius, threshold);
     (this.bloom.highPassUniforms as Record<string, THREE.IUniform>).smoothWidth.value = 0.5;   // soft knee above the threshold
     this.composer.addPass(this.bloom);
 
-    this.grade = new GradePass({ aberration: this.q.aberration, grain: this.q.grain, vignette: 0.24 });
+    this.grade = new GradePass({ aberration: this.q.aberration && !px, grain: px ? 0 : this.q.grain, vignette: px ? 0.18 : 0.24, pixel: px });
     this.composer.addPass(this.grade);
 
     this.fxaa = undefined;
-    if (this.q.aa === 'smaa') this.composer.addPass(new SMAAPass(size.x, size.y));
+    if (px) { /* whole pixels: no AA pass */ }
+    else if (this.q.aa === 'smaa') this.composer.addPass(new SMAAPass(size.x, size.y));
     else if (this.q.aa === 'fxaa') {
       this.fxaa = new ShaderPass(FXAAShader);
       this.composer.addPass(this.fxaa);
@@ -148,6 +183,7 @@ export class Renderer {
     this.composer.setSize(innerWidth, innerHeight);
     this.syncPassSizes();
     this.applyGrade();
+    this.grade.setPalette(this.palette.pixelPalette ?? SKY_PALETTES.nexus.pixelPalette);
   }
 
   private syncPassSizes() {
@@ -168,8 +204,8 @@ export class Renderer {
 
   setQuality(tier: QualityTier) {
     this.q = QUALITY[tier];
-    localStorage.setItem('t-quality', tier);
-    this.gl.setPixelRatio(Math.min(devicePixelRatio, this.q.pixelRatioCap));
+    try { localStorage.setItem('t-quality', tier); } catch { /* storage blocked */ }
+    this.applyPixelRatio();
     this.applyShadowSpec();
     this.buildComposer();           // AA mode / AO / grain differ per tier
     this.lights.setBudget(this.q.lightBudget);
@@ -179,7 +215,7 @@ export class Renderer {
 
   setWorld(world: string, hero?: HeroFloor) {
     this.currentWorld = world;
-    const p = this.palette = WORLD_PALETTES[world] ?? WORLD_PALETTES.nexus;
+    const p = this.palette = worldPalette(world);
     const az = THREE.MathUtils.degToRad(p.sunAz), el = THREE.MathUtils.degToRad(p.sunEl);
     this.sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
     // light-space basis for texel snapping
@@ -187,7 +223,7 @@ export class Renderer {
     this.lightUp.crossVectors(this.sunDir, this.lightRight).normalize();
 
     this.scene.background = new THREE.Color(p.voidColor);
-    this.scene.fog = new THREE.FogExp2(new THREE.Color(p.fog).multiplyScalar(FOG_SCALE), p.fogDensity);
+    this.scene.fog = new THREE.FogExp2(new THREE.Color(p.fog).multiplyScalar(p.fogScale ?? FOG_SCALE), p.fogDensity);
     this.applyHeightFog();
     this.rebuildSky();
 
@@ -246,8 +282,9 @@ export class Renderer {
     if (!this.q.reflections || !this.heroFloor) return;
     const h = this.heroFloor;
     const density = this.scene.fog instanceof THREE.FogExp2 ? this.scene.fog.density : 0.02;
+    const res = this.pixelScale ? Math.min(this.q.reflectionRes, 256) : this.q.reflectionRes;
     this.floor = makeReflectiveFloor(
-      this.scene, this.visibleFloorY(h), h.size, this.q.reflectionRes, h.tint, h.shape, this.q.reflectionOpacity, density);
+      this.scene, this.visibleFloorY(h), h.size, res, h.tint, h.shape, this.q.reflectionOpacity, density);
   }
 
   /** Hero floors are often covered by thin inlay discs a few cm above the
@@ -288,7 +325,7 @@ export class Renderer {
 
   setFog(color?: string, density?: number) {
     if (this.scene.fog instanceof THREE.FogExp2) {
-      if (color) this.scene.fog.color.set(color).multiplyScalar(FOG_SCALE);
+      if (color && !this.palette.ignoreLevelFogColor) this.scene.fog.color.set(color).multiplyScalar(this.palette.fogScale ?? FOG_SCALE);
       if (density !== undefined) this.scene.fog.density = density;
       this.syncSkyHorizon();
       if (this.floor) (this.floor.mesh.material as THREE.ShaderMaterial).uniforms.uFogDensity.value = this.scene.fog.density;

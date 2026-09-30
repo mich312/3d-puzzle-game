@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import type { MaterialRole } from '../../shared/level';
 import { markShared } from './dispose';
 import { roleTextures, macroNoise, WORLD_UV_DENSITY, type TexRole } from './textures';
+import { SKY_THEME } from './theme';
 
 export type MatTier = 'low' | 'medium' | 'high';
 let tier: MatTier = 'high';
@@ -141,10 +142,11 @@ function makeMaterial(role: TexRole, colorOverride: string | undefined, emissive
   const key = `${vc ? 'vc|' : ''}${role}|${colorOverride ?? ''}|${emissive ?? ''}|${emissiveIntensity}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const look = LOOK[role];
-  const res = tier === 'low' ? 256 : 512;
+  // sky theme: painted, low-detail surfaces (softer normals, less macro, no dust)
+  const look = SKY_THEME ? { ...LOOK[role], normalScale: LOOK[role].normalScale * 0.5, macro: LOOK[role].macro * 0.6, dust: 0 } : LOOK[role];
+  const res = SKY_THEME ? 128 : tier === 'low' ? 256 : 512;
   const tex = roleTextures(role, res);
-  const physical = role === 'crystal' && tier === 'high';
+  const physical = role === 'crystal' && tier === 'high' && !SKY_THEME;
   const params: THREE.MeshStandardMaterialParameters = {
     map: tex.map,
     normalMap: tex.normal,

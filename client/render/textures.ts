@@ -10,6 +10,11 @@
 import * as THREE from 'three';
 import type { MaterialRole } from '../../shared/level';
 import { markShared } from './dispose';
+import { SKY_THEME, initialPixelScale } from './theme';
+
+// sky theme + pixel scale: textures are nearest-magnified so texels stay crisp
+// blocks (read once at boot — toggling the pixel scale later doesn't re-texture)
+const NEAREST_MAG = SKY_THEME && initialPixelScale() > 0;
 
 export const TILE_METRES = 4;
 export const WORLD_UV_DENSITY = 1 / TILE_METRES;
@@ -109,10 +114,10 @@ function boxBlur(src: Float32Array, n: number, r: number): Float32Array {
 function toTexture(data: Uint8Array<ArrayBuffer>, n: number, srgb: boolean): THREE.DataTexture {
   const t = new THREE.DataTexture(data, n, n, THREE.RGBAFormat, THREE.UnsignedByteType);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.magFilter = THREE.LinearFilter;
+  t.magFilter = NEAREST_MAG ? THREE.NearestFilter : THREE.LinearFilter;
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.generateMipmaps = true;
-  t.anisotropy = 8;
+  t.anisotropy = SKY_THEME ? 2 : 8;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.needsUpdate = true;
   return markShared(t);
@@ -425,6 +430,211 @@ const SYNTH: Record<TexRole, { fn: (n: number, f: Fields) => void; normal: numbe
   rock:    { fn: rock, normal: 1.4, cavity: 5 },
 };
 
+// ---------------------------------------------------------------- sky-temples sets
+// Painted, low-frequency surfaces for the golden-hour fresco look: at 240–360
+// rendered rows anything finer than ~4 cycles/m just aliases into noise, so every
+// generator keeps its noise at ≤ 16 cells per 4 m tile (joint / grout lines excepted).
+// Colours are authored as sRGB hexes and written as-is (the albedo bytes are sRGB).
+const srgb = (s: string) => { const c = new THREE.Color(s); return [c.r, c.g, c.b].map((v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)); };
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const TAU = Math.PI * 2;
+function marbleVein(u: number, v: number, freq: number) {
+  return Math.pow(1 - Math.abs(Math.sin((u * 2 * freq + v * 0.8 * freq + fbm(u, v, 3, 3, 5) * 1.4) * TAU)), 12);
+}
+
+// Marble ashlar: the stone() course layout with smooth pillowed blocks, soft veins.
+function marbleAshlar(n: number, f: Fields) {
+  const T = TILE_METRES, rows = 4;
+  const rnd = mulberry(1103);
+  const rowDef = Array.from({ length: rows }, () => ({ nb: rnd() < 0.5 ? 2 : 3, off: rnd() }));
+  const base = srgb('#eee6d8'), vein = srgb('#a99a8e');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    const rowF = v * rows, row = Math.floor(rowF), fy = rowF - row;
+    const rd = rowDef[row];
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const bxF = u * rd.nb + rd.off, bi = ((Math.floor(bxF) % rd.nb) + rd.nb) % rd.nb, bx = fract(bxF);
+      const ed = Math.min(Math.min(bx, 1 - bx) * (T / rd.nb), Math.min(fy, 1 - fy) * (T / rows));
+      const joint = sstep(0.006, 0.016, ed);
+      const blockTone = 0.94 + (hash2(bi, row, 77) - 0.5) * 0.1;
+      const vn = marbleVein(u, v, 1);
+      const cloud = (fbm(u, v, 4, 3, 9) - 0.5) * 0.08;
+      const tone = blockTone + cloud;
+      f.h[i] = joint * sstep(0, 0.08, ed) * 0.004 - (1 - joint) * 0.003;
+      for (let k = 0; k < 3; k++) {
+        const c = lerp(base[k] * tone, vein[k], vn * 0.35) * (1 - vn * 0.06);
+        (k === 0 ? f.r : k === 1 ? f.g : f.b)[i] = c;
+      }
+      f.ao[i] = lerp(0.55, 1, joint);
+      f.rough[i] = joint > 0.5 ? 0.5 + cloud * 1.2 : 0.9;
+      f.metal[i] = 0;
+    }
+  }
+}
+
+// Marble floor: 2 m checker of cream and rose-grey slabs, fine grout, soft veins.
+function marbleTile(n: number, f: Fields) {
+  const cells = 2;
+  const a = srgb('#f2ece2'), b = srgb('#d8cbbd'), grout = srgb('#8a7e74');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const cu = u * cells, cv = v * cells;
+      const ti = Math.floor(cu), tj = Math.floor(cv);
+      const fu = cu - ti, fv = cv - tj;
+      const ed = Math.min(Math.min(fu, 1 - fu), Math.min(fv, 1 - fv)) * (TILE_METRES / cells);
+      const g = sstep(0.004, 0.008, ed);
+      const alt = (ti + tj) % 2;
+      const vn = marbleVein(u, v, 1.5);
+      const cloud = (fbm(u, v, 4, 3, 29) - 0.5) * 0.06;
+      const tone = 1 + cloud - vn * 0.08;
+      const col = alt ? b : a;
+      f.r[i] = lerp(grout[0], col[0] * tone, g); f.g[i] = lerp(grout[1], col[1] * tone, g); f.b[i] = lerp(grout[2], col[2] * tone, g);
+      f.h[i] = g * 0.002;
+      f.ao[i] = 0.6 + 0.4 * g;
+      f.rough[i] = g > 0.5 ? 0.32 + alt * 0.06 + cloud : 0.9;
+      f.metal[i] = 0;
+    }
+  }
+}
+
+// Bronze: warm cast metal, faint hammering, a cast groove every metre, verdigris.
+function bronze(n: number, f: Fields) {
+  const base = srgb('#9a6a3a'), pat = srgb('#5f9a86');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const hammer = worley(u, v, 8, 211)[0];
+      const gv = Math.abs(fract(v * TILE_METRES) - 0.5) * 1;       // metres from the groove line
+      const groove = sstep(0.02, 0.0, 0.5 - gv);
+      const patina = clamp01(sstep(0.6, 0.8, fbm(u, v, 3, 4, 17)) * 0.8 + groove * 0.5);
+      f.h[i] = hammer * 0.002 - groove * 0.002;
+      f.r[i] = lerp(base[0], pat[0], patina); f.g[i] = lerp(base[1], pat[1], patina); f.b[i] = lerp(base[2], pat[2], patina);
+      f.ao[i] = 1 - groove * 0.3;
+      f.rough[i] = 0.4 + 0.4 * patina;
+      f.metal[i] = 1 - 0.85 * patina;
+    }
+  }
+}
+
+// Gold leaf: warm, low-chroma decor gold with leaf seams and a Greek-key groove.
+function goldLeaf(n: number, f: Fields) {
+  const base = srgb('#f2c25a');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const tone = 1 + (fbm(u, v, 4, 3, 7) - 0.5) * 0.12;
+      const su = fract(u * 8), sv = fract(v * 8);                   // 0.5 m leaf squares
+      const seam = Math.min(su, 1 - su, sv, 1 - sv) * 0.5 < 0.003 ? 1 : 0;
+      // Greek key: square spiral inward, 2 turns, per 1 m cell (stroke 0.1 m)
+      const cu = fract(u * 4), cv = fract(v * 4);
+      const key = greekKey(cu, cv);
+      f.h[i] = -key * 0.002;
+      const t = tone - seam * 0.04 - key * 0.3;
+      f.r[i] = base[0] * t; f.g[i] = base[1] * t; f.b[i] = base[2] * t;
+      f.ao[i] = 1 - key * 0.4;
+      // half-metal: under a dim golden-hour IBL a pure metal reads as khaki, so
+      // part of the leaf's colour comes from the sun as diffuse
+      f.rough[i] = 0.34 + fbm(u, v, 4, 2, 13) * 0.12;
+      f.metal[i] = 0.55;
+      f.glow![i] = key;
+    }
+  }
+}
+/** 1 inside the groove of a 2-turn square spiral in the unit cell (10 strokes wide) */
+function greekKey(u: number, v: number): number {
+  const gx = Math.floor(u * 10), gy = Math.floor(v * 10);
+  if (gx < 0 || gy < 0 || gx > 9 || gy > 9) return 0;
+  // hand-authored 10×10 meander cell ('#' = groove)
+  return KEY[9 - gy][gx] === '#' ? 1 : 0;
+}
+const KEY = [
+  '..........',
+  '.########.',
+  '.#......#.',
+  '.#.####.#.',
+  '.#.#..#.#.',
+  '.#.#.##.#.',
+  '.#.#....#.',
+  '.#.######.',
+  '.#........',
+  '.#........',
+];
+
+// Terracotta: warm fired clay with a painted black-figure band and a cream line.
+function terracotta(n: number, f: Fields) {
+  const base = srgb('#b8643e'), band = srgb('#2e2220'), cream = srgb('#e8d0a8');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const tone = 1 + (fbm(u, v, 4, 3, 19) - 0.5) * 0.16;
+      const fv = fract(v * 4);
+      let c = base.map((k) => k * tone);
+      if (fv > 0.46 && fv < 0.54) c = band;
+      else if ((fv > 0.40 && fv < 0.43) || (fv > 0.57 && fv < 0.60)) c = cream;
+      f.r[i] = c[0]; f.g[i] = c[1]; f.b[i] = c[2];
+      f.h[i] = 0;
+      f.rough[i] = 0.82;
+      f.metal[i] = 0;
+    }
+  }
+}
+
+// Limestone: the rock() strata, warmer and much smoother (island undersides).
+function limestone(n: number, f: Fields) {
+  const base = srgb('#d6b88c');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const warp = fbm(u, v, 4, 4, 401);
+      const strata = 0.5 + 0.5 * Math.sin((v * 9 + warp * 2.5) * TAU);
+      const w = worley(u, v, 4, 409);
+      const crack = sstep(0.05, 0.0, w[1] - w[0]);
+      const grain = fbm(u, v, 8, 3, 419);
+      f.h[i] = strata * 0.02 + grain * 0.01 + w[0] * 0.02 - crack * 0.02;
+      const tone = 0.82 + strata * 0.1 + (grain - 0.5) * 0.14 + (w[2] - 0.5) * 0.1 - crack * 0.25;
+      f.r[i] = base[0] * tone; f.g[i] = base[1] * tone; f.b[i] = base[2] * tone;
+      f.ao[i] = 1 - crack * 0.5;
+      f.rough[i] = 0.88;
+      f.metal[i] = 0;
+    }
+  }
+}
+
+// Alabaster: translucent-looking warm stone for the lamps (crystals).
+function alabaster(n: number, f: Fields) {
+  const base = srgb('#f4e8d4');
+  for (let y = 0; y < n; y++) {
+    const v = y / n;
+    for (let x = 0; x < n; x++) {
+      const u = x / n, i = y * n + x;
+      const c = fbm(u, v, 4, 3, 141);
+      f.r[i] = base[0] * (0.95 + c * 0.1); f.g[i] = base[1] * (0.95 + c * 0.1); f.b[i] = base[2] * (0.95 + c * 0.1);
+      f.h[i] = c * 0.003;
+      f.rough[i] = 0.25;
+      f.metal[i] = 0;
+      f.glow![i] = 0.5 + 0.5 * c;
+    }
+  }
+}
+
+const SYNTH_SKY: typeof SYNTH = {
+  stone:   { fn: marbleAshlar, normal: 0.6, cavity: 3 },
+  tile:    { fn: marbleTile, normal: 0.5, cavity: 2 },
+  metal:   { fn: bronze, normal: 0.6, cavity: 2 },
+  wood:    { fn: terracotta, normal: 0.3, cavity: 0 },
+  crystal: { fn: alabaster, normal: 0.3, glow: true, cavity: 0 },
+  accent:  { fn: goldLeaf, normal: 0.6, glow: true, cavity: 2 },
+  void:    SYNTH.void,
+  rock:    { fn: limestone, normal: 0.9, cavity: 3 },
+};
+
 const cache = new Map<string, TexSet>();
 
 /** Lazily synthesise (and cache) a role's texture set. `n` = resolution (power of 2). */
@@ -432,7 +642,7 @@ export function roleTextures(role: TexRole, n: number): TexSet {
   const key = `${role}@${n}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const spec = SYNTH[role];
+  const spec = (SKY_THEME ? SYNTH_SKY : SYNTH)[role];
   const f = alloc(n, spec.glow);
   spec.fn(n, f);
   const N = n * n;

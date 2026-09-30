@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { markShared } from '../render/dispose';
 import { vfxAtlas, ATLAS_COLS, ATLAS_ROWS, SPR } from './sprites';
 import { applyPremulBlend, bindFog, FOG_GLSL, MINPX_GLSL } from './common';
+import { SKY_THEME, SKY_PALETTES } from '../render/theme';
 
 interface Layer {
   count: number;          // at high tier
@@ -71,6 +72,13 @@ export const WORLD_ATMOSPHERE: Record<string, Layer[]> = {
   ],
 };
 WORLD_ATMOSPHERE.proving = WORLD_ATMOSPHERE.atrium;
+
+// sky-temples theme: golden-hour air instead of night embers / cool motes —
+// sparse warm dust catching the low sun (dim: the world is bright now)
+const SKY_ATMOSPHERE: Layer[] = [
+  L({ count: 220, box: [34, 14, 34], vel: [0.1, 0.05, 0.04], wobble: 0.5, wobbleFreq: 0.25, size: [0.035, 0.07],
+    color: '#fff3e2', color2: '#ffc987', intensity: 0.8, twinkle: 0.6, twinkleSpeed: 0.9, twinkleSharp: 3, sprite: SPR.bokeh }),
+];
 
 const VERT = /* glsl */`
   attribute vec4 aSeed;
@@ -154,7 +162,7 @@ export class Atmosphere {
     if (world === this.world) return;
     this.world = world;
     this.disposeMeshes();
-    const layers = WORLD_ATMOSPHERE[world] ?? WORLD_ATMOSPHERE.atrium;
+    const layers = SKY_THEME && SKY_PALETTES[world] ? SKY_ATMOSPHERE : WORLD_ATMOSPHERE[world] ?? WORLD_ATMOSPHERE.atrium;
     for (const l of layers) {
       const n = Math.max(8, Math.round(l.count * this.density));
       const geo = new THREE.InstancedBufferGeometry();

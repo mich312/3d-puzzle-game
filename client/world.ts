@@ -158,7 +158,7 @@ export class World {
     const q = this.quality;
     const pieces = this.level.geometry.map((g, i) => pieceOf(g, i));
     const statics: Piece[] = [];
-    const batch = new StaticBatcher(40);
+    const batch = new StaticBatcher(40, this.level.world);
     this.level.geometry.forEach((g, i) => {
       if (g.door || g.activeWhen || (g.spin && g.collider === false)) this.buildDynamicPiece(g, pieceMaterial(g));
       else {

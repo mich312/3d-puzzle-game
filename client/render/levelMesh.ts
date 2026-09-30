@@ -12,12 +12,20 @@
 //   • pillars    → plinth base, capital and an astragal ring (≤ 5 cm proud)
 //   • floating platforms → inverted rock hangs BELOW the slab, inside the footprint,
 //     only where there is clear air beneath (never into walkable space)
+//
+// Sky-temples theme (render/theme.ts) swaps in a Greek order, all decor only:
+//   • slender stone columns → fluted shafts (cut inward) with plinth + base ring,
+//     echinus + abacus capitals (or just a necking ring under a JSON cap)
+//   • lintels on ≥ 2 supports → geison + pediment with terracotta tympanum inlays
+//   • ≥ 6 equal columns on a circle → a tholos entablature ring on their caps
 import * as THREE from 'three';
 import type { GeometryDef, LevelDef, MaterialRole, Vec3 } from '../../shared/level';
 import { getMaterial, getBatchMaterial, emissiveCap } from './materials';
 import type { TexRole } from './textures';
 import { roundedBox, bevelCylinder, bevelFor, rockSpike, finalize, mergeAll } from './geometry';
 import { mulberry } from './textures';
+import { SKY_THEME, themeLook } from './theme';
+import { flutedShaft, pedimentPrism, ringBand } from './templeKit';
 
 export type Tier = 'low' | 'medium' | 'high';
 
@@ -54,6 +62,7 @@ export function pieceOf(g: GeometryDef, i: number): Piece {
 /** Bevelled geometry for one GeometryDef, in LOCAL space (centre at origin, unrotated). */
 export function pieceGeometry(g: GeometryDef, tier: Tier): THREE.BufferGeometry {
   const origin = new THREE.Vector3(...g.pos).applyAxisAngle(new THREE.Vector3(0, 1, 0), -(g.rotY ?? 0));
+  if (SKY_THEME && isColumnDef(g)) return flutedShaft(g.size[0], g.size[1], tier, origin);
   if (g.shape === 'cylinder') {
     const r = g.size[0];
     // triangle budget: radial density ~7/m, round rims only on big high-tier drums
@@ -66,6 +75,15 @@ export function pieceGeometry(g: GeometryDef, tier: Tier): THREE.BufferGeometry 
   const big = Math.min(...g.size) >= 0.4 && Math.max(...g.size) >= 2;
   const seg = tier === 'high' && big ? 2 : 1;
   return roundedBox(g.size[0], g.size[1], g.size[2], bevelFor(g.size, g.material), seg, origin);
+}
+
+/** a free-standing round column (mirrors the pillar rule in addDetails; decor columns included) */
+export function isColumnDef(g: GeometryDef): boolean {
+  return g.shape === 'cylinder'
+    && (g.material === 'stone' || g.material === 'tile')
+    && !g.emissive
+    && g.size[1] >= 2.2 && g.size[0] * 2 <= 1.8
+    && g.size[1] >= 3.6 * g.size[0] && g.size[0] >= 0.125;
 }
 
 export function pieceMatrix(g: GeometryDef): THREE.Matrix4 {
@@ -93,10 +111,11 @@ export function pieceMaterial(g: GeometryDef): THREE.MeshStandardMaterial {
 export class StaticBatcher {
   private buckets = new Map<string, { mat: THREE.Material; cast: boolean; geos: THREE.BufferGeometry[] }>();
   private tmpC = new THREE.Color();
-  constructor(private cell = 40) {}
+  constructor(private cell = 40, private world = '') {}
 
   /** add a finalized, world-space geometry with a surface look (colour → vertex colours) */
   add(geo: THREE.BufferGeometry, look: Look, cast: boolean, at: THREE.Vector3) {
+    look = themeLook(look, this.world);
     const mat = getBatchMaterial(look.role, look.emissive, look.ei);
     const c = this.tmpC.set(look.color ?? '#ffffff');
     const n = geo.getAttribute('position').count;
@@ -221,6 +240,123 @@ function pillarDress(ctx: DetailCtx, p: Piece, mat: Look) {
   }
 }
 
+// ------------------------------------------------------------------ temple kit (sky theme)
+
+/** Greek column dressing: square plinth + torus-ish base ring, and either an
+ *  echinus + abacus capital or (under an existing JSON cap) just a necking ring.
+ *  The abacus top is flush with the collider top; nothing is taller than it. */
+function templeColumnDress(ctx: DetailCtx, p: Piece, mat: Look) {
+  const g = p.g;
+  const hy = g.size[1] / 2, r = g.size[0];
+  const at = (geo: THREE.BufferGeometry, y: number) => addLocal(ctx, geo, new THREE.Matrix4().makeTranslation(0, y, 0), g, mat, true, true);
+  at(roundedBox(2 * r + 0.16, 0.14, 2 * r + 0.16, 0.02, 1), -hy + 0.07);
+  at(bevelCylinder(r + 0.06, 0.1, 0.03, 20, 1), -hy + 0.19);
+  const capBox = p.box.clone();
+  capBox.min.y = p.box.max.y - 0.05; capBox.max.y = p.box.max.y + 0.6;
+  capBox.expandByVector(new THREE.Vector3(0.3, 0, 0.3));
+  if (overlaps(ctx, capBox, p).some((q) => !q.solid)) {
+    at(bevelCylinder(r + 0.02, 0.06, 0.02, 20, 1), hy - 0.4);
+    return;
+  }
+  at(new THREE.CylinderGeometry(r + 0.12, r * 0.96, 0.2, 16), hy - 0.24);
+  at(roundedBox(2 * r + 0.3, 0.13, 2 * r + 0.3, 0.02, 1), hy - 0.065);
+}
+
+interface LintelInfo { alongX: boolean; L: number; d: number }
+
+/** a horizontal beam resting on ≥ 2 posts/walls at opposite ends (gateway, door head) */
+function isLintel(ctx: DetailCtx, p: Piece): LintelInfo | null {
+  const g = p.g;
+  if (g.shape !== 'box' || (g.material !== 'stone' && g.material !== 'tile') || g.emissive) return null;
+  if (g.size[1] < 0.3 || g.size[1] > 1.5) return null;
+  const alongX = g.size[0] >= g.size[2];
+  const L = alongX ? g.size[0] : g.size[2], d = alongX ? g.size[2] : g.size[0];
+  if (L < 4 || d > 2.5) return null;
+  const rot = g.rotY ?? 0, c = Math.cos(rot), s = Math.sin(rot);
+  let neg = false, pos = false;
+  for (const q of ctx.pieces) {
+    if (q === p || q.h < 2 || Math.min(q.w, q.d) > 2.5) continue;          // posts / piers / walls only
+    if (q.box.max.y < p.box.min.y - 0.15 || q.box.max.y > p.box.max.y) continue;
+    const dx = q.g.pos[0] - g.pos[0], dz = q.g.pos[2] - g.pos[2];
+    const lx = dx * c - dz * s, lz = dx * s + dz * c;                      // into p's local frame
+    if (Math.abs(lx) > g.size[0] / 2 || Math.abs(lz) > g.size[2] / 2) continue;
+    const t = alongX ? lx : lz;
+    if (Math.abs(t) < 0.25 * L) continue;
+    if (t < 0) neg = true; else pos = true;
+  }
+  return neg && pos ? { alongX, L, d } : null;
+}
+
+/** geison + pediment with terracotta tympanum inlays and a gilded acroterion */
+function pediment(ctx: DetailCtx, p: Piece, info: LintelInfo) {
+  const g = p.g;
+  const hy = g.size[1] / 2;
+  const { L, d } = info;
+  const H = THREE.MathUtils.clamp(0.12 * L, 0.6, 2.4);
+  // decor only: skip if anything solid lives in the air above the lintel
+  const probe = p.box.clone();
+  probe.min.y = p.box.max.y + 0.02; probe.max.y = p.box.max.y + H + 0.8;
+  probe.expandByVector(new THREE.Vector3(0.2, 0, 0.2));
+  if (overlaps(ctx, probe, p).some((q) => q.solid)) return;
+  const stone: Look = { role: g.material, color: g.color, ei: 1 };
+  const terracotta: Look = { role: 'wood', ei: 1 };
+  const gold: Look = { role: 'accent', ei: 1 };
+  const turn = info.alongX ? new THREE.Matrix4() : new THREE.Matrix4().makeRotationY(Math.PI / 2);
+  const at = (geo: THREE.BufferGeometry, y: number, z: number, look: Look) =>
+    addLocal(ctx, geo, new THREE.Matrix4().makeTranslation(0, y, 0).multiply(turn).multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), g, look, true, true);
+  at(roundedBox(L + 0.3, 0.16, d + 0.24, 0.02, 1), hy + 0.08, 0, stone);
+  at(pedimentPrism(L + 0.3, H, d + 0.1), hy + 0.16, 0, stone);
+  for (const sg of [1, -1]) at(pedimentPrism(0.8 * (L + 0.3), 0.8 * H, 0.04), hy + 0.24, sg * ((d + 0.1) / 2 + 0.02), terracotta);
+  at(roundedBox(0.3, 0.5, 0.3, 0.03, 1), hy + 0.16 + H + 0.2, 0, gold);
+}
+
+/** ≥ 6 equal columns standing on a circle → architrave / terracotta frieze / cornice ring on their caps */
+function tholosRings(ctx: DetailCtx, statics: Piece[]) {
+  const groups = new Map<number, Piece[]>();
+  for (const p of statics) {
+    if (!p.solid || !isColumnDef(p.g)) continue;
+    const k = Math.round(p.box.max.y * 10);
+    groups.set(k, [...(groups.get(k) ?? []), p]);
+  }
+  for (const cols of groups.values()) {
+    if (cols.length < 6) continue;
+    const c = new THREE.Vector3();
+    for (const p of cols) c.add(new THREE.Vector3(p.g.pos[0], 0, p.g.pos[2]));
+    c.divideScalar(cols.length);
+    const ds = cols.map((p) => Math.hypot(p.g.pos[0] - c.x, p.g.pos[2] - c.z));
+    const R = ds.reduce((a, b) => a + b, 0) / ds.length;
+    const sd = Math.sqrt(ds.reduce((a, b) => a + (b - R) ** 2, 0) / ds.length);
+    if (R < 3 || sd >= 0.3) continue;
+    // sit on the JSON caps where there are any
+    let y0 = cols[0].box.max.y;
+    for (const p of cols) {
+      const cap = p.box.clone();
+      cap.min.y = p.box.max.y - 0.05; cap.max.y = p.box.max.y + 0.6;
+      cap.expandByVector(new THREE.Vector3(0.3, 0, 0.3));
+      for (const q of overlaps(ctx, cap, p)) if (!q.solid && q.g.shape === 'cylinder') y0 = Math.max(y0, q.box.max.y);
+    }
+    // the ring must not cut through anything solid
+    const hit = ctx.pieces.some((q) => {
+      if (!q.solid || q.box.max.y < y0 || q.box.min.y > y0 + 1.15) return false;
+      const nx = THREE.MathUtils.clamp(c.x, q.box.min.x, q.box.max.x) - c.x, nz = THREE.MathUtils.clamp(c.z, q.box.min.z, q.box.max.z) - c.z;
+      const fx = Math.max(Math.abs(q.box.min.x - c.x), Math.abs(q.box.max.x - c.x)), fz = Math.max(Math.abs(q.box.min.z - c.z), Math.abs(q.box.max.z - c.z));
+      return Math.hypot(nx, nz) <= R + 0.7 && Math.hypot(fx, fz) >= R - 0.7;
+    });
+    if (hit) continue;
+    const stone: Look = { role: cols[0].g.material, color: cols[0].g.color, ei: 1 };
+    const parts: [THREE.BufferGeometry, number, Look][] = [
+      [ringBand(R, 1.1, 0.55), y0, stone],
+      [ringBand(R, 1.0, 0.45), y0 + 0.55, { role: 'wood', ei: 1 }],
+      [ringBand(R, 1.4, 0.15), y0 + 1.0, stone],
+    ];
+    for (const [geo, y, look] of parts) {
+      geo.translate(c.x, y, c.z);
+      finalize(geo, true);
+      ctx.batch.add(geo, look, true, c);
+    }
+  }
+}
+
 function rockHang(ctx: DetailCtx, p: Piece, rnd: () => number) {
   const g = p.g;
   const minH = Math.min(p.w, p.d);
@@ -288,6 +424,7 @@ export function addDetails(level: LevelDef, tier: Tier, pieces: Piece[], statics
   const rnd = mulberry(hashStr(level.id));
   for (const p of statics) {
     const g = p.g;
+    if (SKY_THEME) { const li = isLintel(ctx, p); if (li) { pediment(ctx, p, li); continue; } }
     if (!p.solid) continue;
     const role = g.material;
     const minH = Math.min(p.w, p.d), maxH = Math.max(p.w, p.d);
@@ -301,10 +438,14 @@ export function addDetails(level: LevelDef, tier: Tier, pieces: Piece[], statics
     }
     if (!STRUCT.includes(role) || g.emissive) continue;
     // pillar: tall + slender
-    if (p.h >= 2.2 && maxH <= 1.8 && p.h >= 1.8 * maxH && minH >= 0.25) { pillarDress(ctx, p, mat); continue; }
+    if (p.h >= 2.2 && maxH <= 1.8 && p.h >= 1.8 * maxH && minH >= 0.25) {
+      if (SKY_THEME && g.shape === 'cylinder') templeColumnDress(ctx, p, mat); else pillarDress(ctx, p, mat);
+      continue;
+    }
     // wall: tall, thin, long, exposed top
     if (g.shape === 'box' && quarter && p.h >= 2 && minH <= 1.5 && maxH >= 2.5 && !topCovered(ctx, p)) coping(ctx, p, mat);
   }
+  if (SKY_THEME) tholosRings(ctx, statics);
 }
 
 export function hashStr(s: string): number {

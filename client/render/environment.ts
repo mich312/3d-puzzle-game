@@ -5,7 +5,7 @@
 // from a light field that matches what the player sees. This replaces most of
 // the old flat hemisphere/ambient fill.
 import * as THREE from 'three';
-import { WORLD_PALETTES } from '../../shared/palette';
+import { worldPalette } from './theme';
 import { makeSkyMaterial } from './sky';
 
 export class WorldEnvironment {
@@ -18,7 +18,7 @@ export class WorldEnvironment {
 
   /** build (or rebuild) the environment for `world`; returns the PMREM texture */
   build(world: string, sunDir: THREE.Vector3): THREE.Texture {
-    const p = WORLD_PALETTES[world] ?? WORLD_PALETTES.nexus;
+    const p = worldPalette(world);
     const scene = new THREE.Scene();
     const skyMat = makeSkyMaterial(world, { sunDir, detail: 1, envMode: true });
     const sky = new THREE.Mesh(new THREE.SphereGeometry(20, 32, 16), skyMat);
@@ -33,7 +33,7 @@ export class WorldEnvironment {
     });
     const top = new THREE.Mesh(new THREE.CircleGeometry(9, 24), panelMat(p.hemiSky, 0.55));
     top.position.set(0, 14, 0); top.rotation.x = Math.PI / 2;
-    const bounce = new THREE.Mesh(new THREE.CircleGeometry(12, 24), panelMat(p.hemiGround, 1.1));
+    const bounce = new THREE.Mesh(new THREE.CircleGeometry(12, 24), panelMat(p.hemiGround, p.cloudY !== undefined ? 0.6 : 1.1));
     bounce.position.set(0, -12, 0); bounce.rotation.x = -Math.PI / 2;
     scene.add(top, bounce);
 
