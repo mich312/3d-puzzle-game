@@ -18,6 +18,11 @@
   "requiresDevice": [],
   "designNotes": "P1 holds bellA to extend the east bridge; P2 ferries the cube across, sets the tuner (which raises P1's west exit bridge) and stands on the mass-2 bellB with the cube; both bells held at once + tuner set solves it.",
   "intro": "Two bells, one breath. Ring them together \u2014 but no hand can reach both.",
+  "objectives": [
+    { "text": "Clear the drifters from the arena", "done": "allEnemiesDown" },
+    { "text": "Turn the tuner to its third position", "done": "tuner.state==2" },
+    { "text": "Hold both bells at once — one needs extra weight", "done": "bellA.pressed && bellB.pressed" }
+  ],
   "fog": {
     "color": "#44507a",
     "density": 0.02

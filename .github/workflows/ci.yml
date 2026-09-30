@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [claude/threshold-game-build-acxt1n, main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run validate:content
+      - run: npm test
+      - run: npm run build
+
+  playtests:
+    # Protocol bots against a real server with the REAL access checks (no dev flag):
+    # bots use seeded guest profiles written to the shared data dir.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PORT: 8080
+    steps:
+      # the runner context isn't available in job-level env — export it from a step
+      - run: echo "THRESHOLD_DATA_DIR=$RUNNER_TEMP/threshold-data" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start server
+        run: |
+          nohup npx tsx server/index.ts > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/api/health && exit 0; sleep 1; done
+          cat server.log; exit 1
+      - run: npx tsx tools/playtest-security.ts
+      - run: npx tsx tools/playtest-proving.ts
+      - run: npx tsx tools/playtest-bot.ts
+      - name: Server log
+        if: always()
+        run: tail -200 server.log

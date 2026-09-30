@@ -13,13 +13,20 @@ or only possible — once you wave someone in.
 ```bash
 npm install
 npm run build     # bundle the client
-npm start         # serve everything on http://localhost:8080
+PORT=8080 npm start   # serve everything on http://localhost:8080 (default port is 80)
 ```
 
-Open `http://localhost:8080` in two browser windows (or send the URL to a friend on your
-network) — both of you land in the same Nexus.
+Open `http://localhost:8080` in a normal window **and** a private window (or send the
+URL to a friend on your network) — each gets its own guest profile and you land in the
+same Nexus. Two normal tabs share one profile, so the second takes over the first.
 
-**Development** (client hot-reload on :5173, server on :8080, level JSON hot-reload):
+**Playing together:** Esc → *Copy invite link* gives a `?join=@<you>` URL — whoever opens
+it joins your party, right where you are (even a level beyond their own progress).
+Parties stick together across levels; every group gets its own private run of a level,
+open to others only while a help beacon (Q) is up. Or just walk into a co-op portal and
+wait — anyone else who walks in (or answers your beacon) pairs up with you.
+
+**Development** (client hot-reload on :5173, server on :80, level JSON hot-reload):
 
 ```bash
 npm run dev
@@ -30,16 +37,25 @@ npm run dev
 ```bash
 npm run typecheck              # strict TS across client/server/shared
 npm run validate:content       # level format + design-invariant validation
-npx tsx tools/playtest-bot.ts  # headless protocol bots: solo solve, co-op solve, down/revive
+npm test                       # unit tests (expressions, message validation, collision, levels)
+npm run build                  # production client bundle
+
+# protocol playtests need a running server (same machine / data dir):
+PORT=8080 npx tsx server/index.ts &
+npm run test:bots              # every level solved by bots + proving ground + security suite
 ```
 
-The playtest bots (`tools/playtest-bot.ts`, `tools/playtest-proving.ts`) and the
-screenshot rig (`tools/shots.ts`) need a server started with
-`THRESHOLD_DEV_UNLOCK=1` — e.g. `PORT=8080 THRESHOLD_DEV_UNLOCK=1 npx tsx server/index.ts`.
-The flag skips the shard/world entry gates (fresh bot profiles have no shards)
-and the per-player move speed budget (bots noclip in big hops; the 12 m
-per-message hard cap still applies). Bots take `WS_URL=ws://host:port/ws`.
-**Never set it in production.**
+The bots and the screenshot rig (`tools/shots.ts`) run against the **real**
+access checks: they log in with seeded guest profiles (`tools/test-profiles.ts`)
+written straight into the server's SQLite store, and walk within the server's
+move speed budget. Run them on the server's machine; if the server uses
+`THRESHOLD_DATA_DIR`, set the same value for the tools. Bots take
+`WS_URL=ws://host:port/ws`. The server listens on `PORT` (default 80).
+
+CI (`.github/workflows/ci.yml`) runs all of the above on every push and PR.
+
+`THRESHOLD_DEV_UNLOCK=1` still exists for manual testing — it skips the shard
+gates and the move speed budget. No tooling needs it. **Never set it in production.**
 
 ## How to play
 
@@ -54,10 +70,12 @@ per-message hard cap still applies). Bots take `WS_URL=ws://host:port/ws`.
 | Enter | chat (instance-scoped; log + speech bubbles) |
 | MMB | ping — drop a "look here" marker for your team |
 | Q | raise a help beacon (visible to everyone in the Nexus) |
+| X | stop waiting at a co-op threshold |
+| Y / N | agree / decline a partner's reset vote |
 | L | loadout: equip devices, spend skill points, check inventory |
 | T | place/recall your Echo (Echo Core skill) |
 | V | Phase Sight (skill) — reveal hidden items |
-| Esc | menu: settings, invite link, reset level, return to Nexus |
+| Esc | menu: settings, invite link, reset level (a vote when others are present), return to Nexus |
 
 **Graphics (auto-scaling Low/Medium/High, set in Esc → menu):** traveling device
 projectiles that fly, cast a dynamic light as they pass, and flash on impact; a

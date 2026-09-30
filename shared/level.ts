@@ -1,7 +1,7 @@
 // THRESHOLD level format v1 (spec §17) — data-driven, versioned, validated.
 import type { DeviceId } from './devices';
 import type { EnemyType } from './enemies';
-import { exprIdents } from './expr';
+import { evalExpr, exprIdents } from './expr';
 
 export type Vec3 = [number, number, number];
 
@@ -97,6 +97,8 @@ export interface LevelDef {
   enemies?: EnemySpawnDef[];
   /** grants a device permanently on first clear / pickup within level */
   grantsDevice?: DeviceId;
+  /** ordered HUD checklist; each step is ticked while its `done` expression holds */
+  objectives?: { text: string; done: string }[];
   puzzle?: {
     solved: string;           // base-gear co-op path expression — ALWAYS present for levels
     soloSolution?: string;    // additive gear/skill-gated path; omitted for strictly-co-op
@@ -141,6 +143,9 @@ export function validateLevel(lv: LevelDef): string[] {
   for (const g of lv.geometry) if (g.door) known.add(g.door.id);
   const checkExpr = (src: string, where: string) => {
     try {
+      // exprIdents only tokenizes — also PARSE, so dangling operators or unbalanced
+      // parens ("a &&", "(a") fail validation instead of at runtime
+      evalExpr(src, () => 0);
       for (const ident of exprIdents(src)) {
         const root = ident.split('.')[0];
         if (!known.has(root)) errs.push(`${where}: unknown identifier "${ident}"`);
@@ -177,6 +182,14 @@ export function validateLevel(lv: LevelDef): string[] {
     mark.set(id, DONE);
   };
   for (const id of doorDeps.keys()) visit(id, []);
+  if (lv.objectives !== undefined) {
+    if (!Array.isArray(lv.objectives) || lv.objectives.length > 8) errs.push('objectives: must be a list of at most 8 steps');
+    else lv.objectives.forEach((o, i) => {
+      if (typeof o?.text !== 'string' || !o.text.trim() || o.text.length > 80) errs.push(`objectives[${i}]: text must be 1-80 chars`);
+      if (typeof o?.done !== 'string') errs.push(`objectives[${i}]: missing done expression`);
+      else checkExpr(o.done, `objectives[${i}].done`);
+    });
+  }
   if (lv.puzzle) {
     checkExpr(lv.puzzle.solved, 'puzzle.solved');
     if (lv.puzzle.soloSolution) checkExpr(lv.puzzle.soloSolution, 'puzzle.soloSolution');

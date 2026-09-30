@@ -19,6 +19,7 @@ const LOBBY_TICK_MS = 100;   // 10 Hz lobby tick
 const LOBBY_CAP = 24;
 const REAP_AFTER_MS = 60_000;
 const SLOT_HOLD_MS = 90_000;
+const RESET_VOTE_MS = 10_000;
 const WORLD_SHARD_GATES: Record<string, number> = { atrium: 0, vaults: 3, gardens: 6, observatory: 9 };
 /** Dev/test bypass: skips shard/world entry gates and the move speed budget so
     headless bots (tools/playtest-*.ts) and the screenshot rig can noclip-teleport
@@ -89,11 +90,15 @@ export class PlayerSession {
   damageCarry = 0;
   connected = true;
   disconnectedAt?: number;
+  /** party: players who stay together across levels (see GameServer parties) */
+  partyId?: string;
+  /** display colour inside the current level instance when the profile colour is taken */
+  slotAccent?: string;
 
   constructor(id: string, link: ClientLink, profile: Profile) {
     this.id = id; this.link = link; this.profile = profile;
   }
-  get accent() { return this.profile.accent; }
+  get accent() { return this.slotAccent ?? this.profile.accent; }
   hasSkill(s: SkillId) { return this.profile.skills.includes(s); }
   cooldownScale() { return Date.now() < this.overchargeUntil ? 0.5 : 1; }
   snap(): PlayerSnap {
@@ -129,6 +134,7 @@ export abstract class Instance {
   abstract snapshot(): InstanceSnapshot;
   removePlayer(p: PlayerSession) {
     this.players.delete(p.id);
+    p.slotAccent = undefined;
     this.broadcast({ t: 'peer_left', v: 1, id: p.id });
     if (this.players.size === 0) this.emptySince = Date.now();
   }
@@ -225,7 +231,48 @@ export class LevelInstance extends Instance {
   }
 
   /** instance reaped — nothing scheduled may touch it afterwards */
-  destroy() { this.clearTimers(); }
+  destroy() { this.clearTimers(); this.closeResetVote(); }
+
+  // ----- reset vote: alone resets at once; with company a majority must agree in 10 s -----
+  private resetVote?: { by: string; byName: string; yes: Set<string>; no: Set<string>; endsAt: number; timer: ReturnType<typeof setTimeout> };
+  requestReset(p: PlayerSession) {
+    const voters = this.present();
+    if (voters.length <= 1) { this.reset(p); return; }
+    if (this.resetVote) { this.castResetVote(p, true); return; }
+    const endsAt = Date.now() + RESET_VOTE_MS;
+    this.resetVote = {
+      by: p.id, byName: p.profile.name, yes: new Set([p.id]), no: new Set(), endsAt,
+      timer: setTimeout(() => this.finishResetVote(false), RESET_VOTE_MS),
+    };
+    this.broadcastResetVote('open');
+  }
+  castResetVote(p: PlayerSession, yes: boolean) {
+    const v = this.resetVote;
+    if (!v || !this.players.has(p.id)) return;
+    v.yes.delete(p.id); v.no.delete(p.id);
+    (yes ? v.yes : v.no).add(p.id);
+    const n = this.present().length, needed = Math.floor(n / 2) + 1;
+    if (v.yes.size >= needed) this.finishResetVote(true);
+    else if (v.no.size > n - needed) this.finishResetVote(false);
+    else this.broadcastResetVote('open');
+  }
+  private finishResetVote(passed: boolean) {
+    const v = this.resetVote;
+    if (!v) return;
+    this.broadcastResetVote(passed ? 'passed' : 'failed');
+    this.closeResetVote();
+    if (passed) this.reset(this.players.get(v.by));
+  }
+  private closeResetVote() {
+    if (this.resetVote) clearTimeout(this.resetVote.timer);
+    this.resetVote = undefined;
+  }
+  private broadcastResetVote(state: 'open' | 'passed' | 'failed') {
+    const v = this.resetVote;
+    if (!v) return;
+    const n = this.present().length;
+    this.broadcast({ t: 'reset_vote', v: 1, state, by: v.byName, yes: v.yes.size, needed: Math.floor(n / 2) + 1, endsAt: v.endsAt });
+  }
 
   seed() {
     this.clearTimers();
@@ -301,6 +348,11 @@ export class LevelInstance extends Instance {
 
   // ----- join/leave -----
   addPlayer(p: PlayerSession, spawnName = 'entry') {
+    // everyone in a level instance gets a distinct colour: keep the profile colour
+    // when it's free, otherwise take the first free accent for this instance only
+    const taken = new Set(this.present().filter((o) => o.id !== p.id).map((o) => o.accent));
+    p.slotAccent = undefined;
+    if (!p.profile.accent || taken.has(p.profile.accent)) p.slotAccent = PLAYER_ACCENTS.find((a) => !taken.has(a));
     this.players.set(p.id, p);
     p.instance = this;
     const spawn = this.level.spawns[spawnName] ?? this.level.spawns['entry'];
@@ -734,6 +786,10 @@ export class LevelInstance extends Instance {
     p.pos = [...(cp ?? this.level.spawns['entry'])] as Vec3;
     p.hp = PLAYER_MAX_HP; p.state = 'alive'; p.damageCarry = 0;
     p.ignoreMovesUntil = Date.now() + 500;
+    // the entry spawn sits ~1 m from the back-to-Nexus portal in several levels: a
+    // portal armed before dying would fire on the respawn and eject the player
+    p.armedPortals.clear();
+    p.portalCooldownUntil = Date.now() + 1500;
     this.broadcast({ t: 'respawn', v: 1, id: p.id, p: p.pos });
     this.mgr.store.telemetry(p.profile.token, 'respawn', { level: this.level.id });
   }
@@ -1151,7 +1207,11 @@ export function unlockedWorlds(profile: Profile): string[] {
 // ---------- game server (instance manager + dispatch) ----------
 export class GameServer {
   lobbies: LobbyInstance[] = [];
+  /** live level instances by INSTANCE id — each group/party gets its own run */
   levels = new Map<string, LevelInstance>();
+  /** parties by id → member player ids. A party forms when players enter a level
+      together, answer a beacon, or follow an invite link, and persists across levels. */
+  parties = new Map<string, Set<string>>();
   sessions = new Map<string, PlayerSession>();          // by player id
   byToken = new Map<string, PlayerSession>();
   /** co-op entry gate: players waiting at a level's threshold until min players gather */
@@ -1187,7 +1247,11 @@ export class GameServer {
     let changed = false;
     for (const [lvl, q] of this.waiting) {
       for (const [id, w] of q) {
-        if (!w.p.connected || now - w.at > 90_000) { q.delete(id); changed = true; }
+        if (!w.p.connected || now - w.at > 90_000) {
+          q.delete(id); changed = true;
+          const def = getLevel(lvl);
+          if (w.p.connected && def) w.p.link.send({ t: 'gate_wait', v: 1, level: lvl, levelName: def.name, waiting: 0, needed: def.players.min, cancelled: true });
+        }
       }
       if (q.size === 0) this.waiting.delete(lvl);
     }
@@ -1266,12 +1330,57 @@ export class GameServer {
         return;
       }
     }
-    if (target && (this.levels.has(target) || target.startsWith('wait-') ||
-        [...this.levels.values()].some((i) => i.id === target))) {
+    // invite link ?join=@<playerId>: join the inviter's party, then their level or lobby
+    if (target?.startsWith('@')) {
+      const host = this.sessions.get(target.slice(1));
+      if (host && host.connected && host !== p) {
+        this.joinParty(p, host);
+        if (host.instance instanceof LevelInstance) {
+          this.joinInstance(p, host.instance.id);
+          if (p.instance) return;
+        }
+        this.toLobby(p, host.instance instanceof LobbyInstance ? host.instance : undefined);
+        return;
+      }
+    } else if (target && (this.levels.has(target) || target.startsWith('wait-'))) {
       this.joinInstance(p, target);
       if (p.instance) return;
     }
     this.toLobby(p);
+  }
+
+  // ----- parties -----
+  partyMembers(p: PlayerSession): PlayerSession[] {
+    const ids = p.partyId ? this.parties.get(p.partyId) : undefined;
+    if (!ids) return [p];
+    return [...ids].map((id) => this.sessions.get(id)).filter((x): x is PlayerSession => !!x);
+  }
+  /** move `p` into `host`'s party (creating it if the host has none) */
+  joinParty(p: PlayerSession, host: PlayerSession) {
+    if (p === host || (p.partyId && p.partyId === host.partyId)) return;
+    if (!host.partyId) { host.partyId = `party-${host.id}`; this.parties.set(host.partyId, new Set([host.id])); }
+    this.leaveParty(p);
+    p.partyId = host.partyId;
+    this.parties.get(host.partyId)!.add(p.id);
+  }
+  leaveParty(p: PlayerSession) {
+    if (!p.partyId) return;
+    const set = this.parties.get(p.partyId);
+    set?.delete(p.id);
+    if (set && set.size <= 1) {
+      for (const id of set) { const o = this.sessions.get(id); if (o) o.partyId = undefined; }
+      this.parties.delete(p.partyId);
+    }
+    p.partyId = undefined;
+  }
+  /** a live instance of `levelId` where a party member of `p` is present, with room */
+  private partyInstance(p: PlayerSession, levelId: string): LevelInstance | undefined {
+    for (const m of this.partyMembers(p)) {
+      if (m === p || !m.connected) continue;
+      const inst = m.instance;
+      if (inst instanceof LevelInstance && inst.level.id === levelId && inst.players.size < inst.level.players.max) return inst;
+    }
+    return undefined;
   }
 
   /** Why `p` may not enter `levelId` from outside (menu, beacon, invite link), or
@@ -1292,9 +1401,13 @@ export class GameServer {
     return null;
   }
 
-  toLobby(p: PlayerSession) {
+  toLobby(p: PlayerSession, prefer?: LobbyInstance) {
     p.instance?.removePlayer(p);
-    let lobby = this.lobbies.find((l) => l.players.size < LOBBY_CAP);
+    // keep parties together in the Nexus when there's room
+    const partyLobby = this.partyMembers(p).map((m) => m.instance)
+      .find((i): i is LobbyInstance => i instanceof LobbyInstance && i.players.size < LOBBY_CAP);
+    let lobby = (prefer && prefer.players.size < LOBBY_CAP ? prefer : undefined) ?? partyLobby ??
+      this.lobbies.find((l) => l.players.size < LOBBY_CAP);
     if (!lobby) {
       lobby = new LobbyInstance(`lobby-${this.lobbies.length}`, this);
       this.lobbies.push(lobby);
@@ -1315,52 +1428,58 @@ export class GameServer {
 
   /** `viaPortal`: entry through a fixed in-level portal, whose own conditions
       (requiresSolved) were already checked — skips the Nexus shard gate. */
-  enterLevel(p: PlayerSession, levelId: string, spawnName = 'entry', opts: { viaPortal?: boolean } = {}) {
+  enterLevel(p: PlayerSession, levelId: string, spawnName = 'entry', opts: { viaPortal?: boolean; invited?: boolean } = {}) {
     const def = getLevel(levelId);
     if (!def || def.world === 'nexus') { p.toast('That way is closed.', 'warn'); return; }
-    if (!opts.viaPortal) {
+    // a party member already inside: join their run directly. Following a friend
+    // ignores your own shard gate (the gate only stops opening a sealed level solo).
+    const partyInst = this.partyInstance(p, levelId);
+    if (!opts.viaPortal && !opts.invited && !partyInst) {
       const why = this.accessDenied(p, levelId);
       if (why) { p.toast(why, 'warn'); p.link.send({ t: 'error', v: 1, code: 'sealed', message: why }); return; }
     }
-    const inst = this.levels.get(levelId);
+    if (partyInst) { this.dequeue(p); p.instance?.removePlayer(p); partyInst.addPlayer(p, spawnName); return; }
     // co-op entry gate (1.1): a min>=2 level opens only when enough players gather
-    // at its threshold — unless someone is already inside to join
-    const connectedInside = inst?.present().length ?? 0;
-    if (def.players.min >= 2 && connectedInside === 0) {
+    // at its threshold; the group then gets its own fresh instance
+    if (def.players.min >= 2) {
       let q = this.waiting.get(levelId);
       if (!q) { q = new Map(); this.waiting.set(levelId, q); }
       const wasQueued = q.has(p.id);
       this.dequeue(p, levelId);                 // leave any other queue
       q.set(p.id, { p, at: Date.now() });
       if (q.size >= def.players.min) {
-        const group = [...q.values()].map((w) => w.p).filter((w) => w.connected);
-        this.waiting.delete(levelId);
-        for (const gp of group) this.actuallyEnter(gp, levelId, spawnName);
+        const group = [...q.values()].map((w) => w.p).filter((w) => w.connected).slice(0, def.players.max);
+        for (const gp of group) q.delete(gp.id);
+        if (q.size === 0) this.waiting.delete(levelId);
+        // the group plays together from here on: one party, one fresh instance
+        for (const gp of group.slice(1)) this.joinParty(gp, group[0]);
+        const inst = this.createInstance(def);
+        for (const gp of group) this.actuallyEnter(gp, inst, spawnName);
         this.pushBeacons();
         return;
       }
       p.portalCooldownUntil = Date.now() + 2500;   // don't re-trigger every tick at the portal
       if (!wasQueued) {
         p.link.send({ t: 'gate_wait', v: 1, level: levelId, levelName: def.name, waiting: q.size, needed: def.players.min });
-        p.toast(`${def.name} needs ${def.players.min} — waiting at the threshold. The Nexus can see you.`, 'info');
         this.pushBeacons();
       }
       return;
     }
-    this.actuallyEnter(p, levelId, spawnName);
+    // solo-capable level: a fresh run of your own (never a stranger's instance)
+    this.actuallyEnter(p, this.createInstance(def), spawnName);
   }
 
-  private actuallyEnter(p: PlayerSession, levelId: string, spawnName = 'entry') {
-    const def = getLevel(levelId);
-    if (!def) return;
+  private createInstance(def: LevelDef): LevelInstance {
+    const id = `lvl-${def.id}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const inst = new LevelInstance(id, def, this);
+    this.levels.set(id, inst);
+    return inst;
+  }
+
+  private actuallyEnter(p: PlayerSession, inst: LevelInstance, spawnName = 'entry') {
     this.dequeue(p);
     p.instance?.removePlayer(p);
-    let inst = this.levels.get(levelId);
-    if (!inst) {
-      inst = new LevelInstance(`lvl-${levelId}-${Date.now().toString(36)}`, def, this);
-      this.levels.set(levelId, inst);
-    }
-    if (inst.players.size >= def.players.max) { p.toast('That threshold is crowded — try again soon.', 'warn'); this.toLobby(p); return; }
+    if (inst.players.size >= inst.level.players.max) { p.toast('That threshold is crowded — try again soon.', 'warn'); this.toLobby(p); return; }
     inst.addPlayer(p, spawnName);
   }
 
@@ -1377,17 +1496,29 @@ export class GameServer {
 
   joinInstance(p: PlayerSession, key: string) {
     // beacon entries for gate-waits use the "wait-<levelId>" pseudo-id
-    if (key.startsWith('wait-')) { this.enterLevel(p, key.slice(5)); return; }
-    let inst = this.levels.get(key);
-    if (!inst) inst = [...this.levels.values()].find((i) => i.id === key);
-    if (!inst) { this.toLobby(p); return; }
-    if (p.instance === inst) return;
-    const why = this.accessDenied(p, inst.level.id);
-    if (why) { p.toast(why, 'warn'); p.link.send({ t: 'error', v: 1, code: 'sealed', message: why }); return; }
-    if (inst.present().length === 0 && inst.level.players.min >= 2) {
-      this.enterLevel(p, inst.level.id);        // empty gated level → same queue rules
+    // answering someone waiting there counts as an invitation (their gate, not yours)
+    if (key.startsWith('wait-')) {
+      const levelId = key.slice(5);
+      const q = this.waiting.get(levelId);
+      const host = q ? [...q.values()].find((w) => w.p.connected && w.p !== p)?.p : undefined;
+      this.enterLevel(p, levelId, 'entry', { invited: !!host });
       return;
     }
+    const inst = this.levels.get(key);
+    if (!inst) { this.toLobby(p); return; }
+    if (p.instance === inst) return;
+    // instances are private: joinable only while their beacon is up, or by party members
+    const party = new Set(this.partyMembers(p).map((m) => m.id));
+    const partyInside = inst.present().some((o) => party.has(o.id) && o !== p);
+    if (!inst.beacon && !partyInside) { p.toast('That session is private — ask for an invite.', 'warn'); return; }
+    const host = inst.present().find((o) => o !== p);
+    if (!host) {
+      // nobody there to follow: the normal gate + shard rules apply
+      this.enterLevel(p, inst.level.id);
+      return;
+    }
+    if (inst.players.size >= inst.level.players.max) { p.toast('That session is full.', 'warn'); return; }
+    this.joinParty(p, host);
     this.dequeue(p);
     p.instance?.removePlayer(p);
     inst.addPlayer(p);
@@ -1429,6 +1560,7 @@ export class GameServer {
     if (p.instance instanceof LevelInstance) p.instance.release(p);
     if (immediate) {
       this.dequeue(p);
+      this.leaveParty(p);
       p.instance?.removePlayer(p);
       p.instance = undefined;
       this.sessions.delete(p.id);
@@ -1438,6 +1570,7 @@ export class GameServer {
     // hold slot ~90s; then fully remove
     setTimeout(() => {
       if (p.disconnectedAt && Date.now() - p.disconnectedAt >= SLOT_HOLD_MS - 100) {
+        this.leaveParty(p);
         p.instance?.removePlayer(p);
         this.sessions.delete(p.id);
         if (this.byToken.get(p.profile.token) === p) this.byToken.delete(p.profile.token);
@@ -1540,7 +1673,17 @@ export class GameServer {
       }
       case 'revive_start': if (inst instanceof LevelInstance) inst.reviveStart(p, msg.target); break;
       case 'revive_cancel': p.reviveTargetId = undefined; break;
-      case 'reset_level': if (inst instanceof LevelInstance) inst.reset(p); break;
+      case 'reset_level': if (inst instanceof LevelInstance) inst.requestReset(p); break;
+      case 'reset_vote': if (inst instanceof LevelInstance) inst.castResetVote(p, msg.yes); break;
+      case 'cancel_wait': {
+        for (const [lvl, q] of this.waiting) {
+          if (!q.has(p.id)) continue;
+          const def = getLevel(lvl);
+          if (def) p.link.send({ t: 'gate_wait', v: 1, level: lvl, levelName: def.name, waiting: 0, needed: def.players.min, cancelled: true });
+        }
+        this.dequeue(p);
+        break;
+      }
       case 'echo':
         if (!p.hasSkill('echo-core')) break;
         if (msg.place) {
