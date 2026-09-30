@@ -143,11 +143,23 @@ const frag = /* glsl */`
     float cs = dot(d, uSunDir);
     float disc = smoothstep(cos(uSunSize), cos(uSunSize * 0.75), cs);
     float halo = pow(max(cs, 0.0), 48.0) * 0.55 + pow(max(cs, 0.0), 6.0) * 0.12 * uInscatter;
+    #ifdef CLOUD_SEA
+      // golden hour: an apricot disc that REPLACES the blue sky under it — added
+      // on top, warm + blue went through AgX as a mint-green sun
+      vec3 sunTint = uSunColor * vec3(1.0, 0.82, 0.62);
+      col += sunTint * halo;
+      #ifndef ENV_MODE
+        col = mix(col, sunTint * 2.6, disc);
+      #else
+        col = mix(col, sunTint * 1.2, disc);
+      #endif
+    #else
     col += uSunColor * halo;
     #ifndef ENV_MODE
       col += uSunColor * disc * 2.4;   // true HDR: the one sky element that blooms
     #else
       col += uSunColor * disc * 1.2;
+    #endif
     #endif
 
     #ifndef ENV_MODE

@@ -374,6 +374,10 @@ export const HUD_CSS = `
 #objectives .ob { display: flex; align-items: baseline; gap: 0.6em; padding: 0.18em 0; color: var(--ink-3); transition: color 0.4s var(--ease), opacity 0.4s var(--ease); }
 #objectives .ob i { flex: none; width: 0.7em; height: 0.7em; border: 1.5px solid currentColor; transform: rotate(45deg) translateY(-1px); transition: background 0.3s var(--ease); }
 #objectives .ob.cur { color: var(--ink); }
+/* sky theme: bright golden-hour skies behind the HUD — shadow the text, darken the empty pips */
+.sky-theme #objectives, .sky-theme #shards, .sky-theme #prompt, .sky-theme #levelinfo { text-shadow: 0 1px 2px rgba(20,16,40,0.85), 0 0 10px rgba(20,16,40,0.5); }
+.sky-theme #objectives .ob { color: var(--ink-2); }
+.sky-theme #shards .pip:not(.on) { background: rgba(30,26,56,0.4); }
 #objectives .ob.cur i { border-color: var(--gold); box-shadow: 0 0 8px rgba(var(--gold-rgb),0.5); }
 #objectives .ob.done { color: var(--ink-3); opacity: 0.7; }
 #objectives .ob.done span { text-decoration: line-through; text-decoration-color: rgba(168,240,198,0.6); }

@@ -16,7 +16,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
-import { SKY_THEME, SKY_PALETTES, worldPalette, initialPixelScale, type ThemedPalette, type PixelScale } from './theme';
+import { SKY_THEME, SKY_PALETTES, worldPalette, initialPixelScale, pixelBlock, type ThemedPalette, type PixelScale } from './theme';
 import { installHeightFog, setHeightFog } from './heightFog';
 import { makeSky } from './sky';
 import { WorldEnvironment } from './environment';
@@ -102,7 +102,8 @@ export class Renderer {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.gl.setSize(innerWidth, innerHeight);
-      if (this.pixelScale) this.applyPixelRatio();   // browser zoom changes the dpr → re-snap the block
+      // the pixel block depends on the window height and dpr (browser zoom), so re-pick it
+      this.applyPixelRatio();
       this.composer.setPixelRatio(this.gl.getPixelRatio());
       this.composer.setSize(innerWidth, innerHeight);
       this.syncPassSizes();
@@ -111,14 +112,16 @@ export class Renderer {
 
   get quality(): QualityTier { return this.q.tier; }
 
-  /** Pixel scale N renders the drawing buffer at 1/N of the CSS size and lets the
-   *  browser do an exact nearest upscale — every size path (pass targets, bloom
-   *  mips, VFX min-pixel guards) follows the buffer, and the DOM HUD stays crisp.
-   *  The block is snapped to whole device pixels so blocks stay square. */
+  /** Pixel mode renders the drawing buffer at 1/block of the device size and lets
+   *  the browser do an exact nearest upscale — every size path (pass targets,
+   *  bloom mips, VFX min-pixel guards) follows the buffer, and the DOM HUD stays
+   *  crisp. The block is a whole number of DEVICE pixels picked from a target row
+   *  count (theme.ts pixelBlock), so the look is the same at 720p, 1080p and 1440p
+   *  and blocks stay square at fractional dprs. */
   private applyPixelRatio() {
     const dpr = devicePixelRatio || 1;
     if (this.pixelScale) {
-      const block = Math.max(1, Math.round(this.pixelScale * dpr));
+      const block = pixelBlock(this.pixelScale, innerHeight * dpr);
       this.gl.setPixelRatio(dpr / block);
       this.gl.domElement.style.imageRendering = 'pixelated';
     } else {
@@ -262,6 +265,7 @@ export class Renderer {
       highlights: new THREE.Color(p.gradeHighlights),
       saturation: p.saturation,
       contrast: p.contrast,
+      levels: p.levels,
     });
   }
 

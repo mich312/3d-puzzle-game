@@ -10,7 +10,7 @@ import type { InstanceSnapshot } from '../shared/messages';
 import { icon, DEVICE_ICON, SKILL_ICON } from './icons';
 import { HUD_CSS } from './ui/hud-css';
 import { startBackdrop, type Backdrop } from './ui/backdrop';
-import { initialPixelScale, type PixelScale } from './render/theme';
+import { SKY_THEME, initialPixelScale, type PixelScale } from './render/theme';
 
 export interface HudCallbacks {
   onStart(name: string, accent: string): void;
@@ -65,6 +65,8 @@ export class Hud {
 
   constructor(cb: HudCallbacks) {
     this.cb = cb;
+    // sky theme: HUD text sits over bright golden-hour sky, so it needs a shadow
+    if (SKY_THEME) document.documentElement.classList.add('sky-theme');
     const style = document.createElement('style');
     style.textContent = HUD_CSS;
     document.head.appendChild(style);
@@ -557,7 +559,7 @@ export class Hud {
         `<button type="button" data-v="${o}" class="${o === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     const QNOTE: Record<string, string> = { low: 'Fastest — for integrated GPUs.', medium: 'Reflections and dynamic lights.', high: 'Full effects.' };
     const DNOTE: Record<string, string> = { normal: 'Enemies hit as designed.', story: '60% less damage taken.' };
-    const PNOTE: Record<string, string> = { 0: 'Full resolution.', 2: 'Fine pixels.', 3: 'Classic pixels.', 4: 'Chunky pixels.' };
+    const PNOTE: Record<string, string> = { 0: 'Full resolution.', 2: 'Fine pixels, about 360 rows on any screen.', 3: 'Classic pixels, about 240 rows.', 4: 'Chunky pixels, about 180 rows.' };
     c.innerHTML = `
       <div class="mn-grid">
         <div>
@@ -570,7 +572,7 @@ export class Hud {
           <h3>GAMEPLAY &amp; DISPLAY</h3>
           <div class="st-row wide"><span>Combat difficulty</span><div>${seg('st-diff', s.difficulty, [['normal', 'Normal'], ['story', 'Story']])}</div><div class="st-note" id="st-diff-note">${DNOTE[s.difficulty]}</div></div>
           <div class="st-row wide"><span>Graphics quality</span><div>${seg('st-quality', s.quality, [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</div><div class="st-note" id="st-quality-note">${QNOTE[s.quality]}</div></div>
-          <div class="st-row wide"><span>Pixel scale</span><div>${seg('st-px', String(s.pixel), [['0', 'Off'], ['2', '2×'], ['3', '3×'], ['4', '4×']])}</div><div class="st-note" id="st-px-note">${PNOTE[s.pixel]}</div></div>
+          <div class="st-row wide"><span>Pixel scale</span><div>${seg('st-px', String(s.pixel), [['0', 'Off'], ['2', 'Fine'], ['3', 'Classic'], ['4', 'Chunky']])}</div><div class="st-note" id="st-px-note">${PNOTE[s.pixel]}</div></div>
           <div class="st-row wide"><span>Reduce motion</span><label class="tgl"><input type="checkbox" id="st-motion" ${s.reduceMotion ? 'checked' : ''} aria-label="Reduce motion"/><span></span></label></div>
         </div>
         <div class="mn-actions">

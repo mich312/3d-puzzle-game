@@ -77,7 +77,9 @@ WORLD_ATMOSPHERE.proving = WORLD_ATMOSPHERE.atrium;
 // sparse warm dust catching the low sun (dim: the world is bright now)
 const SKY_ATMOSPHERE: Layer[] = [
   L({ count: 220, box: [34, 14, 34], vel: [0.1, 0.05, 0.04], wobble: 0.5, wobbleFreq: 0.25, size: [0.035, 0.07],
-    color: '#fff3e2', color2: '#ffc987', intensity: 0.8, twinkle: 0.6, twinkleSpeed: 0.9, twinkleSharp: 3, sprite: SPR.bokeh }),
+    color: '#fff3e2', color2: '#ffc987', intensity: 1.1, alpha: 0.7, additive: 0, twinkle: 0.6, twinkleSpeed: 0.9, twinkleSharp: 3, sprite: SPR.bokeh }),
+  // alpha-blended, not additive: added onto the blue sky warm dust read as cyan
+  // orbs — the portal/switch signal hue
 ];
 
 const VERT = /* glsl */`

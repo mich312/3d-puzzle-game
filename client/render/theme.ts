@@ -33,6 +33,16 @@ function clampScale(n: number): PixelScale {
   return 4;
 }
 
+/** Target rows per setting: 2/3/4 are named for their block at 720p, but the
+ *  block follows the screen so every display gets the same pixel density. */
+export const PIXEL_ROWS: Record<Exclude<PixelScale, 0>, number> = { 2: 360, 3: 240, 4: 180 };
+
+/** whole device pixels per rendered pixel for `deviceRows` of output */
+export function pixelBlock(n: PixelScale, deviceRows: number): number {
+  if (!n) return 1;
+  return Math.max(1, Math.round(deviceRows / PIXEL_ROWS[n]));
+}
+
 /** ?px wins (and is remembered), then localStorage 't-px', then 3× */
 export function initialPixelScale(): PixelScale {
   const m = /[?&]px=(\d+)/.exec(query());
@@ -59,6 +69,8 @@ export interface SkyExtras {
   ignoreLevelFogColor: boolean;
   /** 16 sRGB hexes the pixel grade gently pulls toward */
   pixelPalette: string[];
+  /** display-space black / white points: AgX leaves golden hour flat and milky */
+  levels: [number, number];
 }
 export type ThemedPalette = WorldPalette & Partial<SkyExtras>;
 
@@ -75,7 +87,7 @@ export const SKY_PALETTES: Record<string, WorldPalette & SkyExtras> = {
     fogBase: -10, fogFalloff: 0.2, fogFloor: 0.06, inscatter: 0.6,
     gradeShadows: '#2a3060', gradeHighlights: '#fff1de', saturation: 1.12, contrast: 1.08,
     cloudY: -22, cloudLit: '#fff3e2', cloudShade: '#c9aebd', cloudCover: 0.44, cloudScale: 0.03,
-    fogScale: 1.0, ignoreLevelFogColor: true, pixelPalette: NEXUS_PIX,
+    fogScale: 1.0, ignoreLevelFogColor: true, pixelPalette: NEXUS_PIX, levels: [0.12, 0.84],
   },
   atrium: {
     sky: '#a6c4e4', fog: '#f4d8bf', fogDensity: 0.02, key: '#ffe4c0', keyIntensity: 2.6,
@@ -85,7 +97,7 @@ export const SKY_PALETTES: Record<string, WorldPalette & SkyExtras> = {
     fogBase: -8, fogFalloff: 0.2, fogFloor: 0.05, inscatter: 0.55,
     gradeShadows: '#283462', gradeHighlights: '#fff4e6', saturation: 1.1, contrast: 1.08,
     cloudY: -16, cloudLit: '#fff6ea', cloudShade: '#c4bcd6', cloudCover: 0.46, cloudScale: 0.034,
-    fogScale: 1.0, ignoreLevelFogColor: true, pixelPalette: ATRIUM_PIX,
+    fogScale: 1.0, ignoreLevelFogColor: true, pixelPalette: ATRIUM_PIX, levels: [0.12, 0.84],
   },
 };
 

@@ -4,8 +4,9 @@
 //   vignette → fine animated film grain.
 // PIXEL (sky-temples prototype, pixel scale on): grain is replaced by a static,
 // screen-locked 4×4 Bayer dither, per-channel level quantisation and a soft pull
-// toward a 16-entry world palette. Pixels whose pre-tonemap value × exposure is
-// HDR (emissive signals, the sun disc) bypass the quantiser so they stay vivid.
+// toward a 16-entry world palette. Pixels that are both HDR (pre-tonemap value ×
+// exposure) and saturated — emissive signals — bypass the quantiser so they stay
+// vivid; low-chroma brights (sunlit marble, sun halo) stay dithered.
 // Everything after tone mapping runs in display space so the grade controls
 // behave like a colourist's lift/gamma/gain. Grain doubles as a dither that hides
 // banding in the dark gradient skies.
@@ -18,6 +19,8 @@ export interface GradeSettings {
   highlights: THREE.Color;   // gain tint (display space)
   saturation: number;
   contrast: number;
+  /** display-space black / white points (levels stretch); omitted = [0, 1] */
+  levels?: [number, number];
 }
 
 const shader = {
@@ -32,7 +35,8 @@ const shader = {
     uAberration: { value: 0 },
     uTime: { value: 0 },
     uResolution: { value: new THREE.Vector2(1, 1) },
-    uLevels: { value: 16 },
+    uLevels: { value: 24 },
+    uBW: { value: new THREE.Vector2(0, 1) },
     uPalPull: { value: 0.35 },
     uSig: { value: new THREE.Vector2(1.6, 2.4) },
     uPal: { value: Array.from({ length: 16 }, () => new THREE.Vector3()) },
@@ -56,7 +60,7 @@ const shader = {
     uniform vec2 uResolution;
     uniform vec3 uPal[16];
     uniform float uLevels, uPalPull;
-    uniform vec2 uSig;
+    uniform vec2 uSig, uBW;
     varying vec2 vUv;
 
     uniform vec2 uLook;   // AgX look: x = power (contrast), y = saturation
@@ -127,6 +131,14 @@ const shader = {
 
       // lift / gain split-tone
       col = col * uGain + uLift * (1.0 - col);
+      // levels: golden-hour worlds stretch AgX's flat pastel range to real
+      // blacks and whites (night worlds keep 0..1)
+      if (uBW.x > 0.0 || uBW.y < 1.0) {
+        col = max((col - uBW.x) / (uBW.y - uBW.x), 0.0);
+        // hue-preserving white clip: a per-channel clamp would bleach bright
+        // signals (a cyan door seam went white); scaling by the max keeps chroma
+        col /= max(1.0, max(col.r, max(col.g, col.b)));
+      }
       float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
 
       // vignette (soft, elliptical)
@@ -134,8 +146,14 @@ const shader = {
       col *= 1.0 - uVignette * vig;
 
       #ifdef PIXEL
-        float hdr = max(max(raw.r, raw.g), raw.b) * toneMappingExposure;
-        float sig = smoothstep(uSig.x, uSig.y, hdr);          // emissive/HDR accents & sun stay vivid
+        // signals are the only things both bright AND saturated: sunlit marble and
+        // the sun's halo are bright but low-chroma, so they stay in the dither
+        // (otherwise they punch smooth, un-dithered holes in the frame); only
+        // truly hot cores (sun disc, white-hot emitters) bypass on brightness alone
+        float mx = max(max(raw.r, raw.g), raw.b), mn = min(min(raw.r, raw.g), raw.b);
+        float hdr = mx * toneMappingExposure;
+        float chroma = (mx - mn) / max(mx, 1e-4);
+        float sig = smoothstep(uSig.x, uSig.y, hdr) * max(smoothstep(0.3, 0.55, chroma), smoothstep(4.0, 8.0, hdr));
         float b = bayer4(gl_FragCoord.xy) - 0.46875;          // static, screen-locked, never animated
         vec3 lev = floor(clamp(col + b / uLevels, 0.0, 1.0) * uLevels + 0.5) / uLevels;
         vec3 best = lev; float bd = 1e9;
@@ -168,7 +186,7 @@ export class GradePass extends Pass {
     this.uniforms.uGrain.value = opts.grain;
     this.uniforms.uVignette.value = opts.vignette;
     this.uniforms.uAberration.value = opts.aberration ? 0.005 : 0;
-    // dev knobs: ?pxlevels=8..32 (per-channel levels), ?pxpull=0..1 (palette pull)
+    // dev knobs: ?pxlevels=8..32 (per-channel levels, default 24), ?pxpull=0..1 (palette pull)
     try {
       const lv = /[?&]pxlevels=(\d+)/.exec(location.search), pl = /[?&]pxpull=([\d.]+)/.exec(location.search);
       if (lv) this.uniforms.uLevels.value = THREE.MathUtils.clamp(Number(lv[1]), 8, 32);
@@ -197,6 +215,8 @@ export class GradePass extends Pass {
     const hl = (h.r + h.g + h.b) / 3 || 1;
     this.uniforms.uGain.value.set(h.r / hl, h.g / hl, h.b / hl).lerp(new THREE.Vector3(1, 1, 1), 0.6);
     this.uniforms.uLook.value.set(1.2 * g.contrast, 1.15 * g.saturation);
+    const [b, w] = g.levels ?? [0, 1];
+    this.uniforms.uBW.value.set(b, Math.max(w, b + 0.05));
   }
 
   /** 16 sRGB hexes → display-space palette (fresh vectors: UniformsUtils.clone

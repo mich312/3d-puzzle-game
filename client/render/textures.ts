@@ -500,7 +500,7 @@ function marbleTile(n: number, f: Fields) {
   }
 }
 
-// Bronze: warm cast metal, faint hammering, a cast groove every metre, verdigris.
+// Bronze: warm cast metal, faint hammering, a cast groove every metre, verdigris in the grooves.
 function bronze(n: number, f: Fields) {
   const base = srgb('#9a6a3a'), pat = srgb('#5f9a86');
   for (let y = 0; y < n; y++) {
@@ -510,7 +510,9 @@ function bronze(n: number, f: Fields) {
       const hammer = worley(u, v, 8, 211)[0];
       const gv = Math.abs(fract(v * TILE_METRES) - 0.5) * 1;       // metres from the groove line
       const groove = sstep(0.02, 0.0, 0.5 - gv);
-      const patina = clamp01(sstep(0.6, 0.8, fbm(u, v, 3, 4, 17)) * 0.8 + groove * 0.5);
+      // verdigris lives in the cast grooves plus a few faint freckles: big blotches
+      // read as rot on doors (a gameplay surface) and boil at low resolution
+      const patina = clamp01(sstep(0.74, 0.86, fbm(u, v, 3, 4, 17)) * 0.3 + groove * 0.7);
       f.h[i] = hammer * 0.002 - groove * 0.002;
       f.r[i] = lerp(base[0], pat[0], patina); f.g[i] = lerp(base[1], pat[1], patina); f.b[i] = lerp(base[2], pat[2], patina);
       f.ao[i] = 1 - groove * 0.3;
