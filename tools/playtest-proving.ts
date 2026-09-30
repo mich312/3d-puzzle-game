@@ -2,9 +2,11 @@
 // through every new mechanic — resonator order (incl. wrong-note reset), the
 // weight scale, the mimic ambush, and the carried-prism beam relay.
 // Usage: PORT=8080 tsx server/index.ts &  then  tsx tools/playtest-proving.ts
+// Uses a seeded guest profile (tools/test-profiles.ts) against the real access checks.
 import WebSocket from 'ws';
 import type { ClientMsg, ServerMsg } from '../shared/messages';
 import type { Vec3 } from '../shared/level';
+import { seededToken } from './test-profiles';
 
 const URL = process.env.WS_URL ?? 'ws://127.0.0.1:8080/ws';
 const results: { name: string; ok: boolean; note?: string }[] = [];
@@ -34,7 +36,7 @@ class Bot {
       this.ws.on('error', rej);
     });
     this.ws.on('message', (raw) => this.onMsg(JSON.parse(String(raw)) as ServerMsg));
-    this.send({ t: 'hello', v: 1, name: 'ProvingBot' });
+    this.send({ t: 'hello', v: 1, name: 'ProvingBot', token: seededToken('ProvingBot') });
     // stream position at client cadence so the server tracks us
     this.moveTimer = setInterval(() => this.send({ t: 'move', v: 1, p: this.pos, yaw: this.yaw, pitch: 0 }), 66);
   }
@@ -52,13 +54,13 @@ class Bot {
     if (m.t === 'solved') this.solved = true;
   }
 
-  /** walk in server-acceptable hops (< 12m per accepted move) */
+  /** walk at ~9.3 m/s — inside the server's move speed budget, like a player */
   async walkTo(p: Vec3) {
-    for (let guard = 0; guard < 60; guard++) {
+    for (let guard = 0; guard < 400; guard++) {
       const d = [p[0] - this.pos[0], p[1] - this.pos[1], p[2] - this.pos[2]];
       const l = Math.hypot(...d);
       if (l < 0.3) { this.pos = [...p] as Vec3; return; }
-      const s = Math.min(1, 6 / l);
+      const s = Math.min(1, 1.3 / l);
       this.pos = [this.pos[0] + d[0] * s, this.pos[1] + d[1] * s, this.pos[2] + d[2] * s];
       await sleep(140);
     }

@@ -4,9 +4,12 @@
 // Usage: PORT=8080 tsx server/index.ts &  then  tsx tools/shots.ts [outDir] [level ...]
 // Env: BASE_URL (default http://127.0.0.1:8080), QUALITY=low|medium|high (default high),
 //      SOLO=1 (one client only — cheaper; co-op levels are skipped since they need two)
+// Clients log in with seeded guest profiles (tools/test-profiles.ts), so sealed
+// levels open through the real shard gates — run on the server's machine/data dir.
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { seededToken } from './test-profiles';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8080';
 const OUT = process.argv[2] ?? 'shots';
@@ -47,7 +50,10 @@ async function main() {
   });
   const mk = async (name: string) => {
     const ctx = await browser.newContext({ viewport: { width: W, height: H } });
-    await ctx.addInitScript((q) => localStorage.setItem('t-quality', q), QUALITY);
+    await ctx.addInitScript(([q, token]) => {
+      localStorage.setItem('t-quality', q);
+      localStorage.setItem('threshold-token', token);
+    }, [QUALITY, seededToken(name)] as const);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log(`[${name}] pageerror`, e.message));
     page.on('console', (m) => { if (m.type() === 'error') console.log(`[${name}] console`, m.text()); });

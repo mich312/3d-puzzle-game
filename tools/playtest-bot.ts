@@ -3,13 +3,15 @@
 //   1. solo player solves atrium-01 (lever → pulse switch → kill drifter → shard)
 //   2. two players solve atrium-02 (simultaneity plates) with base gear
 //   3. down/revive round-trip
-// Usage: THRESHOLD_DEV_UNLOCK=1 PORT=8080 npx tsx server/index.ts &
+// Usage: PORT=8080 npx tsx server/index.ts &
 //        npx tsx tools/playtest-bot.ts [ws://localhost:8080/ws]   (or WS_URL=…)
-// The server must run with THRESHOLD_DEV_UNLOCK=1: fresh bot profiles have no
-// shards, and bots noclip-walk faster than the move speed budget allows.
+// Runs against the REAL access checks: bots connect with seeded guest profiles
+// (tools/test-profiles.ts) written to the server's data dir, and walk within the
+// server's move speed budget. Run on the same machine / THRESHOLD_DATA_DIR.
 import WebSocket from 'ws';
 import type { ClientMsg, ServerMsg, InstanceSnapshot } from '../shared/messages';
 import type { Vec3 } from '../shared/level';
+import { seededToken } from './test-profiles';
 
 const URL = process.argv[2] ?? process.env.WS_URL ?? 'ws://localhost:8080/ws';
 let failures = 0;
@@ -28,7 +30,9 @@ class Bot {
   msgs: ServerMsg[] = [];
   private mover?: ReturnType<typeof setInterval>;
 
+  private token: string;
   constructor(public name: string) {
+    this.token = seededToken(name);
     this.ws = new WebSocket(URL);
     this.ws.on('message', (raw) => {
       const m = JSON.parse(String(raw)) as ServerMsg;
@@ -73,7 +77,7 @@ class Bot {
         setTimeout(() => rej(new Error(`${this.name}: ws open timeout`)), 8000);
       });
     }
-    this.send({ t: 'hello', v: 1, name: this.name });
+    this.send({ t: 'hello', v: 1, name: this.name, token: this.token });
     await this.until(() => !!this.id, 'welcome');
     await this.until(() => !!this.snapshot, 'joined lobby');
     // Story difficulty (40% incoming damage) — the audit verifies puzzle LOGIC,
@@ -85,12 +89,13 @@ class Bot {
       coordinates belong to the old level. */
   async walkTo(p: Vec3) {
     const startLevel = this.levelId;
-    for (let guard = 0; guard < 200; guard++) {
+    for (let guard = 0; guard < 800; guard++) {
       if (this.levelId !== startLevel) return;
       const dx = p[0] - this.pos[0], dy = p[1] - this.pos[1], dz = p[2] - this.pos[2];
       const d = Math.hypot(dx, dy, dz);
       if (d < 0.4) return;
-      const step = Math.min(3, d);
+      // ~9.4 m/s: inside the server's 10 m/s horizontal move budget, like a player
+      const step = Math.min(WALK_STEP, d);
       this.pos = [this.pos[0] + (dx / d) * step, this.pos[1] + (dy / d) * step, this.pos[2] + (dz / d) * step];
       await sleep(90);
     }
@@ -117,6 +122,7 @@ class Bot {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const WALK_STEP = 0.85;
 function check(ok: boolean, what: string) {
   console.log(`${ok ? '  ✓' : '  ✗ FAIL'} ${what}`);
   if (!ok) failures++;
@@ -441,7 +447,11 @@ async function setState(bot: Bot, id: string, pos: Vec3, target: number) {
 
 /** pulse every alive enemy until all down; tractor-expose a colossus while firing */
 async function clearEnemies(bots: Bot[]): Promise<boolean> {
-  for (let i = 0; i < 70; i++) {
+  // budget scales with the pack size: a fixed 70 rounds was flaky on 3-enemy
+  // levels (observatory-01) when a foe kited the bot out of range
+  const initial = (bots[0].snapshot?.enemies ?? []).filter((e) => e.state !== 'down').length;
+  const rounds = 40 + 30 * initial;
+  for (let i = 0; i < rounds; i++) {
     const alive = (bots[0].snapshot?.enemies ?? []).filter((e) => e.state !== 'down');
     if (!alive.length) return true;
     for (const e of alive) {

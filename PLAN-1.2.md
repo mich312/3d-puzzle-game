@@ -10,25 +10,25 @@ Each milestone leaves the game shippable. Gate for every milestone: `typecheck` 
 `validate:content` + full bot suite **without** `THRESHOLD_DEV_UNLOCK` (new in M0)
 + a `tools/shots.ts` pass reviewed by eye.
 
-## Decisions needed before starting
-1. **Help beacons vs. shard gates.** Currently a low-shard player can't answer a
-   friend's beacon into a later world. Proposal: joining a *hosted* instance
-   ignores the joiner's gate; the gate still blocks opening a sealed level solo.
-2. **Solo fallback.** 10 of 12 levels hard-require two players. Options:
-   (a) keep co-op-only, (b) an Echo-driven solo variant per level, (c) a small
-   solo track. Recommendation: (a) for 1.2, revisit with telemetry.
-3. **Content target** for M4: 18 levels (+5) or 25 (+12). Recommendation: 18,
-   quality over count.
-4. **Reset rule.** Recommendation: any player may propose, majority confirms
-   within 10 s; solo instance resets immediately.
+## Decisions (settled 2026-09-30)
+1. **Help beacons vs. shard gates:** joining a *hosted* instance (someone
+   connected inside, via beacon, gate-wait or invite) ignores the joiner's own
+   shard gate — a newer player can follow a friend anywhere. The gate still
+   applies when nobody is there, so it can't open a sealed level solo. (M2)
+2. **Solo fallback:** none for 1.2 — the co-op-required levels stay co-op.
+   Revisit with telemetry on gate-wait abandonment.
+3. **Content target:** 18 levels (+5), quality over count. (M4)
+4. **Reset rule:** any player proposes, a majority confirms within 10 s; a solo
+   instance resets immediately. (M2)
 
 ## M0 — Safety net (S, ~1–2 days) — do first
 - GitHub Actions: `npm ci`, `typecheck`, `validate:content`, `build`, then boot
   the server and run `playtest-bot.ts` + `playtest-proving.ts`.
-- Bots stop relying on `THRESHOLD_DEV_UNLOCK`: add a test-only profile seeding
-  path (e.g. `THRESHOLD_TEST_SEED` grants shards to bot tokens) so the real
-  access checks are exercised. Keep a dedicated negative test that a fresh
-  profile is refused a sealed level.
+- Bots stop relying on `THRESHOLD_DEV_UNLOCK`: they log in with seeded guest
+  profiles written straight into the server's store (`tools/test-profiles.ts`,
+  no new server surface) and walk inside the move speed budget, so the real
+  access checks and the move validator are exercised. The security suite keeps
+  the negative test that a fresh profile is refused a sealed level.
 - Promote the ad-hoc attack script to `tools/playtest-security.ts` in CI.
 - Fix the flaky `observatory-01` bot step (give `clearEnemies` a budget based on
   enemy count, not a fixed 70 iterations).

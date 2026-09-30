@@ -35,6 +35,7 @@ const optStr = (v: unknown, max = MAX_ID_LEN) => v === undefined || isStr(v, max
 /** Strip control chars, bidi overrides and zero-width/invisible code points, collapse whitespace. */
 export function sanitizeText(s: string, max: number): string {
   return s
+    .replace(/[\t\n\r\f\v]/g, ' ')        // whitespace controls separate words — keep them as spaces
     .replace(/[\u0000-\u001f\u007f-\u009f­؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ￰-￻]/g, '')
     .replace(/\s+/g, ' ')
     .trim()

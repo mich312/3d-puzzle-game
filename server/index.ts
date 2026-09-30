@@ -18,7 +18,7 @@ const MIME: Record<string, string> = {
 };
 
 loadContent();
-const store = openStore();
+const store = openStore(process.env.THRESHOLD_DATA_DIR || undefined);
 const game = new GameServer(store);
 watchContent(() => console.log('[content] reloaded'));
 
@@ -81,7 +81,7 @@ wss.on('connection', (ws: WebSocket) => {
     tokens = Math.min(MSG_BURST, tokens + ((now - lastRefill) / 1000) * MSG_RATE);
     lastRefill = now;
     if (tokens < 1) {
-      if (++drops > MAX_DROPS) { console.warn('[ws] closing flooding socket'); ws.close(1008, 'rate limit'); }
+      if (++drops === MAX_DROPS + 1) { console.warn('[ws] closing flooding socket'); ws.close(1008, 'rate limit'); }
       return;
     }
     tokens -= 1;
